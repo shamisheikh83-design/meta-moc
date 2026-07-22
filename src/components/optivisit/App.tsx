@@ -17,14 +17,17 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [visits, setVisits] = useState<Visit[]>([]);
   const [retailers, setRetailers] = useState<Retailer[]>([]);
+  const [salesmen, setSalesmen] = useState<Salesman[]>([]);
 
   useEffect(() => {
     setVisits(store.getVisits());
     setRetailers(store.getRetailers());
+    setSalesmen(store.getSalesmen());
   }, []);
 
   const refreshVisits = () => setVisits(store.getVisits());
   const refreshRetailers = () => setRetailers(store.getRetailers());
+  const refreshSalesmen = () => setSalesmen(store.getSalesmen());
 
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
