@@ -150,13 +150,29 @@ function StatCard({ label, value, tone }: { label: string; value: React.ReactNod
   );
 }
 
-function OutcomeBadge({ outcome }: { outcome: Visit["outcome"] }) {
-  const map = {
-    successful: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    "follow-up": "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-    "no-interest": "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-  } as const;
-  return <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${map[outcome]}`}>{outcome}</span>;
+const OUTCOME_COLORS: Record<Outcome, string> = {
+  Satisfactory: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+  Successful: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  "Not Interested": "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  "Meeting unsuccessful": "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+  "Not Met": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  Complaints: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+  "Linked to Other Company": "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+};
+
+const STATUS_COLORS: Record<VisitStatus, string> = {
+  Visited: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  "Not Visited": "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  "No Update": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  Holiday: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+};
+
+function OutcomeBadge({ outcome }: { outcome: Outcome }) {
+  return <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${OUTCOME_COLORS[outcome]}`}>{outcome}</span>;
+}
+
+function StatusBadge({ status }: { status: VisitStatus }) {
+  return <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${STATUS_COLORS[status]}`}>{status}</span>;
 }
 
 function EmptyHint({ text }: { text: string }) {
