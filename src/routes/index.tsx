@@ -1,24 +1,37 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { PinGate } from "@/components/optivisit/PinGate";
+import { OptiVisitApp } from "@/components/optivisit/App";
+import { store } from "@/lib/optivisit-store";
+import { Toaster } from "@/components/ui/sonner";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "OptiVisit — Optician Visits Tracker" },
+      { name: "description", content: "Log salesmen visits to optician shops, manage retailers, and view reports." },
+      { property: "og:title", content: "OptiVisit — Optician Visits Tracker" },
+      { property: "og:description", content: "Log salesmen visits to optician shops, manage retailers, and view reports." },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const [ready, setReady] = useState(false);
+  const [unlocked, setUnlocked] = useState(false);
+
+  useEffect(() => {
+    setUnlocked(store.getSession());
+    setReady(true);
+  }, []);
+
+  if (!ready) return null;
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <>
+      {unlocked ? <OptiVisitApp onLock={() => setUnlocked(false)} /> : <PinGate onUnlock={() => setUnlocked(true)} />}
+      <Toaster position="top-center" />
+    </>
   );
 }
