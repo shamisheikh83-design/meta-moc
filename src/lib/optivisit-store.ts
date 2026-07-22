@@ -21,6 +21,14 @@ export type Retailer = {
   notes: string;
 };
 
+export type Salesman = {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  mobile: string;
+};
+
 export type Settings = {
   salesmanName: string;
   pinHash: string | null;
@@ -28,6 +36,7 @@ export type Settings = {
 
 const K_VISITS = "ov_visits";
 const K_RETAILERS = "ov_retailers";
+const K_SALESMEN = "ov_salesmen";
 const K_SETTINGS = "ov_settings";
 const K_SESSION = "ov_session";
 
