@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, type Visit, type Retailer, type Salesman } from "@/lib/optivisit-store";
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users } from "lucide-react";
+import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome } from "@/lib/optivisit-store";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
@@ -93,7 +93,7 @@ function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer
   const visitsMonth = visits.filter((v) => v.date.startsWith(thisMonth));
   const revenueMonth = visitsMonth.reduce((s, v) => s + (v.ordersValue || 0), 0);
   const successRate = visitsMonth.length
-    ? Math.round((visitsMonth.filter((v) => v.outcome === "successful").length / visitsMonth.length) * 100)
+    ? Math.round((visitsMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory").length / visitsMonth.length) * 100)
     : 0;
 
   const recent = [...visits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
@@ -150,13 +150,29 @@ function StatCard({ label, value, tone }: { label: string; value: React.ReactNod
   );
 }
 
-function OutcomeBadge({ outcome }: { outcome: Visit["outcome"] }) {
-  const map = {
-    successful: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    "follow-up": "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-    "no-interest": "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-  } as const;
-  return <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${map[outcome]}`}>{outcome}</span>;
+const OUTCOME_COLORS: Record<Outcome, string> = {
+  Satisfactory: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+  Successful: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  "Not Interested": "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  "Meeting unsuccessful": "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+  "Not Met": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  Complaints: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+  "Linked to Other Company": "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+};
+
+const STATUS_COLORS: Record<VisitStatus, string> = {
+  Visited: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  "Not Visited": "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  "No Update": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  Holiday: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+};
+
+function OutcomeBadge({ outcome }: { outcome: Outcome }) {
+  return <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${OUTCOME_COLORS[outcome]}`}>{outcome}</span>;
+}
+
+function StatusBadge({ status }: { status: VisitStatus }) {
+  return <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${STATUS_COLORS[status]}`}>{status}</span>;
 }
 
 function EmptyHint({ text }: { text: string }) {
@@ -199,8 +215,9 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
               <li key={v.id} className="bg-card border rounded-2xl p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="font-medium text-sm truncate">{r?.name ?? "Unknown"}</div>
+                      <StatusBadge status={v.visitStatus} />
                       <OutcomeBadge outcome={v.outcome} />
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -229,7 +246,8 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
   const [retailerId, setRetailerId] = useState("");
   const [salesman, setSalesman] = useState(store.getSettings().salesmanName || "");
   const [purpose, setPurpose] = useState("");
-  const [outcome, setOutcome] = useState<Visit["outcome"]>("successful");
+  const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
+  const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [ordersValue, setOrdersValue] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -241,6 +259,7 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       retailerId,
       salesman,
       purpose,
+      visitStatus,
       outcome,
       ordersValue: Number(ordersValue) || 0,
       notes,
@@ -268,14 +287,20 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
         </Field>
         <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Your name" /></Field>
         <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
+        <Field label="Visit status">
+          <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VISIT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Outcome">
-            <Select value={outcome} onValueChange={(v) => setOutcome(v as Visit["outcome"])}>
+            <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="successful">Successful</SelectItem>
-                <SelectItem value="follow-up">Follow-up</SelectItem>
-                <SelectItem value="no-interest">No interest</SelectItem>
+                {OUTCOMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -298,82 +323,190 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 /* ---------------- Reports ---------------- */
+type RangePreset = "weekly" | "monthly" | "quarterly" | "custom";
+
+function toISODate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[] }) {
-  const byOutcome = useMemo(() => {
-    const acc = { successful: 0, "follow-up": 0, "no-interest": 0 } as Record<Visit["outcome"], number>;
-    visits.forEach((v) => { acc[v.outcome]++; });
-    return acc;
-  }, [visits]);
+  const today = new Date();
+  const [preset, setPreset] = useState<RangePreset>("monthly");
+  const [from, setFrom] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 29); return toISODate(d);
+  });
+  const [to, setTo] = useState<string>(toISODate(today));
 
-  const byRetailer = useMemo(() => {
-    const map = new Map<string, { count: number; revenue: number }>();
-    visits.forEach((v) => {
-      const cur = map.get(v.retailerId) ?? { count: 0, revenue: 0 };
-      cur.count++; cur.revenue += v.ordersValue || 0;
-      map.set(v.retailerId, cur);
+  const applyPreset = (p: RangePreset) => {
+    setPreset(p);
+    const end = new Date();
+    const start = new Date();
+    if (p === "weekly") start.setDate(end.getDate() - 6);
+    else if (p === "monthly") start.setDate(end.getDate() - 29);
+    else if (p === "quarterly") start.setDate(end.getDate() - 89);
+    else return;
+    setFrom(toISODate(start));
+    setTo(toISODate(end));
+  };
+
+  // Enforce max 1 year window
+  const onFromChange = (val: string) => {
+    setPreset("custom");
+    setFrom(val);
+    const f = new Date(val); const t = new Date(to);
+    const maxTo = new Date(f); maxTo.setFullYear(maxTo.getFullYear() + 1);
+    if (t > maxTo) setTo(toISODate(maxTo));
+    if (t < f) setTo(val);
+  };
+  const onToChange = (val: string) => {
+    setPreset("custom");
+    setTo(val);
+    const f = new Date(from); const t = new Date(val);
+    const minFrom = new Date(t); minFrom.setFullYear(minFrom.getFullYear() - 1);
+    if (f < minFrom) setFrom(toISODate(minFrom));
+    if (f > t) setFrom(val);
+  };
+
+  const filtered = useMemo(() => {
+    const f = new Date(from + "T00:00:00").getTime();
+    const t = new Date(to + "T23:59:59").getTime();
+    return visits.filter((v) => {
+      const ts = new Date(v.date).getTime();
+      return ts >= f && ts <= t;
     });
-    return [...map.entries()]
-      .map(([id, s]) => ({ retailer: retailers.find((r) => r.id === id)?.name ?? "Unknown", ...s }))
-      .sort((a, b) => b.count - a.count);
-  }, [visits, retailers]);
+  }, [visits, from, to]);
 
-  const total = visits.length || 1;
+  const statusCounts = useMemo(() => {
+    const acc: Record<VisitStatus, number> = { Visited: 0, "Not Visited": 0, "No Update": 0, Holiday: 0 };
+    filtered.forEach((v) => { if (v.visitStatus) acc[v.visitStatus]++; });
+    return acc;
+  }, [filtered]);
+
+  const outcomeCounts = useMemo(() => {
+    const acc = OUTCOMES.reduce((o, k) => { o[k] = 0; return o; }, {} as Record<Outcome, number>);
+    filtered.forEach((v) => { if (v.outcome && acc[v.outcome] !== undefined) acc[v.outcome]++; });
+    return acc;
+  }, [filtered]);
 
   const exportCsv = () => {
-    const header = "date,retailer,salesman,purpose,outcome,orderValue,notes";
-    const rows = visits.map((v) => {
+    const header = "date,retailer,salesman,purpose,visitStatus,outcome,orderValue,notes";
+    const rows = filtered.map((v) => {
       const r = retailers.find((x) => x.id === v.retailerId)?.name ?? "";
       const esc = (s: string) => `"${(s || "").replace(/"/g, '""')}"`;
-      return [v.date, r, v.salesman, v.purpose, v.outcome, v.ordersValue, v.notes].map((x) => esc(String(x))).join(",");
+      return [v.date, r, v.salesman, v.purpose, v.visitStatus, v.outcome, v.ordersValue, v.notes].map((x) => esc(String(x))).join(",");
     });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `visits-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `visits-${from}_to_${to}.csv`;
     a.click();
   };
 
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Reports</h2>
-        <Button size="sm" variant="outline" onClick={exportCsv} disabled={!visits.length}>Export CSV</Button>
+        <h2 className="text-lg font-semibold">Visit Reports</h2>
+        <Button size="sm" variant="outline" onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
       </div>
 
-      <div className="bg-card border rounded-2xl p-4">
-        <h3 className="text-sm font-semibold mb-3">Outcomes</h3>
-        <div className="space-y-2">
-          {(["successful", "follow-up", "no-interest"] as const).map((o) => (
-            <div key={o}>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="capitalize">{o}</span>
-                <span className="text-muted-foreground">{byOutcome[o]}</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className={`h-full ${o === "successful" ? "bg-emerald-500" : o === "follow-up" ? "bg-amber-500" : "bg-rose-500"}`}
-                  style={{ width: `${(byOutcome[o] / total) * 100}%` }}
-                />
-              </div>
-            </div>
+      <div className="bg-card border rounded-2xl p-4 space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          {(["weekly", "monthly", "quarterly"] as const).map((p) => (
+            <Button
+              key={p}
+              size="sm"
+              variant={preset === p ? "default" : "outline"}
+              onClick={() => applyPreset(p)}
+              className="capitalize"
+            >
+              {p}
+            </Button>
           ))}
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="From">
+            <Input type="date" value={from} max={to} onChange={(e) => onFromChange(e.target.value)} />
+          </Field>
+          <Field label="To">
+            <Input type="date" value={to} min={from} max={toISODate(new Date())} onChange={(e) => onToChange(e.target.value)} />
+          </Field>
+        </div>
+        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <CalendarIcon className="w-3 h-3" /> Max range: 1 year · {filtered.length} visits in range
+        </p>
       </div>
 
-      <div className="bg-card border rounded-2xl p-4">
-        <h3 className="text-sm font-semibold mb-3">Top retailers</h3>
-        {byRetailer.length === 0 ? (
-          <EmptyHint text="No data yet." />
-        ) : (
-          <ul className="divide-y">
-            {byRetailer.slice(0, 8).map((r) => (
-              <li key={r.retailer} className="py-2 flex justify-between text-sm">
-                <span className="truncate">{r.retailer}</span>
-                <span className="text-muted-foreground text-xs">{r.count} visits · ₹{r.revenue.toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <SegmentCard
+        title="Visit Status"
+        entries={VISIT_STATUSES.map((s) => ({ key: s, count: statusCounts[s], color: STATUS_BAR[s] }))}
+        total={filtered.length}
+      />
+
+      <SegmentCard
+        title="Outcome"
+        entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
+        total={filtered.length}
+      />
+    </div>
+  );
+}
+
+const STATUS_BAR: Record<VisitStatus, string> = {
+  Visited: "bg-emerald-500",
+  "Not Visited": "bg-rose-500",
+  "No Update": "bg-slate-400",
+  Holiday: "bg-amber-500",
+};
+
+const OUTCOME_BAR: Record<Outcome, string> = {
+  Satisfactory: "bg-teal-500",
+  Successful: "bg-emerald-500",
+  "Not Interested": "bg-rose-500",
+  "Meeting unsuccessful": "bg-orange-500",
+  "Not Met": "bg-slate-400",
+  Complaints: "bg-red-500",
+  "Linked to Other Company": "bg-violet-500",
+};
+
+function SegmentCard({
+  title,
+  entries,
+  total,
+}: {
+  title: string;
+  entries: { key: string; count: number; color: string }[];
+  total: number;
+}) {
+  const denom = total || 1;
+  return (
+    <div className="bg-card border rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <Badge variant="secondary">{total}</Badge>
+      </div>
+      <Select defaultValue={entries[0]?.key}>
+        <SelectTrigger className="mb-3"><SelectValue placeholder="View status" /></SelectTrigger>
+        <SelectContent>
+          {entries.map((e) => (
+            <SelectItem key={e.key} value={e.key}>{e.key} — {e.count}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="space-y-2">
+        {entries.map((e) => (
+          <div key={e.key}>
+            <div className="flex justify-between text-xs mb-1">
+              <span>{e.key}</span>
+              <span className="text-muted-foreground">{e.count}</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className={`h-full ${e.color}`} style={{ width: `${(e.count / denom) * 100}%` }} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
