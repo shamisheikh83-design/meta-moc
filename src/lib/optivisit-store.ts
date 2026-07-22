@@ -1,12 +1,27 @@
 // Local storage helpers for OptiVisit app (client-only PIN + data)
 
+export const VISIT_STATUSES = ["Visited", "Not Visited", "No Update", "Holiday"] as const;
+export type VisitStatus = (typeof VISIT_STATUSES)[number];
+
+export const OUTCOMES = [
+  "Satisfactory",
+  "Successful",
+  "Not Interested",
+  "Meeting unsuccessful",
+  "Not Met",
+  "Complaints",
+  "Linked to Other Company",
+] as const;
+export type Outcome = (typeof OUTCOMES)[number];
+
 export type Visit = {
   id: string;
   date: string; // ISO
   retailerId: string;
   salesman: string;
   purpose: string;
-  outcome: "successful" | "follow-up" | "no-interest";
+  visitStatus: VisitStatus;
+  outcome: Outcome;
   ordersValue: number;
   notes: string;
 };
