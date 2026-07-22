@@ -7,11 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, type Visit, type Retailer } from "@/lib/optivisit-store";
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User } from "lucide-react";
+import { store, uid, hashPin, type Visit, type Retailer, type Salesman } from "@/lib/optivisit-store";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
+type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
 
 export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
