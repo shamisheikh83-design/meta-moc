@@ -322,92 +322,191 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
-      {children}
-    </div>
-  );
+/* ---------------- Reports ---------------- */
+type RangePreset = "weekly" | "monthly" | "quarterly" | "custom";
+
+function toISODate(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-/* ---------------- Reports ---------------- */
 function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[] }) {
-  const byOutcome = useMemo(() => {
-    const acc = { successful: 0, "follow-up": 0, "no-interest": 0 } as Record<Visit["outcome"], number>;
-    visits.forEach((v) => { acc[v.outcome]++; });
-    return acc;
-  }, [visits]);
+  const today = new Date();
+  const [preset, setPreset] = useState<RangePreset>("monthly");
+  const [from, setFrom] = useState<string>(() => {
+    const d = new Date(); d.setDate(d.getDate() - 29); return toISODate(d);
+  });
+  const [to, setTo] = useState<string>(toISODate(today));
 
-  const byRetailer = useMemo(() => {
-    const map = new Map<string, { count: number; revenue: number }>();
-    visits.forEach((v) => {
-      const cur = map.get(v.retailerId) ?? { count: 0, revenue: 0 };
-      cur.count++; cur.revenue += v.ordersValue || 0;
-      map.set(v.retailerId, cur);
+  const applyPreset = (p: RangePreset) => {
+    setPreset(p);
+    const end = new Date();
+    const start = new Date();
+    if (p === "weekly") start.setDate(end.getDate() - 6);
+    else if (p === "monthly") start.setDate(end.getDate() - 29);
+    else if (p === "quarterly") start.setDate(end.getDate() - 89);
+    else return;
+    setFrom(toISODate(start));
+    setTo(toISODate(end));
+  };
+
+  // Enforce max 1 year window
+  const onFromChange = (val: string) => {
+    setPreset("custom");
+    setFrom(val);
+    const f = new Date(val); const t = new Date(to);
+    const maxTo = new Date(f); maxTo.setFullYear(maxTo.getFullYear() + 1);
+    if (t > maxTo) setTo(toISODate(maxTo));
+    if (t < f) setTo(val);
+  };
+  const onToChange = (val: string) => {
+    setPreset("custom");
+    setTo(val);
+    const f = new Date(from); const t = new Date(val);
+    const minFrom = new Date(t); minFrom.setFullYear(minFrom.getFullYear() - 1);
+    if (f < minFrom) setFrom(toISODate(minFrom));
+    if (f > t) setFrom(val);
+  };
+
+  const filtered = useMemo(() => {
+    const f = new Date(from + "T00:00:00").getTime();
+    const t = new Date(to + "T23:59:59").getTime();
+    return visits.filter((v) => {
+      const ts = new Date(v.date).getTime();
+      return ts >= f && ts <= t;
     });
-    return [...map.entries()]
-      .map(([id, s]) => ({ retailer: retailers.find((r) => r.id === id)?.name ?? "Unknown", ...s }))
-      .sort((a, b) => b.count - a.count);
-  }, [visits, retailers]);
+  }, [visits, from, to]);
 
-  const total = visits.length || 1;
+  const statusCounts = useMemo(() => {
+    const acc: Record<VisitStatus, number> = { Visited: 0, "Not Visited": 0, "No Update": 0, Holiday: 0 };
+    filtered.forEach((v) => { if (v.visitStatus) acc[v.visitStatus]++; });
+    return acc;
+  }, [filtered]);
+
+  const outcomeCounts = useMemo(() => {
+    const acc = OUTCOMES.reduce((o, k) => { o[k] = 0; return o; }, {} as Record<Outcome, number>);
+    filtered.forEach((v) => { if (v.outcome && acc[v.outcome] !== undefined) acc[v.outcome]++; });
+    return acc;
+  }, [filtered]);
 
   const exportCsv = () => {
-    const header = "date,retailer,salesman,purpose,outcome,orderValue,notes";
-    const rows = visits.map((v) => {
+    const header = "date,retailer,salesman,purpose,visitStatus,outcome,orderValue,notes";
+    const rows = filtered.map((v) => {
       const r = retailers.find((x) => x.id === v.retailerId)?.name ?? "";
       const esc = (s: string) => `"${(s || "").replace(/"/g, '""')}"`;
-      return [v.date, r, v.salesman, v.purpose, v.outcome, v.ordersValue, v.notes].map((x) => esc(String(x))).join(",");
+      return [v.date, r, v.salesman, v.purpose, v.visitStatus, v.outcome, v.ordersValue, v.notes].map((x) => esc(String(x))).join(",");
     });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `visits-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `visits-${from}_to_${to}.csv`;
     a.click();
   };
 
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Reports</h2>
-        <Button size="sm" variant="outline" onClick={exportCsv} disabled={!visits.length}>Export CSV</Button>
+        <h2 className="text-lg font-semibold">Visit Reports</h2>
+        <Button size="sm" variant="outline" onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
       </div>
 
-      <div className="bg-card border rounded-2xl p-4">
-        <h3 className="text-sm font-semibold mb-3">Outcomes</h3>
-        <div className="space-y-2">
-          {(["successful", "follow-up", "no-interest"] as const).map((o) => (
-            <div key={o}>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="capitalize">{o}</span>
-                <span className="text-muted-foreground">{byOutcome[o]}</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className={`h-full ${o === "successful" ? "bg-emerald-500" : o === "follow-up" ? "bg-amber-500" : "bg-rose-500"}`}
-                  style={{ width: `${(byOutcome[o] / total) * 100}%` }}
-                />
-              </div>
-            </div>
+      <div className="bg-card border rounded-2xl p-4 space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          {(["weekly", "monthly", "quarterly"] as const).map((p) => (
+            <Button
+              key={p}
+              size="sm"
+              variant={preset === p ? "default" : "outline"}
+              onClick={() => applyPreset(p)}
+              className="capitalize"
+            >
+              {p}
+            </Button>
           ))}
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="From">
+            <Input type="date" value={from} max={to} onChange={(e) => onFromChange(e.target.value)} />
+          </Field>
+          <Field label="To">
+            <Input type="date" value={to} min={from} max={toISODate(new Date())} onChange={(e) => onToChange(e.target.value)} />
+          </Field>
+        </div>
+        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <CalendarIcon className="w-3 h-3" /> Max range: 1 year · {filtered.length} visits in range
+        </p>
       </div>
 
-      <div className="bg-card border rounded-2xl p-4">
-        <h3 className="text-sm font-semibold mb-3">Top retailers</h3>
-        {byRetailer.length === 0 ? (
-          <EmptyHint text="No data yet." />
-        ) : (
-          <ul className="divide-y">
-            {byRetailer.slice(0, 8).map((r) => (
-              <li key={r.retailer} className="py-2 flex justify-between text-sm">
-                <span className="truncate">{r.retailer}</span>
-                <span className="text-muted-foreground text-xs">{r.count} visits · ₹{r.revenue.toLocaleString()}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <SegmentCard
+        title="Visit Status"
+        entries={VISIT_STATUSES.map((s) => ({ key: s, count: statusCounts[s], color: STATUS_BAR[s] }))}
+        total={filtered.length}
+      />
+
+      <SegmentCard
+        title="Outcome"
+        entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
+        total={filtered.length}
+      />
+    </div>
+  );
+}
+
+const STATUS_BAR: Record<VisitStatus, string> = {
+  Visited: "bg-emerald-500",
+  "Not Visited": "bg-rose-500",
+  "No Update": "bg-slate-400",
+  Holiday: "bg-amber-500",
+};
+
+const OUTCOME_BAR: Record<Outcome, string> = {
+  Satisfactory: "bg-teal-500",
+  Successful: "bg-emerald-500",
+  "Not Interested": "bg-rose-500",
+  "Meeting unsuccessful": "bg-orange-500",
+  "Not Met": "bg-slate-400",
+  Complaints: "bg-red-500",
+  "Linked to Other Company": "bg-violet-500",
+};
+
+function SegmentCard({
+  title,
+  entries,
+  total,
+}: {
+  title: string;
+  entries: { key: string; count: number; color: string }[];
+  total: number;
+}) {
+  const denom = total || 1;
+  return (
+    <div className="bg-card border rounded-2xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <Badge variant="secondary">{total}</Badge>
+      </div>
+      <Select defaultValue={entries[0]?.key}>
+        <SelectTrigger className="mb-3"><SelectValue placeholder="View status" /></SelectTrigger>
+        <SelectContent>
+          {entries.map((e) => (
+            <SelectItem key={e.key} value={e.key}>{e.key} — {e.count}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="space-y-2">
+        {entries.map((e) => (
+          <div key={e.key}>
+            <div className="flex justify-between text-xs mb-1">
+              <span>{e.key}</span>
+              <span className="text-muted-foreground">{e.count}</span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div className={`h-full ${e.color}`} style={{ width: `${(e.count / denom) * 100}%` }} />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
