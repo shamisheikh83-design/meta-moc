@@ -93,7 +93,7 @@ function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer
   const visitsMonth = visits.filter((v) => v.date.startsWith(thisMonth));
   const revenueMonth = visitsMonth.reduce((s, v) => s + (v.ordersValue || 0), 0);
   const successRate = visitsMonth.length
-    ? Math.round((visitsMonth.filter((v) => v.outcome === "successful").length / visitsMonth.length) * 100)
+    ? Math.round((visitsMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory").length / visitsMonth.length) * 100)
     : 0;
 
   const recent = [...visits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
