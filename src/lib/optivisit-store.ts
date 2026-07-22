@@ -21,6 +21,14 @@ export type Retailer = {
   notes: string;
 };
 
+export type Salesman = {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  mobile: string;
+};
+
 export type Settings = {
   salesmanName: string;
   pinHash: string | null;
@@ -28,6 +36,7 @@ export type Settings = {
 
 const K_VISITS = "ov_visits";
 const K_RETAILERS = "ov_retailers";
+const K_SALESMEN = "ov_salesmen";
 const K_SETTINGS = "ov_settings";
 const K_SESSION = "ov_session";
 
@@ -50,6 +59,8 @@ export const store = {
   setVisits: (v: Visit[]) => write(K_VISITS, v),
   getRetailers: () => read<Retailer[]>(K_RETAILERS, []),
   setRetailers: (v: Retailer[]) => write(K_RETAILERS, v),
+  getSalesmen: () => read<Salesman[]>(K_SALESMEN, []),
+  setSalesmen: (v: Salesman[]) => write(K_SALESMEN, v),
   getSettings: () => read<Settings>(K_SETTINGS, { salesmanName: "", pinHash: null }),
   setSettings: (v: Settings) => write(K_SETTINGS, v),
   getSession: () => (typeof window !== "undefined" ? sessionStorage.getItem(K_SESSION) === "1" : false),

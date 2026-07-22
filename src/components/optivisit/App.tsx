@@ -7,24 +7,27 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, type Visit, type Retailer } from "@/lib/optivisit-store";
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User } from "lucide-react";
+import { store, uid, hashPin, type Visit, type Retailer, type Salesman } from "@/lib/optivisit-store";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
+type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
 
 export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [visits, setVisits] = useState<Visit[]>([]);
   const [retailers, setRetailers] = useState<Retailer[]>([]);
+  const [salesmen, setSalesmen] = useState<Salesman[]>([]);
 
   useEffect(() => {
     setVisits(store.getVisits());
     setRetailers(store.getRetailers());
+    setSalesmen(store.getSalesmen());
   }, []);
 
   const refreshVisits = () => setVisits(store.getVisits());
   const refreshRetailers = () => setRetailers(store.getRetailers());
+  const refreshSalesmen = () => setSalesmen(store.getSalesmen());
 
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
@@ -51,14 +54,16 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
           <TabsContent value="visits"><VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} /></TabsContent>
           <TabsContent value="reports"><Reports visits={visits} retailers={retailers} /></TabsContent>
           <TabsContent value="retailers"><Retailers retailers={retailers} refresh={refreshRetailers} /></TabsContent>
+          <TabsContent value="salesmen"><Salesmen salesmen={salesmen} refresh={refreshSalesmen} /></TabsContent>
           <TabsContent value="settings"><SettingsPanel onLock={onLock} /></TabsContent>
 
           <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur">
-            <TabsList className="max-w-3xl mx-auto w-full grid grid-cols-5 h-16 bg-transparent p-0 rounded-none">
+            <TabsList className="max-w-3xl mx-auto w-full grid grid-cols-6 h-16 bg-transparent p-0 rounded-none">
               <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />
               <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />
               <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />
               <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />
+              <NavTab value="salesmen" icon={<Users className="w-5 h-5" />} label="Salesmen" />
               <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
             </TabsList>
           </nav>
@@ -456,17 +461,90 @@ function RetailerDialog({ onSaved }: { onSaved: () => void }) {
   );
 }
 
+/* ---------------- Salesmen ---------------- */
+function Salesmen({ salesmen, refresh }: { salesmen: Salesman[]; refresh: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+
+  const sorted = [...salesmen].sort((a, b) => a.name.localeCompare(b.name));
+  const filtered = sorted.filter((s) =>
+    [s.name, s.city, s.region, s.mobile].some((x) => (x || "").toLowerCase().includes(q.toLowerCase()))
+  );
+
+  const remove = (id: string) => {
+    if (!confirm("Delete this salesman?")) return;
+    store.setSalesmen(salesmen.filter((s) => s.id !== id));
+    refresh();
+  };
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Salesmen data</h2>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
+          <SalesmanDialog onSaved={() => { refresh(); setOpen(false); }} />
+        </Dialog>
+      </div>
+
+      <Input placeholder="Search by name, city, region or mobile..." value={q} onChange={(e) => setQ(e.target.value)} />
+
+      {filtered.length === 0 ? (
+        <div className="bg-card rounded-2xl border p-8 text-center">
+          <Users className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+          <p className="text-sm text-muted-foreground">{salesmen.length ? "No matches." : "No salesmen yet. Add your first."}</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {filtered.map((s) => (
+            <li key={s.id} className="bg-card border rounded-2xl p-4">
+              <div className="flex justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-sm">{s.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                    {(s.city || s.region) && <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3" />{[s.city, s.region].filter(Boolean).join(", ")}</div>}
+                    {s.mobile && <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" />{s.mobile}</div>}
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => remove(s.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function SalesmanDialog({ onSaved }: { onSaved: () => void }) {
+  const [f, setF] = useState<Omit<Salesman, "id">>({ name: "", city: "", region: "", mobile: "" });
+  const save = () => {
+    if (!f.name.trim()) return toast.error("Name is required");
+    store.setSalesmen([{ id: uid(), ...f }, ...store.getSalesmen()]);
+    toast.success("Salesman added");
+    onSaved();
+  };
+  const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader><DialogTitle>Add salesman</DialogTitle></DialogHeader>
+      <div className="space-y-3">
+        <Field label="Name"><Input value={f.name} onChange={upd("name")} placeholder="Full name" /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="City"><Input value={f.city} onChange={upd("city")} /></Field>
+          <Field label="Region"><Input value={f.region} onChange={upd("region")} /></Field>
+        </div>
+        <Field label="Mobile"><Input value={f.mobile} onChange={upd("mobile")} placeholder="Phone number" /></Field>
+      </div>
+      <DialogFooter><Button className="w-full" onClick={save}>Save salesman</Button></DialogFooter>
+    </DialogContent>
+  );
+}
+
 /* ---------------- Settings ---------------- */
 function SettingsPanel({ onLock }: { onLock: () => void }) {
-  const [name, setName] = useState("");
   const [newPin, setNewPin] = useState("");
 
-  useEffect(() => { setName(store.getSettings().salesmanName); }, []);
-
-  const saveName = () => {
-    store.setSettings({ ...store.getSettings(), salesmanName: name });
-    toast.success("Saved");
-  };
   const changePin = async () => {
     if (!/^\d{4}$/.test(newPin)) return toast.error("Enter a 4-digit PIN");
     const hash = await hashPin(newPin);
@@ -484,13 +562,9 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
   return (
     <div className="space-y-4 pt-2">
       <h2 className="text-lg font-semibold">Settings</h2>
-      <section className="bg-card border rounded-2xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold">Profile</h3>
-        <Field label="Salesman name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
-        <Button onClick={saveName} size="sm">Save</Button>
-      </section>
 
       <section className="bg-card border rounded-2xl p-4 space-y-3">
+
         <h3 className="text-sm font-semibold">Security</h3>
         <Field label="Change PIN">
           <Input inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
