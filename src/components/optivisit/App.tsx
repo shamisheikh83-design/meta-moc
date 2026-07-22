@@ -215,8 +215,9 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
               <li key={v.id} className="bg-card border rounded-2xl p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="font-medium text-sm truncate">{r?.name ?? "Unknown"}</div>
+                      <StatusBadge status={v.visitStatus} />
                       <OutcomeBadge outcome={v.outcome} />
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
