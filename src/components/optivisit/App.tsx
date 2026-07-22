@@ -246,7 +246,8 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
   const [retailerId, setRetailerId] = useState("");
   const [salesman, setSalesman] = useState(store.getSettings().salesmanName || "");
   const [purpose, setPurpose] = useState("");
-  const [outcome, setOutcome] = useState<Visit["outcome"]>("successful");
+  const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
+  const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [ordersValue, setOrdersValue] = useState("");
   const [notes, setNotes] = useState("");
 
@@ -258,6 +259,7 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       retailerId,
       salesman,
       purpose,
+      visitStatus,
       outcome,
       ordersValue: Number(ordersValue) || 0,
       notes,
@@ -285,14 +287,20 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
         </Field>
         <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Your name" /></Field>
         <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
+        <Field label="Visit status">
+          <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VISIT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Outcome">
-            <Select value={outcome} onValueChange={(v) => setOutcome(v as Visit["outcome"])}>
+            <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="successful">Successful</SelectItem>
-                <SelectItem value="follow-up">Follow-up</SelectItem>
-                <SelectItem value="no-interest">No interest</SelectItem>
+                {OUTCOMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -302,6 +310,15 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       </div>
       <DialogFooter><Button onClick={save} className="w-full">Save visit</Button></DialogFooter>
     </DialogContent>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      {children}
+    </div>
   );
 }
 
