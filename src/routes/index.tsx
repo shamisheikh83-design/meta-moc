@@ -8,9 +8,9 @@ import { Toaster } from "@/components/ui/sonner";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "OptiVisit — Optician Visits Tracker" },
+      { title: "Meta Opti Visit — Optician Visits Recorder" },
       { name: "description", content: "Log salesmen visits to optician shops, manage retailers, and view reports." },
-      { property: "og:title", content: "OptiVisit — Optician Visits Tracker" },
+      { property: "og:title", content: "Meta Opti Visit — Optician Visits Recorder" },
       { property: "og:description", content: "Log salesmen visits to optician shops, manage retailers, and view reports." },
     ],
   }),
