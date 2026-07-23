@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome } from "@/lib/optivisit-store";
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
@@ -52,7 +52,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
           <TabsContent value="dashboard"><Dashboard visits={visits} retailers={retailers} /></TabsContent>
           <TabsContent value="visits"><VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} /></TabsContent>
-          <TabsContent value="reports"><Reports visits={visits} retailers={retailers} /></TabsContent>
+          <TabsContent value="reports"><Reports visits={visits} retailers={retailers} salesmen={salesmen} /></TabsContent>
           <TabsContent value="retailers"><Retailers retailers={retailers} refresh={refreshRetailers} /></TabsContent>
           <TabsContent value="salesmen"><Salesmen salesmen={salesmen} refresh={refreshSalesmen} /></TabsContent>
           <TabsContent value="settings"><SettingsPanel onLock={onLock} /></TabsContent>
@@ -91,7 +91,6 @@ function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer
   const thisMonth = new Date().toISOString().slice(0, 7);
   const visitsToday = visits.filter((v) => v.date.startsWith(today)).length;
   const visitsMonth = visits.filter((v) => v.date.startsWith(thisMonth));
-  const revenueMonth = visitsMonth.reduce((s, v) => s + (v.ordersValue || 0), 0);
   const successRate = visitsMonth.length
     ? Math.round((visitsMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory").length / visitsMonth.length) * 100)
     : 0;
@@ -109,7 +108,7 @@ function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer
         <StatCard label="Visits today" value={visitsToday} tone="primary" />
         <StatCard label="This month" value={visitsMonth.length} />
         <StatCard label="Success rate" value={`${successRate}%`} />
-        <StatCard label="Revenue (₹)" value={revenueMonth.toLocaleString()} />
+        <StatCard label="Retailers" value={retailers.length} />
       </div>
       <div className="bg-card rounded-2xl border p-4">
         <div className="flex items-center justify-between mb-3">
@@ -225,9 +224,6 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
                     </div>
                     {v.purpose && <div className="text-xs mt-2"><span className="text-muted-foreground">Purpose:</span> {v.purpose}</div>}
                     {v.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-2">{v.notes}</div>}
-                    {v.ordersValue > 0 && (
-                      <div className="text-xs mt-2 font-medium text-emerald-600">₹{v.ordersValue.toLocaleString()} order</div>
-                    )}
                   </div>
                   <Button variant="ghost" size="icon" onClick={() => remove(v.id)}>
                     <Trash2 className="w-4 h-4 text-muted-foreground" />
@@ -248,7 +244,6 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
   const [purpose, setPurpose] = useState("");
   const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
-  const [ordersValue, setOrdersValue] = useState("");
   const [notes, setNotes] = useState("");
 
   const save = () => {
@@ -261,7 +256,6 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       purpose,
       visitStatus,
       outcome,
-      ordersValue: Number(ordersValue) || 0,
       notes,
     };
     store.setVisits([v, ...store.getVisits()]);
@@ -295,17 +289,14 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
             </SelectContent>
           </Select>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Outcome">
-            <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {OUTCOMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Order value (₹)"><Input type="number" value={ordersValue} onChange={(e) => setOrdersValue(e.target.value)} placeholder="0" /></Field>
-        </div>
+        <Field label="Outcome">
+          <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {OUTCOMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Notes"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering..." rows={3} /></Field>
       </div>
       <DialogFooter><Button onClick={save} className="w-full">Save visit</Button></DialogFooter>
@@ -332,13 +323,25 @@ function toISODate(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[] }) {
+function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: Retailer[]; salesmen: Salesman[] }) {
   const today = new Date();
   const [preset, setPreset] = useState<RangePreset>("monthly");
   const [from, setFrom] = useState<string>(() => {
     const d = new Date(); d.setDate(d.getDate() - 29); return toISODate(d);
   });
   const [to, setTo] = useState<string>(toISODate(today));
+  const [selectedSalesmen, setSelectedSalesmen] = useState<string[]>([]);
+
+  const sortedSalesmen = useMemo(
+    () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
+    [salesmen]
+  );
+
+  const toggleSalesman = (name: string) => {
+    setSelectedSalesmen((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  };
 
   const applyPreset = (p: RangePreset) => {
     setPreset(p);
@@ -352,7 +355,6 @@ function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[]
     setTo(toISODate(end));
   };
 
-  // Enforce max 1 year window
   const onFromChange = (val: string) => {
     setPreset("custom");
     setFrom(val);
@@ -375,9 +377,11 @@ function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[]
     const t = new Date(to + "T23:59:59").getTime();
     return visits.filter((v) => {
       const ts = new Date(v.date).getTime();
-      return ts >= f && ts <= t;
+      if (ts < f || ts > t) return false;
+      if (selectedSalesmen.length > 0 && !selectedSalesmen.includes(v.salesman)) return false;
+      return true;
     });
-  }, [visits, from, to]);
+  }, [visits, from, to, selectedSalesmen]);
 
   const statusCounts = useMemo(() => {
     const acc: Record<VisitStatus, number> = { Visited: 0, "Not Visited": 0, "No Update": 0, Holiday: 0 };
@@ -392,11 +396,11 @@ function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[]
   }, [filtered]);
 
   const exportCsv = () => {
-    const header = "date,retailer,salesman,purpose,visitStatus,outcome,orderValue,notes";
+    const header = "date,retailer,salesman,purpose,visitStatus,outcome,notes";
     const rows = filtered.map((v) => {
       const r = retailers.find((x) => x.id === v.retailerId)?.name ?? "";
       const esc = (s: string) => `"${(s || "").replace(/"/g, '""')}"`;
-      return [v.date, r, v.salesman, v.purpose, v.visitStatus, v.outcome, v.ordersValue, v.notes].map((x) => esc(String(x))).join(",");
+      return [v.date, r, v.salesman, v.purpose, v.visitStatus, v.outcome, v.notes].map((x) => esc(String(x))).join(",");
     });
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
@@ -404,6 +408,13 @@ function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[]
     a.download = `visits-${from}_to_${to}.csv`;
     a.click();
   };
+
+  const selectionSummary =
+    selectedSalesmen.length === 0
+      ? `All salesmen (${sortedSalesmen.length || 0})`
+      : selectedSalesmen.length === 1
+        ? selectedSalesmen[0]
+        : `${selectedSalesmen.length} salesmen combined`;
 
   return (
     <div className="space-y-4 pt-2">
@@ -439,14 +450,58 @@ function Reports({ visits, retailers }: { visits: Visit[]; retailers: Retailer[]
         </p>
       </div>
 
+      <div className="bg-card border rounded-2xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold">Salesmen</h3>
+          {selectedSalesmen.length > 0 && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelectedSalesmen([])}>
+              Clear
+            </Button>
+          )}
+        </div>
+        {sortedSalesmen.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Add salesmen in the Salesmen tab to filter reports.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {sortedSalesmen.map((s) => {
+              const active = selectedSalesmen.includes(s.name);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleSalesman(s.name)}
+                  className={`text-xs px-2.5 py-1 rounded-full border inline-flex items-center gap-1 transition ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  {active && <Check className="w-3 h-3" />}
+                  {s.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <p className="text-[10px] text-muted-foreground">
+          {selectedSalesmen.length === 0
+            ? "Showing combined data for all salesmen."
+            : selectedSalesmen.length === 1
+              ? `Showing data for ${selectedSalesmen[0]}.`
+              : `Showing combined data for ${selectedSalesmen.length} salesmen.`}
+        </p>
+      </div>
+
       <SegmentCard
         title="Visit Status"
+        subtitle={selectionSummary}
         entries={VISIT_STATUSES.map((s) => ({ key: s, count: statusCounts[s], color: STATUS_BAR[s] }))}
         total={filtered.length}
       />
 
       <SegmentCard
         title="Outcome"
+        subtitle={selectionSummary}
         entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
         total={filtered.length}
       />
@@ -473,28 +528,23 @@ const OUTCOME_BAR: Record<Outcome, string> = {
 
 function SegmentCard({
   title,
+  subtitle,
   entries,
   total,
 }: {
   title: string;
+  subtitle?: string;
   entries: { key: string; count: number; color: string }[];
   total: number;
 }) {
   const denom = total || 1;
   return (
     <div className="bg-card border rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-semibold">{title}</h3>
         <Badge variant="secondary">{total}</Badge>
       </div>
-      <Select defaultValue={entries[0]?.key}>
-        <SelectTrigger className="mb-3"><SelectValue placeholder="View status" /></SelectTrigger>
-        <SelectContent>
-          {entries.map((e) => (
-            <SelectItem key={e.key} value={e.key}>{e.key} — {e.count}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {subtitle && <p className="text-[10px] text-muted-foreground mb-3">{subtitle}</p>}
       <div className="space-y-2">
         {entries.map((e) => (
           <div key={e.key}>
@@ -677,6 +727,8 @@ function SalesmanDialog({ onSaved }: { onSaved: () => void }) {
 /* ---------------- Settings ---------------- */
 function SettingsPanel({ onLock }: { onLock: () => void }) {
   const [newPin, setNewPin] = useState("");
+  const [wipePin, setWipePin] = useState("");
+  const [wipeOpen, setWipeOpen] = useState(false);
 
   const changePin = async () => {
     if (!/^\d{4}$/.test(newPin)) return toast.error("Enter a 4-digit PIN");
@@ -685,8 +737,22 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
     setNewPin("");
     toast.success("PIN updated");
   };
-  const wipe = () => {
-    if (!confirm("Erase all visits, retailers, and settings on this device?")) return;
+
+  const confirmWipe = async () => {
+    const settings = store.getSettings();
+    if (!settings.pinHash) {
+      toast.error("No PIN is set on this device");
+      return;
+    }
+    if (!/^\d{4}$/.test(wipePin)) {
+      toast.error("Enter your 4-digit PIN");
+      return;
+    }
+    const hash = await hashPin(wipePin);
+    if (hash !== settings.pinHash) {
+      toast.error("Incorrect PIN");
+      return;
+    }
     localStorage.clear();
     sessionStorage.clear();
     location.reload();
@@ -697,7 +763,6 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
       <h2 className="text-lg font-semibold">Settings</h2>
 
       <section className="bg-card border rounded-2xl p-4 space-y-3">
-
         <h3 className="text-sm font-semibold">Security</h3>
         <Field label="Change PIN">
           <Input inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
@@ -710,8 +775,34 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
 
       <section className="bg-card border rounded-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
-        <p className="text-xs text-muted-foreground">This clears everything stored on this device.</p>
-        <Button variant="destructive" size="sm" onClick={wipe}>Erase all data</Button>
+        <p className="text-xs text-muted-foreground">This clears everything stored on this device. Requires your PIN to confirm.</p>
+        <Dialog open={wipeOpen} onOpenChange={(o) => { setWipeOpen(o); if (!o) setWipePin(""); }}>
+          <DialogTrigger asChild>
+            <Button variant="destructive" size="sm">Erase all data</Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Confirm with PIN</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Enter your 4-digit PIN to erase all visits, retailers, salesmen and settings on this device. This cannot be undone.
+              </p>
+              <Field label="PIN">
+                <Input
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={wipePin}
+                  onChange={(e) => setWipePin(e.target.value.replace(/\D/g, ""))}
+                  placeholder="••••"
+                  autoFocus
+                />
+              </Field>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" size="sm" onClick={() => setWipeOpen(false)}>Cancel</Button>
+              <Button variant="destructive" size="sm" onClick={confirmWipe}>Erase everything</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </section>
 
       <p className="text-[10px] text-center text-muted-foreground pt-2">OptiVisit · data stored locally on this device</p>

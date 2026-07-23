@@ -22,7 +22,6 @@ export type Visit = {
   purpose: string;
   visitStatus: VisitStatus;
   outcome: Outcome;
-  ordersValue: number;
   notes: string;
 };
 
