@@ -53,7 +53,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
           <TabsContent value="dashboard"><Dashboard visits={visits} retailers={retailers} /></TabsContent>
           <TabsContent value="visits"><VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} /></TabsContent>
           <TabsContent value="reports"><Reports visits={visits} retailers={retailers} salesmen={salesmen} /></TabsContent>
-          <TabsContent value="retailers"><Retailers retailers={retailers} refresh={refreshRetailers} /></TabsContent>
+          <TabsContent value="retailers"><Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} /></TabsContent>
           <TabsContent value="salesmen"><Salesmen salesmen={salesmen} refresh={refreshSalesmen} /></TabsContent>
           <TabsContent value="settings"><SettingsPanel onLock={onLock} /></TabsContent>
 
