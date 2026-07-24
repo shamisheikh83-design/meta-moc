@@ -563,16 +563,35 @@ function SegmentCard({
 }
 
 /* ---------------- Retailers ---------------- */
-function Retailers({ retailers, refresh }: { retailers: Retailer[]; refresh: () => void }) {
+function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; salesmen: Salesman[]; refresh: () => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const filtered = retailers.filter((r) =>
-    [r.name, r.city, r.owner].some((s) => s.toLowerCase().includes(q.toLowerCase()))
-  );
+  const [salesmanFilter, setSalesmanFilter] = useState<string>("all");
+
+  const sortedSalesmen = [...salesmen].sort((a, b) => a.name.localeCompare(b.name));
+  const salesmanName = (id?: string) => sortedSalesmen.find((s) => s.id === id)?.name;
+
+  const filtered = retailers
+    .filter((r) =>
+      salesmanFilter === "all"
+        ? true
+        : salesmanFilter === "unassigned"
+          ? !r.salesmanId
+          : r.salesmanId === salesmanFilter
+    )
+    .filter((r) => [r.name, r.city, r.owner].some((s) => (s || "").toLowerCase().includes(q.toLowerCase())));
 
   const remove = (id: string) => {
     if (!confirm("Delete this retailer?")) return;
     store.setRetailers(retailers.filter((r) => r.id !== id));
+    refresh();
+  };
+
+  const assign = (id: string, salesmanId: string) => {
+    store.setRetailers(
+      store.getRetailers().map((r) => (r.id === id ? { ...r, salesmanId: salesmanId === "none" ? undefined : salesmanId } : r))
+    );
+    toast.success("Salesman updated");
     refresh();
   };
 
@@ -582,11 +601,20 @@ function Retailers({ retailers, refresh }: { retailers: Retailer[]; refresh: () 
         <h2 className="text-lg font-semibold">Retailers</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
-          <RetailerDialog onSaved={() => { refresh(); setOpen(false); }} />
+          <RetailerDialog salesmen={sortedSalesmen} onSaved={() => { refresh(); setOpen(false); }} />
         </Dialog>
       </div>
 
       <Input placeholder="Search by name, city or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
+
+      <Select value={salesmanFilter} onValueChange={setSalesmanFilter}>
+        <SelectTrigger><SelectValue placeholder="Filter by salesman" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All salesmen</SelectItem>
+          <SelectItem value="unassigned">Unassigned</SelectItem>
+          {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
 
       {filtered.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
@@ -599,13 +627,27 @@ function Retailers({ retailers, refresh }: { retailers: Retailer[]; refresh: () 
             <li key={r.id} className="bg-card border rounded-2xl p-4">
               <div className="flex justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm">{r.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-sm">{r.name}</div>
+                    {r.category && <Badge variant="secondary" className="text-[10px]">{r.category}</Badge>}
+                  </div>
                   <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                     {r.owner && <div className="flex items-center gap-1.5"><User className="w-3 h-3" />{r.owner}</div>}
                     {(r.city || r.address) && <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3" />{[r.address, r.city].filter(Boolean).join(", ")}</div>}
                     {r.phone && <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" />{r.phone}</div>}
+                    <div className="flex items-center gap-1.5"><Users className="w-3 h-3" />{salesmanName(r.salesmanId) ?? "Unassigned"}</div>
                   </div>
                   {r.notes && <div className="text-xs mt-2 text-muted-foreground">{r.notes}</div>}
+                  <div className="mt-3">
+                    <Label className="text-[11px] text-muted-foreground">Change salesman</Label>
+                    <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
+                      <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Select salesman" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Unassigned</SelectItem>
+                        {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => remove(r.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
               </div>
@@ -617,7 +659,7 @@ function Retailers({ retailers, refresh }: { retailers: Retailer[]; refresh: () 
   );
 }
 
-function RetailerDialog({ onSaved }: { onSaved: () => void }) {
+function RetailerDialog({ salesmen, onSaved }: { salesmen: Salesman[]; onSaved: () => void }) {
   const [f, setF] = useState<Omit<Retailer, "id">>({ name: "", owner: "", city: "", phone: "", address: "", notes: "" });
   const save = () => {
     if (!f.name.trim()) return toast.error("Name is required");
@@ -636,6 +678,27 @@ function RetailerDialog({ onSaved }: { onSaved: () => void }) {
           <Field label="City"><Input value={f.city} onChange={upd("city")} /></Field>
           <Field label="Phone"><Input value={f.phone} onChange={upd("phone")} /></Field>
         </div>
+        <Field label="Shop category">
+          <Select value={f.category ?? ""} onValueChange={(v) => setF({ ...f, category: v as ShopCategory })}>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {SHOP_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Assigned salesman">
+          {salesmen.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Add salesmen first in the Salesmen tab.</p>
+          ) : (
+            <Select value={f.salesmanId ?? "none"} onValueChange={(v) => setF({ ...f, salesmanId: v === "none" ? undefined : v })}>
+              <SelectTrigger><SelectValue placeholder="Select salesman" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Unassigned</SelectItem>
+                {salesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
         <Field label="Address"><Input value={f.address} onChange={upd("address")} /></Field>
         <Field label="Notes"><Textarea value={f.notes} onChange={upd("notes")} rows={2} /></Field>
       </div>
