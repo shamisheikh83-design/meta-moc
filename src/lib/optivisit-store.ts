@@ -46,6 +46,8 @@ export type Salesman = {
 export type Settings = {
   salesmanName: string;
   pinHash: string | null;
+  email: string | null;
+  recoveryHash: string | null;
 };
 
 const K_VISITS = "ov_visits";
