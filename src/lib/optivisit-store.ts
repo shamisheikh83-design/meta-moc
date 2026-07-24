@@ -25,6 +25,9 @@ export type Visit = {
   notes: string;
 };
 
+export const SHOP_CATEGORIES = ["A+", "A", "B", "C"] as const;
+export type ShopCategory = (typeof SHOP_CATEGORIES)[number];
+
 export type Retailer = {
   id: string;
   name: string;
@@ -33,6 +36,8 @@ export type Retailer = {
   phone: string;
   address: string;
   notes: string;
+  salesmanId?: string;
+  category?: ShopCategory;
 };
 
 export type Salesman = {
