@@ -77,7 +77,7 @@ export const store = {
   setRetailers: (v: Retailer[]) => write(K_RETAILERS, v),
   getSalesmen: () => read<Salesman[]>(K_SALESMEN, []),
   setSalesmen: (v: Salesman[]) => write(K_SALESMEN, v),
-  getSettings: () => read<Settings>(K_SETTINGS, { salesmanName: "", pinHash: null }),
+  getSettings: () => read<Settings>(K_SETTINGS, { salesmanName: "", pinHash: null, email: null, recoveryHash: null }),
   setSettings: (v: Settings) => write(K_SETTINGS, v),
   getSession: () => (typeof window !== "undefined" ? sessionStorage.getItem(K_SESSION) === "1" : false),
   setSession: (v: boolean) => {
