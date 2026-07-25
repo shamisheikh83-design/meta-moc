@@ -395,6 +395,43 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
     return acc;
   }, [filtered]);
 
+  const cityCounts = useMemo(() => {
+    const acc: Record<string, number> = {};
+    filtered.forEach((v) => {
+      const r = retailers.find((x) => x.id === v.retailerId);
+      const city = (r?.city || "").trim();
+      if (!city) return;
+      const key = normalizeCity(city);
+      acc[key] = (acc[key] || 0) + 1;
+    });
+    return acc;
+  }, [filtered, retailers]);
+
+  const linkedCities = useMemo(() => {
+    const set = new Map<string, string>();
+    [...retailers.map((r) => r.city), ...salesmen.map((s) => s.city)].forEach((c) => {
+      const city = (c || "").trim();
+      if (!city) return;
+      const key = normalizeCity(city);
+      if (!set.has(key)) set.set(key, key);
+    });
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  }, [retailers, salesmen]);
+
+  const selectableCities = useMemo(
+    () => linkedCities.filter((c) => !PERMANENT_CITIES.includes(c) && !selectedCities.includes(c)),
+    [linkedCities, selectedCities]
+  );
+
+  const cityRows = useMemo(
+    () => [
+      ...PERMANENT_CITIES.map((c) => ({ city: c, count: cityCounts[c] || 0, permanent: true })),
+      ...selectedCities.map((c) => ({ city: c, count: cityCounts[c] || 0, permanent: false })),
+    ],
+    [cityCounts, selectedCities]
+  );
+
+
   const exportCsv = () => {
     const header = "date,retailer,salesman,purpose,visitStatus,outcome,notes";
     const rows = filtered.map((v) => {
