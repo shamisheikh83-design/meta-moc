@@ -323,7 +323,7 @@ function toISODate(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-const PERMANENT_CITIES = ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Peshawar", "Hyderabad"] as const;
+const PERMANENT_CITIES = ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Peshawar", "Hyderabad"];
 
 function normalizeCity(city: string) {
   const c = city.trim();
