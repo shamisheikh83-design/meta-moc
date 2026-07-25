@@ -1005,3 +1005,255 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
     </div>
   );
 }
+
+/* ---------------- Salesman Visit Log (city-wise) ---------------- */
+function SalesmanVisitLog({
+  visits,
+  retailers,
+  salesmen,
+  refresh,
+}: {
+  visits: Visit[];
+  retailers: Retailer[];
+  salesmen: Salesman[];
+  refresh: () => void;
+}) {
+  const [salesmanId, setSalesmanId] = useState<string>("");
+  const [target, setTarget] = useState<Retailer | null>(null);
+
+  const sortedSalesmen = useMemo(
+    () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
+    [salesmen]
+  );
+  const salesman = sortedSalesmen.find((s) => s.id === salesmanId) || null;
+
+  const scopedRetailers = useMemo(
+    () => (salesman ? retailers.filter((r) => r.salesmanId === salesman.id) : retailers),
+    [retailers, salesman]
+  );
+
+  const scopedVisits = useMemo(
+    () => (salesman ? visits.filter((v) => v.salesman === salesman.name) : visits),
+    [visits, salesman]
+  );
+
+  const visitsPerRetailer = useMemo(() => {
+    const m = new Map<string, number>();
+    scopedVisits.forEach((v) => m.set(v.retailerId, (m.get(v.retailerId) || 0) + 1));
+    return m;
+  }, [scopedVisits]);
+
+  const cityGroups = useMemo(() => {
+    const groups = new Map<string, Retailer[]>();
+    scopedRetailers.forEach((r) => {
+      const key = normalizeCity((r.city || "").trim() || "Unassigned city");
+      const list = groups.get(key) || [];
+      list.push(r);
+      groups.set(key, list);
+    });
+    return Array.from(groups.entries())
+      .map(([city, list]) => {
+        let single = 0, multiple = 0, notVisited = 0;
+        list.forEach((r) => {
+          const n = visitsPerRetailer.get(r.id) || 0;
+          if (n === 0) notVisited++;
+          else if (n === 1) single++;
+          else multiple++;
+        });
+        return {
+          city,
+          list: [...list].sort((a, b) => a.name.localeCompare(b.name)),
+          total: list.length,
+          single,
+          multiple,
+          notVisited,
+        };
+      })
+      .sort((a, b) => a.city.localeCompare(b.city));
+  }, [scopedRetailers, visitsPerRetailer]);
+
+  const recent = useMemo(
+    () => [...scopedVisits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10),
+    [scopedVisits]
+  );
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Visit Log</h2>
+        <Badge variant="secondary">{scopedRetailers.length} shops</Badge>
+      </div>
+
+      <div className="bg-card border rounded-2xl p-4">
+        <Field label="Salesman">
+          {sortedSalesmen.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Add salesmen in the Salesmen tab first.</p>
+          ) : (
+            <Select value={salesmanId} onValueChange={setSalesmanId}>
+              <SelectTrigger><SelectValue placeholder="All salesmen" /></SelectTrigger>
+              <SelectContent>
+                {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+        <p className="text-[10px] text-muted-foreground mt-2">
+          {salesman
+            ? `Showing ${salesman.name}'s linked shops, grouped city wise.`
+            : "Showing all shops, grouped city wise. Pick a salesman to record his visits."}
+        </p>
+      </div>
+
+      {cityGroups.length === 0 ? (
+        <EmptyHint text="No shops linked yet. Assign retailers to this salesman in the Retailers tab." />
+      ) : (
+        cityGroups.map((g) => (
+          <div key={g.city} className="bg-card border rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-muted-foreground" />{g.city}</span>
+              <span className="flex items-center gap-1.5 text-xs font-medium">
+                <span className="text-blue-600 dark:text-blue-400">({g.total})</span>
+                <span className="text-yellow-600 dark:text-yellow-400">({g.single})</span>
+                <span className="text-green-600 dark:text-green-400">({g.multiple})</span>
+                <span className="text-red-600 dark:text-red-400">({g.notVisited})</span>
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+              <div className="h-full bg-yellow-500" style={{ width: `${(g.single / (g.total || 1)) * 100}%` }} />
+              <div className="h-full bg-green-500" style={{ width: `${(g.multiple / (g.total || 1)) * 100}%` }} />
+              <div className="h-full bg-red-500" style={{ width: `${(g.notVisited / (g.total || 1)) * 100}%` }} />
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
+              <span className="text-blue-600 dark:text-blue-400">Retailers ({g.total})</span>
+              <span className="text-yellow-600 dark:text-yellow-400">Single visit ({g.single})</span>
+              <span className="text-green-600 dark:text-green-400">Multiple visits ({g.multiple})</span>
+              <span className="text-red-600 dark:text-red-400">Not visited ({g.notVisited})</span>
+            </div>
+
+            <ul className="divide-y border-t">
+              {g.list.map((r) => {
+                const n = visitsPerRetailer.get(r.id) || 0;
+                const dot = n === 0 ? "bg-red-500" : n === 1 ? "bg-yellow-500" : "bg-green-500";
+                return (
+                  <li key={r.id} className="flex items-center justify-between gap-2 py-2">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{r.name}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {r.category ? `${r.category} · ` : ""}{n} visit{n === 1 ? "" : "s"}
+                        </div>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0" onClick={() => setTarget(r)}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Record
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))
+      )}
+
+      {recent.length > 0 && (
+        <div className="bg-card border rounded-2xl p-4">
+          <h3 className="text-sm font-semibold mb-2">Recent entries</h3>
+          <ul className="space-y-2">
+            {recent.map((v) => {
+              const r = retailers.find((x) => x.id === v.retailerId);
+              return (
+                <li key={v.id} className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm truncate">{r?.name ?? "Unknown"}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(v.date).toLocaleString()} · {v.salesman || "—"}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-1 shrink-0">
+                    <StatusBadge status={v.visitStatus} />
+                    <OutcomeBadge outcome={v.outcome} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <Dialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
+        {target && (
+          <RecordVisitDialog
+            retailer={target}
+            salesmanName={salesman?.name ?? ""}
+            onSaved={() => { refresh(); setTarget(null); }}
+          />
+        )}
+      </Dialog>
+    </div>
+  );
+}
+
+function RecordVisitDialog({
+  retailer,
+  salesmanName,
+  onSaved,
+}: {
+  retailer: Retailer;
+  salesmanName: string;
+  onSaved: () => void;
+}) {
+  const [salesman, setSalesman] = useState(salesmanName);
+  const [purpose, setPurpose] = useState("");
+  const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
+  const [outcome, setOutcome] = useState<Outcome>("Successful");
+  const [notes, setNotes] = useState("");
+
+  const save = () => {
+    if (!salesman.trim()) return toast.error("Enter the salesman name");
+    const v: Visit = {
+      id: uid(),
+      date: new Date().toISOString(),
+      retailerId: retailer.id,
+      salesman: salesman.trim(),
+      purpose,
+      visitStatus,
+      outcome,
+      notes,
+    };
+    store.setVisits([v, ...store.getVisits()]);
+    toast.success("Visit recorded");
+    onSaved();
+  };
+
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader><DialogTitle>Record visit · {retailer.name}</DialogTitle></DialogHeader>
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          {normalizeCity(retailer.city || "Unassigned city")}{retailer.category ? ` · ${retailer.category}` : ""}
+        </p>
+        <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Salesman name" /></Field>
+        <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
+        <Field label="Visit status">
+          <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VISIT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Outcome">
+          <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {OUTCOMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Notes"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering..." rows={3} /></Field>
+      </div>
+      <DialogFooter><Button onClick={save} className="w-full">Save visit</Button></DialogFooter>
+    </DialogContent>
+  );
+}
