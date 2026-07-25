@@ -323,7 +323,16 @@ function toISODate(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+const PERMANENT_CITIES = ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Peshawar", "Hyderabad"] as const;
+
+function normalizeCity(city: string) {
+  const c = city.trim();
+  const match = PERMANENT_CITIES.find((p) => p.toLowerCase() === c.toLowerCase());
+  return match ?? c.replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: Retailer[]; salesmen: Salesman[] }) {
+
   const today = new Date();
   const [preset, setPreset] = useState<RangePreset>("monthly");
   const [from, setFrom] = useState<string>(() => {
