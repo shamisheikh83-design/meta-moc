@@ -595,11 +595,25 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
                     </button>
                   )}
                 </span>
-                <span className="text-muted-foreground">{row.count}</span>
+                <span className="flex items-center gap-1.5 font-medium">
+                  <span className="text-blue-600 dark:text-blue-400">({row.retailers})</span>
+                  <span className="text-yellow-600 dark:text-yellow-400">({row.single})</span>
+                  <span className="text-green-600 dark:text-green-400">({row.multiple})</span>
+                  <span className="text-red-600 dark:text-red-400">({row.notVisited})</span>
+                </span>
               </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div className="h-full bg-primary" style={{ width: `${(row.count / (filtered.length || 1)) * 100}%` }} />
+              <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+                <div className="h-full bg-yellow-500" style={{ width: `${(row.single / (row.retailers || 1)) * 100}%` }} />
+                <div className="h-full bg-green-500" style={{ width: `${(row.multiple / (row.retailers || 1)) * 100}%` }} />
+                <div className="h-full bg-red-500" style={{ width: `${(row.notVisited / (row.retailers || 1)) * 100}%` }} />
               </div>
+              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px]">
+                <span className="text-blue-600 dark:text-blue-400">Retailers ({row.retailers})</span>
+                <span className="text-yellow-600 dark:text-yellow-400">Single visit ({row.single})</span>
+                <span className="text-green-600 dark:text-green-400">Multiple visits ({row.multiple})</span>
+                <span className="text-red-600 dark:text-red-400">Not visited ({row.notVisited})</span>
+              </div>
+
             </div>
           ))}
         </div>
