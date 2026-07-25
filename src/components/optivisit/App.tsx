@@ -505,9 +505,60 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
         entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
         total={filtered.length}
       />
+
+      <div className="bg-card border rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold">City wise Analysis</h3>
+          <Badge variant="secondary">{filtered.length}</Badge>
+        </div>
+        <p className="text-[10px] text-muted-foreground mb-3">{selectionSummary}</p>
+        <div className="space-y-2">
+          {cityRows.map((row) => (
+            <div key={row.city}>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="flex items-center gap-1">
+                  {row.city}
+                  {!row.permanent && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCities((prev) => prev.filter((c) => c !== row.city))}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove ${row.city}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </span>
+                <span className="text-muted-foreground">{row.count}</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-primary" style={{ width: `${(row.count / (filtered.length || 1)) * 100}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3">
+          <Field label="Add city">
+            <Select
+              value=""
+              onValueChange={(v) => setSelectedCities((prev) => (prev.includes(v) ? prev : [...prev, v]))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={selectableCities.length ? "Select a city" : "No other linked cities"} />
+              </SelectTrigger>
+              <SelectContent>
+                {selectableCities.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </div>
     </div>
   );
 }
+
 
 const STATUS_BAR: Record<VisitStatus, string> = {
   Visited: "bg-emerald-500",
