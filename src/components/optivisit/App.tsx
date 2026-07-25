@@ -406,17 +406,32 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
     return acc;
   }, [filtered]);
 
-  const cityCounts = useMemo(() => {
-    const acc: Record<string, number> = {};
+  const cityStats = useMemo(() => {
+    const salesmanById = new Map(salesmen.map((s) => [s.id, s.name]));
+    const scoped = retailers.filter((r) => {
+      if (selectedSalesmen.length === 0) return true;
+      const name = r.salesmanId ? salesmanById.get(r.salesmanId) : undefined;
+      return !!name && selectedSalesmen.includes(name);
+    });
+    const visitsPerRetailer = new Map<string, number>();
     filtered.forEach((v) => {
-      const r = retailers.find((x) => x.id === v.retailerId);
-      const city = (r?.city || "").trim();
+      visitsPerRetailer.set(v.retailerId, (visitsPerRetailer.get(v.retailerId) || 0) + 1);
+    });
+    const acc: Record<string, { retailers: number; single: number; multiple: number; notVisited: number; visits: number }> = {};
+    scoped.forEach((r) => {
+      const city = (r.city || "").trim();
       if (!city) return;
       const key = normalizeCity(city);
-      acc[key] = (acc[key] || 0) + 1;
+      const row = acc[key] || (acc[key] = { retailers: 0, single: 0, multiple: 0, notVisited: 0, visits: 0 });
+      const n = visitsPerRetailer.get(r.id) || 0;
+      row.retailers++;
+      row.visits += n;
+      if (n === 0) row.notVisited++;
+      else if (n === 1) row.single++;
+      else row.multiple++;
     });
     return acc;
-  }, [filtered, retailers]);
+  }, [filtered, retailers, salesmen, selectedSalesmen]);
 
   const linkedCities = useMemo(() => {
     const set = new Map<string, string>();
@@ -434,13 +449,16 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
     [linkedCities, selectedCities]
   );
 
+  const EMPTY_CITY = { retailers: 0, single: 0, multiple: 0, notVisited: 0, visits: 0 };
+
   const cityRows = useMemo(
     () => [
-      ...PERMANENT_CITIES.map((c) => ({ city: c, count: cityCounts[c] || 0, permanent: true })),
-      ...selectedCities.map((c) => ({ city: c, count: cityCounts[c] || 0, permanent: false })),
+      ...PERMANENT_CITIES.map((c) => ({ city: c, permanent: true, ...(cityStats[c] || EMPTY_CITY) })),
+      ...selectedCities.map((c) => ({ city: c, permanent: false, ...(cityStats[c] || EMPTY_CITY) })),
     ],
-    [cityCounts, selectedCities]
+    [cityStats, selectedCities]
   );
+
 
 
   const exportCsv = () => {
