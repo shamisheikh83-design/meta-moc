@@ -11,7 +11,7 @@ import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, SHOP_CATEGORIES, type Vi
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
+type Tab = "dashboard" | "visits" | "visitlog" | "reports" | "retailers" | "salesmen" | "settings";
 
 export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
