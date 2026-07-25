@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, SHOP_CATEGORIES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory } from "@/lib/optivisit-store";
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
@@ -323,7 +323,16 @@ function toISODate(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+const PERMANENT_CITIES = ["Karachi", "Lahore", "Islamabad", "Rawalpindi", "Peshawar", "Hyderabad"];
+
+function normalizeCity(city: string) {
+  const c = city.trim();
+  const match = PERMANENT_CITIES.find((p) => p.toLowerCase() === c.toLowerCase());
+  return match ?? c.replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: Retailer[]; salesmen: Salesman[] }) {
+
   const today = new Date();
   const [preset, setPreset] = useState<RangePreset>("monthly");
   const [from, setFrom] = useState<string>(() => {
@@ -331,6 +340,8 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
   });
   const [to, setTo] = useState<string>(toISODate(today));
   const [selectedSalesmen, setSelectedSalesmen] = useState<string[]>([]);
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+
 
   const sortedSalesmen = useMemo(
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
@@ -394,6 +405,43 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
     filtered.forEach((v) => { if (v.outcome && acc[v.outcome] !== undefined) acc[v.outcome]++; });
     return acc;
   }, [filtered]);
+
+  const cityCounts = useMemo(() => {
+    const acc: Record<string, number> = {};
+    filtered.forEach((v) => {
+      const r = retailers.find((x) => x.id === v.retailerId);
+      const city = (r?.city || "").trim();
+      if (!city) return;
+      const key = normalizeCity(city);
+      acc[key] = (acc[key] || 0) + 1;
+    });
+    return acc;
+  }, [filtered, retailers]);
+
+  const linkedCities = useMemo(() => {
+    const set = new Map<string, string>();
+    [...retailers.map((r) => r.city), ...salesmen.map((s) => s.city)].forEach((c) => {
+      const city = (c || "").trim();
+      if (!city) return;
+      const key = normalizeCity(city);
+      if (!set.has(key)) set.set(key, key);
+    });
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  }, [retailers, salesmen]);
+
+  const selectableCities = useMemo(
+    () => linkedCities.filter((c) => !PERMANENT_CITIES.includes(c) && !selectedCities.includes(c)),
+    [linkedCities, selectedCities]
+  );
+
+  const cityRows = useMemo(
+    () => [
+      ...PERMANENT_CITIES.map((c) => ({ city: c, count: cityCounts[c] || 0, permanent: true })),
+      ...selectedCities.map((c) => ({ city: c, count: cityCounts[c] || 0, permanent: false })),
+    ],
+    [cityCounts, selectedCities]
+  );
+
 
   const exportCsv = () => {
     const header = "date,retailer,salesman,purpose,visitStatus,outcome,notes";
@@ -505,9 +553,60 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
         entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
         total={filtered.length}
       />
+
+      <div className="bg-card border rounded-2xl p-4">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold">City wise Analysis</h3>
+          <Badge variant="secondary">{filtered.length}</Badge>
+        </div>
+        <p className="text-[10px] text-muted-foreground mb-3">{selectionSummary}</p>
+        <div className="space-y-2">
+          {cityRows.map((row) => (
+            <div key={row.city}>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="flex items-center gap-1">
+                  {row.city}
+                  {!row.permanent && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCities((prev) => prev.filter((c) => c !== row.city))}
+                      className="text-muted-foreground hover:text-destructive"
+                      aria-label={`Remove ${row.city}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </span>
+                <span className="text-muted-foreground">{row.count}</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-primary" style={{ width: `${(row.count / (filtered.length || 1)) * 100}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3">
+          <Field label="Add city">
+            <Select
+              value=""
+              onValueChange={(v) => setSelectedCities((prev) => (prev.includes(v) ? prev : [...prev, v]))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={selectableCities.length ? "Select a city" : "No other linked cities"} />
+              </SelectTrigger>
+              <SelectContent>
+                {selectableCities.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </div>
     </div>
   );
 }
+
 
 const STATUS_BAR: Record<VisitStatus, string> = {
   Visited: "bg-emerald-500",
