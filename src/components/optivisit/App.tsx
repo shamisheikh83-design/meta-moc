@@ -331,6 +331,8 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
   });
   const [to, setTo] = useState<string>(toISODate(today));
   const [selectedSalesmen, setSelectedSalesmen] = useState<string[]>([]);
+  const [selectedCities, setSelectedCities] = useState<string[]>([]);
+
 
   const sortedSalesmen = useMemo(
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
