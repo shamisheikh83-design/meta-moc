@@ -66,51 +66,53 @@
   --color-gold-ink: var(--gold-ink);
   --color-orange: var(--orange);
   --color-orange-soft: var(--orange-soft);
+  --color-sun: var(--sun);
 }
 
 :root {
   --radius: 0.625rem;
 
-  /* Brand palette: Navy / Gold / Orange / White */
-  --navy: oklch(0.28 0.09 264);
-  --navy-light: oklch(0.42 0.1 264);
-  --gold: oklch(0.75 0.13 85);
-  --gold-soft: oklch(0.93 0.05 90);
-  --gold-ink: oklch(0.6 0.12 80);
-  --orange: oklch(0.68 0.17 45);
-  --orange-soft: oklch(0.95 0.05 55);
+  /* Brand palette: Indigo / Teal / Coral / Sunbeam on tinted canvas */
+  --navy: oklch(0.32 0.14 285);
+  --navy-light: oklch(0.5 0.17 288);
+  --gold: oklch(0.72 0.13 192);
+  --gold-soft: oklch(0.9 0.06 195);
+  --gold-ink: oklch(0.5 0.12 196);
+  --orange: oklch(0.68 0.19 32);
+  --orange-soft: oklch(0.93 0.07 45);
+  --sun: oklch(0.85 0.16 90);
 
-  --background: oklch(1 0 0);
+  --background: oklch(0.97 0.022 285);
   --foreground: var(--navy);
-  --card: oklch(1 0 0);
+  --card: oklch(0.995 0.012 290);
   --card-foreground: var(--navy);
-  --popover: oklch(1 0 0);
+  --popover: oklch(0.995 0.012 290);
   --popover-foreground: var(--navy);
   --primary: var(--navy);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0.015 90);
-  --secondary-foreground: var(--navy);
-  --muted: oklch(0.97 0.01 264);
-  --muted-foreground: oklch(0.52 0.05 264);
+  --primary-foreground: oklch(0.99 0.01 90);
+  --secondary: oklch(0.93 0.06 195);
+  --secondary-foreground: oklch(0.35 0.1 200);
+  --muted: oklch(0.94 0.03 288);
+  --muted-foreground: oklch(0.52 0.07 288);
   --accent: var(--orange-soft);
-  --accent-foreground: var(--navy);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: var(--gold-soft);
-  --input: oklch(0.9 0.03 90);
+  --accent-foreground: oklch(0.42 0.16 32);
+  --destructive: oklch(0.59 0.23 22);
+  --destructive-foreground: oklch(0.99 0.01 90);
+  --border: oklch(0.86 0.06 200);
+  --input: oklch(0.88 0.05 200);
   --ring: var(--gold);
   --chart-1: var(--navy);
   --chart-2: var(--gold);
   --chart-3: var(--orange);
-  --chart-4: var(--navy-light);
-  --chart-5: oklch(0.8 0.1 100);
-  --sidebar: oklch(1 0 0);
+  --chart-4: var(--sun);
+  --chart-5: var(--navy-light);
+  --sidebar: oklch(0.995 0.012 290);
   --sidebar-foreground: var(--navy);
   --sidebar-primary: var(--navy);
-  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-primary-foreground: oklch(0.99 0.01 90);
   --sidebar-accent: var(--gold-soft);
   --sidebar-accent-foreground: var(--navy);
-  --sidebar-border: var(--gold-soft);
+  --sidebar-border: oklch(0.86 0.06 200);
   --sidebar-ring: var(--gold);
 }
 
@@ -156,15 +158,20 @@
 
   body {
     background-color: var(--color-background);
+    background-image:
+      radial-gradient(60rem 40rem at 110% -10%, color-mix(in oklab, var(--gold) 22%, transparent), transparent 70%),
+      radial-gradient(50rem 34rem at -10% 0%, color-mix(in oklab, var(--orange) 18%, transparent), transparent 70%),
+      radial-gradient(46rem 32rem at 50% 120%, color-mix(in oklab, var(--navy-light) 18%, transparent), transparent 70%);
+    background-attachment: fixed;
     color: var(--color-foreground);
   }
 
   h1, h2, h3 {
-    color: var(--gold-ink);
+    color: var(--navy);
   }
 
   h4, h5, h6 {
-    color: var(--orange);
+    color: var(--gold-ink);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -172,7 +179,28 @@
   }
 
   hr, [role="separator"] {
-    background-color: var(--orange-soft);
-    border-color: var(--orange-soft);
+    background-color: color-mix(in oklab, var(--orange) 35%, transparent);
+    border-color: color-mix(in oklab, var(--orange) 35%, transparent);
+  }
+
+  /* Colorful surfaces: cards, inputs and controls pick up palette tints */
+  [data-slot="card"] {
+    background-image: linear-gradient(
+      160deg,
+      color-mix(in oklab, var(--gold) 10%, transparent),
+      transparent 55%,
+      color-mix(in oklab, var(--orange) 9%, transparent)
+    );
+    border-color: color-mix(in oklab, var(--gold) 42%, transparent);
+    box-shadow: 0 8px 24px -18px color-mix(in oklab, var(--navy) 70%, transparent);
+  }
+
+  input, textarea, [data-slot="select-trigger"] {
+    background-color: color-mix(in oklab, var(--gold) 9%, var(--card));
+    border-color: color-mix(in oklab, var(--gold) 45%, transparent);
+  }
+
+  input:focus-visible, textarea:focus-visible, [data-slot="select-trigger"]:focus-visible {
+    border-color: var(--orange);
   }
 }
