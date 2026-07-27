@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Meta Opti Connect" },
       { name: "twitter:description", content: "Salesmen to Opticians Visit Recorder - Log salesmen visits to optician shops for engagement, complaints, marketing jobs, getting orders and awareness." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/3a98301e-0a42-402d-8a19-cc7bf063efc6" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/3a98301e-0a42-402d-8a19-cc7bf063efc6" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/8bc5bbc4-c0f3-449e-bab4-a7634328fd20" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/8bc5bbc4-c0f3-449e-bab4-a7634328fd20" },
     ],
     links: [
       {
