@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, SHOP_CATEGORIES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory } from "@/lib/optivisit-store";
+import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory } from "@/lib/optivisit-store";
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen } from "lucide-react";
 import { toast } from "sonner";
 
@@ -242,20 +242,28 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
 
 function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: () => void }) {
   const [retailerId, setRetailerId] = useState("");
-  const [salesman, setSalesman] = useState(store.getSettings().salesmanName || "");
-  const [purpose, setPurpose] = useState("");
+  const [salesman, setSalesman] = useState("");
+  const [purpose, setPurpose] = useState<string>("");
+  const [otherPurpose, setOtherPurpose] = useState("");
   const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [notes, setNotes] = useState("");
 
+  const salesmenList = useMemo(
+    () => store.getSalesmen().slice().sort((a, b) => a.name.localeCompare(b.name)),
+    []
+  );
+
   const save = () => {
     if (!retailerId) return toast.error("Please select a retailer");
+    if (!salesman) return toast.error("Please select a salesman");
+    if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
     const v: Visit = {
       id: uid(),
       date: new Date().toISOString(),
       retailerId,
       salesman,
-      purpose,
+      purpose: purpose === "Other" ? otherPurpose.trim() : purpose,
       visitStatus,
       outcome,
       notes,
@@ -281,8 +289,31 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
             </Select>
           )}
         </Field>
-        <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Your name" /></Field>
-        <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
+        <Field label="Salesman">
+          {salesmenList.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Add a salesman first in the Salesmen tab.</p>
+          ) : (
+            <Select value={salesman} onValueChange={setSalesman}>
+              <SelectTrigger><SelectValue placeholder="Select salesman" /></SelectTrigger>
+              <SelectContent>
+                {salesmenList.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+        <Field label="Purpose">
+          <Select value={purpose} onValueChange={setPurpose}>
+            <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
+            <SelectContent>
+              {VISIT_PURPOSES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        {purpose === "Other" && (
+          <Field label="Specify purpose">
+            <Input value={otherPurpose} onChange={(e) => setOtherPurpose(e.target.value)} placeholder="Enter purpose" />
+          </Field>
+        )}
         <Field label="Visit status">
           <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
             <SelectTrigger><SelectValue /></SelectTrigger>

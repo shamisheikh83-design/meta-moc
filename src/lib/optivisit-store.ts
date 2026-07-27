@@ -14,6 +14,18 @@ export const OUTCOMES = [
 ] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 
+export const VISIT_PURPOSES = [
+  "New connect",
+  "Engagement",
+  "Complaint",
+  "Order booking",
+  "Brand awareness",
+  "Marketing",
+  "Recovery",
+  "Other",
+] as const;
+export type VisitPurpose = (typeof VISIT_PURPOSES)[number];
+
 export type Visit = {
   id: string;
   date: string; // ISO
