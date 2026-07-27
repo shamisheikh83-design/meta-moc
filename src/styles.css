@@ -184,7 +184,7 @@
   }
 
   /* Colorful surfaces: cards, inputs and controls pick up palette tints */
-  [data-slot="card"] {
+  .bg-card {
     background-image: linear-gradient(
       160deg,
       color-mix(in oklab, var(--gold) 22%, transparent),
@@ -195,12 +195,12 @@
     box-shadow: 0 8px 24px -18px color-mix(in oklab, var(--navy) 70%, transparent);
   }
 
-  input, textarea, [data-slot="select-trigger"] {
+  input, textarea, [role="combobox"] {
     background-color: color-mix(in oklab, var(--gold) 9%, var(--card));
     border-color: color-mix(in oklab, var(--gold) 45%, transparent);
   }
 
-  input:focus-visible, textarea:focus-visible, [data-slot="select-trigger"]:focus-visible {
+  input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
     border-color: var(--orange);
   }
 }
