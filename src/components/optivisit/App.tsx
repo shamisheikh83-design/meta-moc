@@ -787,32 +787,45 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
       ) : (
         <ul className="space-y-2">
           {filtered.map((r) => (
-            <li key={r.id} className="bg-card border rounded-2xl p-4">
-              <div className="flex justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="font-medium text-sm">{r.name}</div>
-                    {r.category && <Badge variant="secondary" className="text-[10px]">{r.category}</Badge>}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    {r.owner && <div className="flex items-center gap-1.5"><User className="w-3 h-3" />{r.owner}</div>}
-                    {(r.city || r.address) && <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3" />{[r.address, r.city].filter(Boolean).join(", ")}</div>}
-                    {r.phone && <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" />{r.phone}</div>}
-                    <div className="flex items-center gap-1.5"><Users className="w-3 h-3" />{salesmanName(r.salesmanId) ?? "Unassigned"}</div>
-                  </div>
-                  {r.notes && <div className="text-xs mt-2 text-muted-foreground">{r.notes}</div>}
-                  <div className="mt-3">
-                    <Label className="text-[11px] text-muted-foreground">Change salesman</Label>
-                    <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
-                      <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Select salesman" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Unassigned</SelectItem>
-                        {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <li key={r.id} className="bg-card border rounded-2xl p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-medium text-sm truncate">{r.name}</div>
+                  {r.category && <Badge variant="secondary" className="text-[10px] mt-0.5">{r.category}</Badge>}
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => remove(r.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+                <div className="min-w-0 text-right">
+                  {r.owner && <div className="text-xs truncate">{r.owner}</div>}
+                  {r.phone && <div className="text-[11px] text-muted-foreground truncate">{r.phone}</div>}
+                </div>
+              </div>
+
+              {(r.address || r.city) && (
+                <div className="text-[11px] text-muted-foreground mt-1.5 flex items-start gap-1.5">
+                  <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
+                  <span className="min-w-0">{[r.address, r.city].filter(Boolean).join(", ")}</span>
+                </div>
+              )}
+              {r.notes && <div className="text-[11px] mt-1 text-muted-foreground">{r.notes}</div>}
+
+              <div className="mt-2 flex items-center gap-1.5">
+                <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
+                  <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Dialog open={editing?.id === r.id} onOpenChange={(o) => setEditing(o ? r : null)}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-8 w-8 shrink-0"><Pencil className="w-3.5 h-3.5" /></Button>
+                  </DialogTrigger>
+                  {editing?.id === r.id && (
+                    <RetailerDialog salesmen={sortedSalesmen} initial={r} onSaved={() => { refresh(); setEditing(null); }} />
+                  )}
+                </Dialog>
+                <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => remove(r.id)}>
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </Button>
               </div>
             </li>
           ))}
@@ -822,18 +835,27 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
   );
 }
 
-function RetailerDialog({ salesmen, onSaved }: { salesmen: Salesman[]; onSaved: () => void }) {
-  const [f, setF] = useState<Omit<Retailer, "id">>({ name: "", owner: "", city: "", phone: "", address: "", notes: "" });
+function RetailerDialog({ salesmen, onSaved, initial }: { salesmen: Salesman[]; onSaved: () => void; initial?: Retailer }) {
+  const [f, setF] = useState<Omit<Retailer, "id">>(
+    initial
+      ? { name: initial.name, owner: initial.owner, city: initial.city, phone: initial.phone, address: initial.address, notes: initial.notes, salesmanId: initial.salesmanId, category: initial.category }
+      : { name: "", owner: "", city: "", phone: "", address: "", notes: "" }
+  );
   const save = () => {
     if (!f.name.trim()) return toast.error("Name is required");
-    store.setRetailers([{ id: uid(), ...f }, ...store.getRetailers()]);
-    toast.success("Retailer added");
+    if (initial) {
+      store.setRetailers(store.getRetailers().map((r) => (r.id === initial.id ? { ...r, ...f } : r)));
+      toast.success("Retailer updated");
+    } else {
+      store.setRetailers([{ id: uid(), ...f }, ...store.getRetailers()]);
+      toast.success("Retailer added");
+    }
     onSaved();
   };
   const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   return (
     <DialogContent className="max-w-md">
-      <DialogHeader><DialogTitle>Add retailer</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{initial ? "Edit retailer" : "Add retailer"}</DialogTitle></DialogHeader>
       <div className="space-y-3">
         <Field label="Shop name"><Input value={f.name} onChange={upd("name")} placeholder="Vision Optics" /></Field>
         <Field label="Owner / contact"><Input value={f.owner} onChange={upd("owner")} /></Field>
@@ -865,10 +887,11 @@ function RetailerDialog({ salesmen, onSaved }: { salesmen: Salesman[]; onSaved: 
         <Field label="Address"><Input value={f.address} onChange={upd("address")} /></Field>
         <Field label="Notes"><Textarea value={f.notes} onChange={upd("notes")} rows={2} /></Field>
       </div>
-      <DialogFooter><Button className="w-full" onClick={save}>Save retailer</Button></DialogFooter>
+      <DialogFooter><Button className="w-full" onClick={save}>{initial ? "Save changes" : "Save retailer"}</Button></DialogFooter>
     </DialogContent>
   );
 }
+
 
 /* ---------------- Salesmen ---------------- */
 function Salesmen({ salesmen, refresh }: { salesmen: Salesman[]; refresh: () => void }) {
