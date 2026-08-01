@@ -61,94 +61,98 @@
   --color-sidebar-ring: var(--sidebar-ring);
   --color-navy: var(--navy);
   --color-navy-light: var(--navy-light);
-  --color-gold: var(--gold);
-  --color-gold-soft: var(--gold-soft);
-  --color-gold-ink: var(--gold-ink);
-  --color-orange: var(--orange);
-  --color-orange-soft: var(--orange-soft);
-  --color-sun: var(--sun);
+  --color-maroon: var(--maroon);
+  --color-maroon-ink: var(--maroon-ink);
+  --color-maroon-soft: var(--maroon-soft);
+  --color-aqua: var(--aqua);
+  --color-aqua-soft: var(--aqua-soft);
+  --color-sea-green: var(--sea-green);
+  --color-sea-green-soft: var(--sea-green-soft);
+  --color-ash-white: var(--ash-white);
 }
 
 :root {
   --radius: 0.625rem;
 
-  /* Brand palette: Indigo / Teal / Coral / Sunbeam on tinted canvas */
-  --navy: oklch(0.32 0.14 285);
-  --navy-light: oklch(0.5 0.17 288);
-  --gold: oklch(0.72 0.13 192);
-  --gold-soft: oklch(0.9 0.06 195);
-  --gold-ink: oklch(0.5 0.12 196);
-  --orange: oklch(0.68 0.19 32);
-  --orange-soft: oklch(0.93 0.07 45);
-  --sun: oklch(0.85 0.16 90);
+  /* Brand palette: Mid Navy / Mehroonish Brown / Aqua / Sea Green on Ash White */
+  --navy: oklch(0.35 0.11 255);
+  --navy-light: oklch(0.48 0.13 255);
+  --maroon: oklch(0.42 0.13 35);
+  --maroon-ink: oklch(0.38 0.12 35);
+  --maroon-soft: oklch(0.72 0.06 35);
+  --aqua: oklch(0.72 0.13 205);
+  --aqua-soft: oklch(0.88 0.06 205);
+  --sea-green: oklch(0.82 0.07 170);
+  --sea-green-soft: oklch(0.92 0.04 170);
+  --ash-white: oklch(0.97 0.005 100);
 
-  --background: oklch(0.97 0.022 285);
+  --background: var(--ash-white);
   --foreground: var(--navy);
-  --card: oklch(0.98 0.025 290);
+  --card: var(--sea-green-soft);
   --card-foreground: var(--navy);
-  --popover: oklch(0.995 0.012 290);
+  --popover: oklch(0.98 0.01 100);
   --popover-foreground: var(--navy);
   --primary: var(--navy);
   --primary-foreground: oklch(0.99 0.01 90);
-  --secondary: oklch(0.93 0.06 195);
-  --secondary-foreground: oklch(0.35 0.1 200);
-  --muted: oklch(0.94 0.03 288);
-  --muted-foreground: oklch(0.52 0.07 288);
-  --accent: var(--orange-soft);
-  --accent-foreground: oklch(0.42 0.16 32);
+  --secondary: var(--aqua-soft);
+  --secondary-foreground: var(--navy);
+  --muted: var(--sea-green);
+  --muted-foreground: oklch(0.52 0.06 255);
+  --accent: var(--aqua);
+  --accent-foreground: var(--navy);
   --destructive: oklch(0.59 0.23 22);
   --destructive-foreground: oklch(0.99 0.01 90);
-  --border: oklch(0.86 0.06 200);
-  --input: oklch(0.88 0.05 200);
-  --ring: var(--gold);
+  --border: var(--maroon-soft);
+  --input: var(--sea-green);
+  --ring: var(--aqua);
   --chart-1: var(--navy);
-  --chart-2: var(--gold);
-  --chart-3: var(--orange);
-  --chart-4: var(--sun);
+  --chart-2: var(--maroon);
+  --chart-3: var(--aqua);
+  --chart-4: var(--sea-green);
   --chart-5: var(--navy-light);
-  --sidebar: oklch(0.995 0.012 290);
+  --sidebar: var(--sea-green-soft);
   --sidebar-foreground: var(--navy);
   --sidebar-primary: var(--navy);
   --sidebar-primary-foreground: oklch(0.99 0.01 90);
-  --sidebar-accent: var(--gold-soft);
+  --sidebar-accent: var(--aqua-soft);
   --sidebar-accent-foreground: var(--navy);
-  --sidebar-border: oklch(0.86 0.06 200);
-  --sidebar-ring: var(--gold);
+  --sidebar-border: var(--maroon-soft);
+  --sidebar-ring: var(--aqua);
 }
 
 .dark {
-  --background: oklch(0.16 0.05 264);
+  --background: oklch(0.18 0.04 255);
   --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
+  --card: oklch(0.24 0.05 170);
   --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
+  --popover: oklch(0.22 0.04 170);
   --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
+  --primary: oklch(0.72 0.1 205);
+  --primary-foreground: oklch(0.18 0.04 255);
+  --secondary: oklch(0.28 0.05 205);
   --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
+  --muted: oklch(0.28 0.05 170);
   --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
+  --accent: oklch(0.55 0.1 205);
   --accent-foreground: oklch(0.984 0.003 247.858);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
+  --ring: oklch(0.72 0.1 205);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar: oklch(0.24 0.05 170);
   --sidebar-foreground: oklch(0.984 0.003 247.858);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent: oklch(0.28 0.05 205);
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  --sidebar-ring: oklch(0.72 0.1 205);
 }
 
 @layer base {
@@ -159,19 +163,19 @@
   body {
     background-color: var(--color-background);
     background-image:
-      radial-gradient(60rem 40rem at 110% -10%, color-mix(in oklab, var(--gold) 45%, transparent), transparent 70%),
-      radial-gradient(50rem 34rem at -10% 0%, color-mix(in oklab, var(--orange) 32%, transparent), transparent 70%),
-      radial-gradient(46rem 32rem at 50% 120%, color-mix(in oklab, var(--navy-light) 30%, transparent), transparent 70%);
+      radial-gradient(55rem 35rem at 120% -5%, color-mix(in oklab, var(--sea-green) 35%, transparent), transparent 70%),
+      radial-gradient(45rem 30rem at -5% 5%, color-mix(in oklab, var(--aqua) 22%, transparent), transparent 70%),
+      radial-gradient(42rem 28rem at 50% 115%, color-mix(in oklab, var(--maroon) 12%, transparent), transparent 70%);
     background-attachment: fixed;
     color: var(--color-foreground);
   }
 
-  h1, h2, h3 {
+  h1, h2 {
     color: var(--navy);
   }
 
-  h4, h5, h6 {
-    color: var(--gold-ink);
+  h3, h4, h5, h6 {
+    color: var(--maroon-ink);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -179,28 +183,28 @@
   }
 
   hr, [role="separator"] {
-    background-color: color-mix(in oklab, var(--orange) 35%, transparent);
-    border-color: color-mix(in oklab, var(--orange) 35%, transparent);
+    background-color: color-mix(in oklab, var(--maroon) 30%, transparent);
+    border-color: color-mix(in oklab, var(--maroon) 30%, transparent);
   }
 
   /* Colorful surfaces: cards, inputs and controls pick up palette tints */
   .bg-card {
     background-image: linear-gradient(
       160deg,
-      color-mix(in oklab, var(--gold) 42%, transparent),
+      color-mix(in oklab, var(--sea-green) 55%, transparent),
       transparent 50%,
-      color-mix(in oklab, var(--orange) 38%, transparent)
+      color-mix(in oklab, var(--aqua) 30%, transparent)
     );
-    border-color: color-mix(in oklab, var(--gold) 60%, transparent);
-    box-shadow: 0 8px 24px -18px color-mix(in oklab, var(--navy) 70%, transparent);
+    border-color: color-mix(in oklab, var(--maroon) 45%, transparent);
+    box-shadow: 0 8px 24px -18px color-mix(in oklab, var(--navy) 50%, transparent);
   }
 
   input, textarea, [role="combobox"] {
-    background-color: color-mix(in oklab, var(--gold) 16%, var(--card));
-    border-color: color-mix(in oklab, var(--gold) 60%, transparent);
+    background-color: color-mix(in oklab, var(--sea-green) 25%, var(--card));
+    border-color: color-mix(in oklab, var(--maroon) 40%, transparent);
   }
 
   input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
-    border-color: var(--orange);
+    border-color: var(--aqua);
   }
 }
