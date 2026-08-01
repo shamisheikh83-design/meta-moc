@@ -1009,6 +1009,7 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
     location.reload();
   };
 
+
   return (
     <div className="space-y-4 pt-2">
       <h2 className="text-lg font-semibold">Settings</h2>
