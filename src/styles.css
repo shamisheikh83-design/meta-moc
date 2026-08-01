@@ -223,4 +223,23 @@
     background-color: var(--aqua-soft);
     color: var(--navy);
   }
+
+  /* Custom theme from Settings overrides the decorative gradients */
+  [data-custom-theme] body {
+    background-image: none;
+  }
+
+  [data-custom-theme] .bg-card {
+    background-image: none;
+  }
+
+  [data-custom-theme] h1,
+  [data-custom-theme] h2,
+  [data-custom-theme] h3,
+  [data-custom-theme] h4,
+  [data-custom-theme] h5,
+  [data-custom-theme] h6 {
+    color: var(--theme-font, inherit);
+  }
 }
+
