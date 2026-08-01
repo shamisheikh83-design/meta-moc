@@ -1013,6 +1013,10 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
     <div className="space-y-4 pt-2">
       <h2 className="text-lg font-semibold">Settings</h2>
 
+      <ThemePanel />
+
+
+
       <section className="bg-card border rounded-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold">Security</h3>
         <Field label="Change PIN">
