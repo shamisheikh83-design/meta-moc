@@ -340,7 +340,7 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+      <Label className="text-xs text-aqua font-medium">{label}</Label>
       {children}
     </div>
   );
