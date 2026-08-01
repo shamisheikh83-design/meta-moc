@@ -207,4 +207,20 @@
   input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
     border-color: var(--aqua);
   }
+
+  /* Dropdown lists and filter menus: aqua-tinted surfaces with navy text */
+  [role="listbox"] {
+    background-color: var(--sea-green-soft);
+    border-color: color-mix(in oklab, var(--maroon) 40%, transparent);
+  }
+
+  [role="option"] {
+    color: var(--navy);
+  }
+
+  [role="option"][data-state="checked"],
+  [role="option"][data-highlighted] {
+    background-color: var(--aqua-soft);
+    color: var(--navy);
+  }
 }
