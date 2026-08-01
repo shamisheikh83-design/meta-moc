@@ -976,7 +976,82 @@ function SalesmanDialog({ onSaved }: { onSaved: () => void }) {
 }
 
 /* ---------------- Settings ---------------- */
+function ColorPicker({
+  label,
+  value,
+  onChange,
+  allowNoFill,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  allowNoFill?: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-aqua font-medium">{label}</Label>
+      <div className="flex flex-wrap gap-1.5">
+        {allowNoFill && (
+          <button
+            type="button"
+            onClick={() => onChange(NO_FILL)}
+            title="No fill"
+            className={`h-7 px-2 rounded-md border text-[10px] ${value === NO_FILL ? "ring-2 ring-ring" : ""}`}
+          >
+            No fill
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          title="Default"
+          className={`h-7 px-2 rounded-md border text-[10px] ${value === "" ? "ring-2 ring-ring" : ""}`}
+        >
+          Default
+        </button>
+        {THEME_COLORS.map((c) => (
+          <button
+            key={c.name}
+            type="button"
+            title={c.name}
+            onClick={() => onChange(c.value)}
+            style={{ backgroundColor: c.value }}
+            className={`h-7 w-7 rounded-md border ${value === c.value ? "ring-2 ring-ring" : ""}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ThemePanel() {
+  const [theme, setLocalTheme] = useState<AppTheme>(defaultTheme);
+
+  useEffect(() => {
+    setLocalTheme(getTheme());
+  }, []);
+
+  const update = (patch: Partial<AppTheme>) => {
+    const next = { ...theme, ...patch };
+    setLocalTheme(next);
+    setTheme(next);
+  };
+
+  return (
+    <section className="bg-card border rounded-2xl p-4 space-y-4">
+      <h3 className="text-sm font-semibold">Color theme</h3>
+      <ColorPicker label="Background color" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
+      <ColorPicker label="Ticket / token background" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
+      <ColorPicker label="Font color" value={theme.font} onChange={(v) => update({ font: v })} />
+      <Button size="sm" variant="outline" onClick={() => update({ background: "", card: "", font: "" })}>
+        Reset theme
+      </Button>
+    </section>
+  );
+}
+
 function SettingsPanel({ onLock }: { onLock: () => void }) {
+
   const [newPin, setNewPin] = useState("");
   const [wipePin, setWipePin] = useState("");
   const [wipeOpen, setWipeOpen] = useState(false);
