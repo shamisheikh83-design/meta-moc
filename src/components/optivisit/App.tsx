@@ -25,6 +25,8 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
     setVisits(store.getVisits());
     setRetailers(store.getRetailers());
     setSalesmen(store.getSalesmen());
+    applyTheme(getTheme());
+
   }, []);
 
   const refreshVisits = () => setVisits(store.getVisits());
