@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory } from "@/lib/optivisit-store";
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "dashboard" | "visits" | "visitlog" | "reports" | "retailers" | "salesmen" | "settings";
