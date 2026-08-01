@@ -730,6 +730,8 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [salesmanFilter, setSalesmanFilter] = useState<string>("all");
+  const [editing, setEditing] = useState<Retailer | null>(null);
+
 
   const sortedSalesmen = [...salesmen].sort((a, b) => a.name.localeCompare(b.name));
   const salesmanName = (id?: string) => sortedSalesmen.find((s) => s.id === id)?.name;
