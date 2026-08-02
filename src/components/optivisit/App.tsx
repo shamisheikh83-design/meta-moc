@@ -625,9 +625,10 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
       <SegmentCard
         title="Visit Status"
         subtitle={selectionSummary}
-        entries={VISIT_STATUSES.map((s) => ({ key: s, count: statusCounts[s], color: STATUS_BAR[s] }))}
+        entries={VISIT_ACTIVITIES.map((a) => ({ key: a, count: activityCounts[a], color: ACTIVITY_BAR[a] }))}
         total={filtered.length}
       />
+
 
       <SegmentCard
         title="Outcome"
