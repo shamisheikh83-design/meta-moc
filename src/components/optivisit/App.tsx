@@ -431,11 +431,38 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
     });
   }, [visits, from, to, selectedSalesmen]);
 
-  const statusCounts = useMemo(() => {
-    const acc: Record<VisitStatus, number> = { Visited: 0, "Not Visited": 0, "No Update": 0, Holiday: 0 };
-    filtered.forEach((v) => { if (v.visitStatus) acc[v.visitStatus]++; });
-    return acc;
-  }, [filtered]);
+  const activityCounts = useMemo(() => {
+    const retailerById = new Map(retailers.map((r) => [r.id, r]));
+    const cities = new Set<string>();
+    const areas = new Set<string>();
+    const shops = new Set<string>();
+    let visits = 0, recovery = 0, complaints = 0, others = 0;
+    filtered.forEach((v) => {
+      const isUnavailable = !!v.unavailableReason || v.activity === "Others Reasons" || v.visitStatus === "Holiday";
+      if (isUnavailable) { others++; return; }
+      if (v.visitStatus === "Not Visited" || v.visitStatus === "No Update") return;
+      visits++;
+      const r = retailerById.get(v.retailerId);
+      if (r) {
+        shops.add(r.id);
+        if ((r.city || "").trim()) cities.add(normalizeCity(r.city));
+        const area = (r.address || "").split(",")[0]?.trim();
+        if (area) areas.add(area.toLowerCase());
+      }
+      const p = `${v.purpose || ""} ${v.activity || ""}`.toLowerCase();
+      if (p.includes("recovery")) recovery++;
+      if (p.includes("complaint")) complaints++;
+    });
+    return {
+      "Visits": visits,
+      "City Visits": cities.size,
+      "Areas Visited": areas.size,
+      "Shops Visited": shops.size,
+      "Recovery Visits": recovery,
+      "Complaints Visits": complaints,
+      "Others Reasons": others,
+    } as Record<VisitActivity, number>;
+  }, [filtered, retailers]);
 
   const outcomeCounts = useMemo(() => {
     const acc = OUTCOMES.reduce((o, k) => { o[k] = 0; return o; }, {} as Record<Outcome, number>);
