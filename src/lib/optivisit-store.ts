@@ -26,6 +26,21 @@ export const VISIT_PURPOSES = [
 ] as const;
 export type VisitPurpose = (typeof VISIT_PURPOSES)[number];
 
+// Report counters / salesman visit record types
+export const VISIT_ACTIVITIES = [
+  "Visits",
+  "City Visits",
+  "Areas Visited",
+  "Shops Visited",
+  "Recovery Visits",
+  "Complaints Visits",
+  "Others Reasons",
+] as const;
+export type VisitActivity = (typeof VISIT_ACTIVITIES)[number];
+
+export const UNAVAILABLE_REASONS = ["Holiday", "Sick", "Weather Conditions", "Leave"] as const;
+export type UnavailableReason = (typeof UNAVAILABLE_REASONS)[number];
+
 export type Visit = {
   id: string;
   date: string; // ISO
@@ -35,6 +50,8 @@ export type Visit = {
   visitStatus: VisitStatus;
   outcome: Outcome;
   notes: string;
+  activity?: VisitActivity;
+  unavailableReason?: UnavailableReason;
 };
 
 export const SHOP_CATEGORIES = ["A+", "A", "B", "C"] as const;

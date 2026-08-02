@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory } from "@/lib/optivisit-store";
+import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, UNAVAILABLE_REASONS, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type UnavailableReason } from "@/lib/optivisit-store";
 import { THEME_COLORS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen, Pencil } from "lucide-react";
@@ -431,11 +431,38 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
     });
   }, [visits, from, to, selectedSalesmen]);
 
-  const statusCounts = useMemo(() => {
-    const acc: Record<VisitStatus, number> = { Visited: 0, "Not Visited": 0, "No Update": 0, Holiday: 0 };
-    filtered.forEach((v) => { if (v.visitStatus) acc[v.visitStatus]++; });
-    return acc;
-  }, [filtered]);
+  const activityCounts = useMemo(() => {
+    const retailerById = new Map(retailers.map((r) => [r.id, r]));
+    const cities = new Set<string>();
+    const areas = new Set<string>();
+    const shops = new Set<string>();
+    let visits = 0, recovery = 0, complaints = 0, others = 0;
+    filtered.forEach((v) => {
+      const isUnavailable = !!v.unavailableReason || v.activity === "Others Reasons" || v.visitStatus === "Holiday";
+      if (isUnavailable) { others++; return; }
+      if (v.visitStatus === "Not Visited" || v.visitStatus === "No Update") return;
+      visits++;
+      const r = retailerById.get(v.retailerId);
+      if (r) {
+        shops.add(r.id);
+        if ((r.city || "").trim()) cities.add(normalizeCity(r.city));
+        const area = (r.address || "").split(",")[0]?.trim();
+        if (area) areas.add(area.toLowerCase());
+      }
+      const p = `${v.purpose || ""} ${v.activity || ""}`.toLowerCase();
+      if (p.includes("recovery")) recovery++;
+      if (p.includes("complaint")) complaints++;
+    });
+    return {
+      "Visits": visits,
+      "City Visits": cities.size,
+      "Areas Visited": areas.size,
+      "Shops Visited": shops.size,
+      "Recovery Visits": recovery,
+      "Complaints Visits": complaints,
+      "Others Reasons": others,
+    } as Record<VisitActivity, number>;
+  }, [filtered, retailers]);
 
   const outcomeCounts = useMemo(() => {
     const acc = OUTCOMES.reduce((o, k) => { o[k] = 0; return o; }, {} as Record<Outcome, number>);
@@ -598,9 +625,10 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
       <SegmentCard
         title="Visit Status"
         subtitle={selectionSummary}
-        entries={VISIT_STATUSES.map((s) => ({ key: s, count: statusCounts[s], color: STATUS_BAR[s] }))}
+        entries={VISIT_ACTIVITIES.map((a) => ({ key: a, count: activityCounts[a], color: ACTIVITY_BAR[a] }))}
         total={filtered.length}
       />
+
 
       <SegmentCard
         title="Outcome"
@@ -681,6 +709,16 @@ const STATUS_BAR: Record<VisitStatus, string> = {
   "Not Visited": "bg-rose-500",
   "No Update": "bg-slate-400",
   Holiday: "bg-amber-500",
+};
+
+const ACTIVITY_BAR: Record<VisitActivity, string> = {
+  "Visits": "bg-indigo-500",
+  "City Visits": "bg-sky-500",
+  "Areas Visited": "bg-teal-500",
+  "Shops Visited": "bg-emerald-500",
+  "Recovery Visits": "bg-amber-500",
+  "Complaints Visits": "bg-rose-500",
+  "Others Reasons": "bg-slate-400",
 };
 
 const OUTCOME_BAR: Record<Outcome, string> = {
@@ -1345,8 +1383,12 @@ function RecordVisitDialog({
   const [salesman, setSalesman] = useState(salesmanName);
   const [purpose, setPurpose] = useState("");
   const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
+  const [activity, setActivity] = useState<VisitActivity>("Visits");
+  const [unavailableReason, setUnavailableReason] = useState<UnavailableReason>("Holiday");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [notes, setNotes] = useState("");
+
+  const isOthers = activity === "Others Reasons";
 
   const save = () => {
     if (!salesman.trim()) return toast.error("Enter the salesman name");
@@ -1359,6 +1401,8 @@ function RecordVisitDialog({
       visitStatus,
       outcome,
       notes,
+      activity,
+      ...(isOthers ? { unavailableReason } : {}),
     };
     store.setVisits([v, ...store.getVisits()]);
     toast.success("Visit recorded");
@@ -1382,6 +1426,24 @@ function RecordVisitDialog({
             </SelectContent>
           </Select>
         </Field>
+        <Field label="Visit record">
+          <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VISIT_ACTIVITIES.map((a, i) => <SelectItem key={a} value={a}>{i + 1}. {a}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        {isOthers && (
+          <Field label="Non available reason">
+            <Select value={unavailableReason} onValueChange={(v) => setUnavailableReason(v as UnavailableReason)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {UNAVAILABLE_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
         <Field label="Outcome">
           <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
