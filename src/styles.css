@@ -74,43 +74,45 @@
 :root {
   --radius: 0.625rem;
 
-  /* Brand palette: Mid Navy / Mehroonish Brown / Aqua / Sea Green on Ash White */
-  --navy: oklch(0.35 0.11 255);
-  --navy-light: oklch(0.48 0.13 255);
+  /* Brand palette: Mid Navy / Mehroonish Brown / Aqua / Sea Green on Ash White
+     Tuned for daily field use: high text contrast, calm surfaces, color used
+     only for meaning (headings, accents, status) instead of decoration. */
+  --navy: oklch(0.33 0.10 255);
+  --navy-light: oklch(0.46 0.12 255);
   --maroon: oklch(0.42 0.13 35);
-  --maroon-ink: oklch(0.38 0.12 35);
-  --maroon-soft: oklch(0.72 0.06 35);
-  --aqua: oklch(0.72 0.13 205);
-  --aqua-soft: oklch(0.88 0.06 205);
-  --sea-green: oklch(0.82 0.07 170);
-  --sea-green-soft: oklch(0.92 0.04 170);
-  --ash-white: oklch(0.97 0.005 100);
+  --maroon-ink: oklch(0.40 0.12 35);
+  --maroon-soft: oklch(0.86 0.03 35);
+  --aqua: oklch(0.52 0.11 210);
+  --aqua-soft: oklch(0.93 0.03 205);
+  --sea-green: oklch(0.90 0.04 175);
+  --sea-green-soft: oklch(0.96 0.02 175);
+  --ash-white: oklch(0.975 0.004 220);
 
   --background: var(--ash-white);
   --foreground: var(--navy);
-  --card: var(--sea-green-soft);
+  --card: oklch(1 0 0);
   --card-foreground: var(--navy);
-  --popover: oklch(0.98 0.01 100);
+  --popover: oklch(1 0 0);
   --popover-foreground: var(--navy);
   --primary: var(--navy);
   --primary-foreground: oklch(0.99 0.01 90);
   --secondary: var(--aqua-soft);
   --secondary-foreground: var(--navy);
-  --muted: var(--sea-green);
-  --muted-foreground: oklch(0.52 0.06 255);
-  --accent: var(--aqua);
+  --muted: var(--sea-green-soft);
+  --muted-foreground: oklch(0.48 0.04 255);
+  --accent: var(--aqua-soft);
   --accent-foreground: var(--navy);
-  --destructive: oklch(0.59 0.23 22);
+  --destructive: oklch(0.55 0.21 25);
   --destructive-foreground: oklch(0.99 0.01 90);
-  --border: var(--maroon-soft);
-  --input: var(--sea-green);
+  --border: oklch(0.89 0.012 235);
+  --input: oklch(0.89 0.012 235);
   --ring: var(--aqua);
   --chart-1: var(--navy);
   --chart-2: var(--maroon);
   --chart-3: var(--aqua);
-  --chart-4: var(--sea-green);
+  --chart-4: oklch(0.68 0.10 170);
   --chart-5: var(--navy-light);
-  --sidebar: var(--sea-green-soft);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: var(--navy);
   --sidebar-primary: var(--navy);
   --sidebar-primary-foreground: oklch(0.99 0.01 90);
