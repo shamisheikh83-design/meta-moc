@@ -1426,6 +1426,24 @@ function RecordVisitDialog({
             </SelectContent>
           </Select>
         </Field>
+        <Field label="Visit record">
+          <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VISIT_ACTIVITIES.map((a, i) => <SelectItem key={a} value={a}>{i + 1}. {a}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        {isOthers && (
+          <Field label="Non available reason">
+            <Select value={unavailableReason} onValueChange={(v) => setUnavailableReason(v as UnavailableReason)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {UNAVAILABLE_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
         <Field label="Outcome">
           <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
