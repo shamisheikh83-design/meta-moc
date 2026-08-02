@@ -118,7 +118,7 @@
   --sidebar-primary-foreground: oklch(0.99 0.01 90);
   --sidebar-accent: var(--aqua-soft);
   --sidebar-accent-foreground: var(--navy);
-  --sidebar-border: var(--maroon-soft);
+  --sidebar-border: var(--border);
   --sidebar-ring: var(--aqua);
 }
 
