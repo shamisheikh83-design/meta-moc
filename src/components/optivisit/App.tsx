@@ -711,6 +711,16 @@ const STATUS_BAR: Record<VisitStatus, string> = {
   Holiday: "bg-amber-500",
 };
 
+const ACTIVITY_BAR: Record<VisitActivity, string> = {
+  "Visits": "bg-indigo-500",
+  "City Visits": "bg-sky-500",
+  "Areas Visited": "bg-teal-500",
+  "Shops Visited": "bg-emerald-500",
+  "Recovery Visits": "bg-amber-500",
+  "Complaints Visits": "bg-rose-500",
+  "Others Reasons": "bg-slate-400",
+};
+
 const OUTCOME_BAR: Record<Outcome, string> = {
   Satisfactory: "bg-teal-500",
   Successful: "bg-emerald-500",
