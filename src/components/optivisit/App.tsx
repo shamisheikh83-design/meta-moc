@@ -1392,6 +1392,10 @@ function RecordVisitDialog({
 
   const save = () => {
     if (!salesman.trim()) return toast.error("Enter the salesman name");
+    if (!activity) return toast.error("Please select a visit record reason (1-7)");
+    if (isOthers && !unavailableReason) {
+      return toast.error("Please select a non-available reason: Holiday, Sick, Weather Conditions, or Leave");
+    }
     const v: Visit = {
       id: uid(),
       date: new Date().toISOString(),
