@@ -389,14 +389,6 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
             <Input value={otherPurpose} onChange={(e) => setOtherPurpose(e.target.value)} placeholder="Enter purpose" />
           </Field>
         )}
-        <Field label="Visit status">
-          <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {VISIT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
         <Field label="Outcome">
           <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
