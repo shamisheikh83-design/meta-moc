@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, UNAVAILABLE_REASONS, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type UnavailableReason } from "@/lib/optivisit-store";
 import { THEME_COLORS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen, Pencil } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "dashboard" | "visits" | "visitlog" | "reports" | "retailers" | "salesmen" | "settings";
