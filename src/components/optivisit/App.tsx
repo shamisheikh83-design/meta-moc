@@ -1453,7 +1453,6 @@ function RecordVisitDialog({
 }) {
   const [salesman, setSalesman] = useState(salesmanName);
   const [purpose, setPurpose] = useState("");
-  const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
   const [activity, setActivity] = useState<VisitActivity>("Visits");
   const [unavailableReason, setUnavailableReason] = useState<UnavailableReason>("Holiday");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
