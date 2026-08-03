@@ -1493,14 +1493,6 @@ function RecordVisitDialog({
         </p>
         <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Salesman name" /></Field>
         <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
-        <Field label="Visit status">
-          <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {VISIT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
         <Field label="Visit record">
           <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
