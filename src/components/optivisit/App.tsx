@@ -339,7 +339,8 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       retailerId,
       salesman,
       purpose: purpose === "Other" ? otherPurpose.trim() : purpose,
-      visitStatus,
+      visitStatus: "Visited",
+      activity: derivedActivity,
       outcome,
       notes,
     };
