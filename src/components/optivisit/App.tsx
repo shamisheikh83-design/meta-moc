@@ -1473,7 +1473,7 @@ function RecordVisitDialog({
       retailerId: retailer.id,
       salesman: salesman.trim(),
       purpose,
-      visitStatus,
+      visitStatus: isOthers ? "Holiday" : "Visited",
       outcome,
       notes,
       activity,
