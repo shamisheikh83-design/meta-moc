@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, UNAVAILABLE_REASONS, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type UnavailableReason } from "@/lib/optivisit-store";
 import { THEME_COLORS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen, Pencil } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, NotebookPen, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "dashboard" | "visits" | "visitlog" | "reports" | "retailers" | "salesmen" | "settings";
@@ -95,11 +95,12 @@ function NavTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
 function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer[] }) {
   const today = new Date().toISOString().slice(0, 10);
   const thisMonth = new Date().toISOString().slice(0, 7);
-  const visitsToday = visits.filter((v) => v.date.startsWith(today)).length;
+  const visitsTodayList = visits.filter((v) => v.date.startsWith(today));
   const visitsMonth = visits.filter((v) => v.date.startsWith(thisMonth));
-  const successRate = visitsMonth.length
-    ? Math.round((visitsMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory").length / visitsMonth.length) * 100)
-    : 0;
+  const successList = visitsMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory");
+  const successRate = visitsMonth.length ? Math.round((successList.length / visitsMonth.length) * 100) : 0;
+
+  const [drill, setDrill] = useState<null | { title: string; kind: "visits" | "retailers"; visits?: Visit[]; retailers?: Retailer[] }>(null);
 
   const recent = [...visits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
   const settings = typeof window !== "undefined" ? store.getSettings() : { salesmanName: "" };
@@ -108,13 +109,30 @@ function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer
     <div className="space-y-4 pt-2">
       <div>
         <h2 className="text-lg font-semibold">Hi{settings.salesmanName ? `, ${settings.salesmanName}` : ""} 👋</h2>
-        <p className="text-sm text-muted-foreground">Here's your activity snapshot</p>
+        <p className="text-sm text-muted-foreground">Here's your activity snapshot · tap a card for details</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Visits today" value={visitsToday} tone="primary" />
-        <StatCard label="This month" value={visitsMonth.length} />
-        <StatCard label="Success rate" value={`${successRate}%`} />
-        <StatCard label="Retailers" value={retailers.length} />
+        <StatCard
+          label="Visits today"
+          value={visitsTodayList.length}
+          tone="primary"
+          onClick={() => setDrill({ title: "Visits today", kind: "visits", visits: visitsTodayList })}
+        />
+        <StatCard
+          label="This month"
+          value={visitsMonth.length}
+          onClick={() => setDrill({ title: "Visits this month", kind: "visits", visits: visitsMonth })}
+        />
+        <StatCard
+          label="Success rate"
+          value={`${successRate}%`}
+          onClick={() => setDrill({ title: "Successful / satisfactory visits", kind: "visits", visits: successList })}
+        />
+        <StatCard
+          label="Retailers"
+          value={retailers.length}
+          onClick={() => setDrill({ title: "Retailers", kind: "retailers", retailers })}
+        />
       </div>
       <div className="bg-card rounded-2xl border p-4">
         <div className="flex items-center justify-between mb-3">
@@ -142,18 +160,71 @@ function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer
           </ul>
         )}
       </div>
+
+      <Dialog open={!!drill} onOpenChange={(o) => !o && setDrill(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{drill?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {drill?.kind === "visits" ? (
+              (drill.visits ?? []).length === 0 ? (
+                <EmptyHint text="No entries behind this count yet." />
+              ) : (
+                <ul className="divide-y">
+                  {[...(drill.visits ?? [])].sort((a, b) => b.date.localeCompare(a.date)).map((v) => {
+                    const r = retailers.find((x) => x.id === v.retailerId);
+                    return (
+                      <li key={v.id} className="py-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {new Date(v.date).toLocaleString()} · {v.salesman || "—"}
+                            </div>
+                            {v.purpose && <div className="text-[11px] mt-0.5">{v.purpose}</div>}
+                          </div>
+                          <OutcomeBadge outcome={v.outcome} />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : (drill?.retailers ?? []).length === 0 ? (
+              <EmptyHint text="No retailers added yet." />
+            ) : (
+              <ul className="divide-y">
+                {[...(drill?.retailers ?? [])].sort((a, b) => a.name.localeCompare(b.name)).map((r) => (
+                  <li key={r.id} className="py-2.5">
+                    <div className="text-sm font-medium truncate">{r.name}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {[r.owner, r.city, r.phone].filter(Boolean).join(" · ") || "—"}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function StatCard({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "primary" }) {
+function StatCard({ label, value, tone, onClick }: { label: string; value: React.ReactNode; tone?: "primary"; onClick?: () => void }) {
   return (
-    <div className={`rounded-2xl border p-4 ${tone === "primary" ? "bg-primary text-primary-foreground" : "bg-card"}`}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-2xl border p-4 transition active:scale-[0.98] ${tone === "primary" ? "bg-primary text-primary-foreground" : "bg-card"}`}
+    >
       <div className={`text-xs ${tone === "primary" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{label}</div>
       <div className="text-2xl font-bold mt-1">{value}</div>
-    </div>
+    </button>
   );
 }
+
 
 const OUTCOME_COLORS: Record<Outcome, string> = {
   Satisfactory: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
@@ -249,7 +320,6 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
   const [salesman, setSalesman] = useState("");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
-  const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [notes, setNotes] = useState("");
 
@@ -262,13 +332,21 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
     if (!retailerId) return toast.error("Please select a retailer");
     if (!salesman) return toast.error("Please select a salesman");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
+    const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
+    const p = finalPurpose.toLowerCase();
+    const derivedActivity: VisitActivity = p.includes("recovery")
+      ? "Recovery Visits"
+      : p.includes("complaint")
+        ? "Complaints Visits"
+        : "Visits";
     const v: Visit = {
       id: uid(),
       date: new Date().toISOString(),
       retailerId,
       salesman,
-      purpose: purpose === "Other" ? otherPurpose.trim() : purpose,
-      visitStatus,
+      purpose: finalPurpose,
+      visitStatus: "Visited",
+      activity: derivedActivity,
       outcome,
       notes,
     };
@@ -318,14 +396,6 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
             <Input value={otherPurpose} onChange={(e) => setOtherPurpose(e.target.value)} placeholder="Enter purpose" />
           </Field>
         )}
-        <Field label="Visit status">
-          <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {VISIT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
         <Field label="Outcome">
           <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -802,15 +872,77 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
     refresh();
   };
 
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const importFile = async (file: File) => {
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const pick = (row: Record<string, unknown>, keys: string[]) => {
+        const entry = Object.entries(row).find(([k]) =>
+          keys.includes(k.trim().toLowerCase().replace(/[\s_]+/g, ""))
+        );
+        return entry ? String(entry[1] ?? "").trim() : "";
+      };
+      const salesmanByName = new Map(salesmen.map((s) => [s.name.trim().toLowerCase(), s.id]));
+      const imported: Retailer[] = [];
+      rows.forEach((row) => {
+        const name = pick(row, ["name", "shop", "shopname", "retailer", "retailername"]);
+        if (!name) return;
+        const cat = pick(row, ["category", "cat"]).toUpperCase();
+        const sm = pick(row, ["salesman", "salesmanname"]).toLowerCase();
+        imported.push({
+          id: uid(),
+          name,
+          owner: pick(row, ["owner", "ownername"]),
+          city: pick(row, ["city"]),
+          phone: pick(row, ["phone", "mobile", "contact", "phoneno", "mobileno"]),
+          address: pick(row, ["address", "area"]),
+          notes: pick(row, ["notes", "note", "remarks"]),
+          category: (SHOP_CATEGORIES as readonly string[]).includes(cat) ? (cat as ShopCategory) : undefined,
+          salesmanId: salesmanByName.get(sm),
+        });
+      });
+      if (!imported.length) return toast.error("No rows found. Include a 'Name' column.");
+      store.setRetailers([...imported, ...store.getRetailers()]);
+      toast.success(`Imported ${imported.length} retailers`);
+      refresh();
+    } catch {
+      toast.error("Could not read that file. Use a .csv or .xlsx file.");
+    }
+  };
+
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Retailers</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
-          <RetailerDialog salesmen={sortedSalesmen} onSaved={() => { refresh(); setOpen(false); }} />
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importFile(f);
+              e.target.value = "";
+            }}
+          />
+          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+            <Upload className="w-4 h-4 mr-1" /> Import
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
+            <RetailerDialog salesmen={sortedSalesmen} onSaved={() => { refresh(); setOpen(false); }} />
+          </Dialog>
+        </div>
       </div>
+      <p className="text-[10px] text-muted-foreground -mt-2">
+        Import columns: Name, Owner, City, Phone, Address, Category, Salesman, Notes
+      </p>
+
 
       <Input placeholder="Search by name, city or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
 
@@ -1382,7 +1514,6 @@ function RecordVisitDialog({
 }) {
   const [salesman, setSalesman] = useState(salesmanName);
   const [purpose, setPurpose] = useState("");
-  const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
   const [activity, setActivity] = useState<VisitActivity>("Visits");
   const [unavailableReason, setUnavailableReason] = useState<UnavailableReason>("Holiday");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
@@ -1402,7 +1533,7 @@ function RecordVisitDialog({
       retailerId: retailer.id,
       salesman: salesman.trim(),
       purpose,
-      visitStatus,
+      visitStatus: isOthers ? "Holiday" : "Visited",
       outcome,
       notes,
       activity,
@@ -1422,14 +1553,6 @@ function RecordVisitDialog({
         </p>
         <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Salesman name" /></Field>
         <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
-        <Field label="Visit status">
-          <Select value={visitStatus} onValueChange={(v) => setVisitStatus(v as VisitStatus)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {VISIT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
         <Field label="Visit record">
           <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
