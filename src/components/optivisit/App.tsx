@@ -872,15 +872,77 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
     refresh();
   };
 
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const importFile = async (file: File) => {
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      const pick = (row: Record<string, unknown>, keys: string[]) => {
+        const entry = Object.entries(row).find(([k]) =>
+          keys.includes(k.trim().toLowerCase().replace(/[\s_]+/g, ""))
+        );
+        return entry ? String(entry[1] ?? "").trim() : "";
+      };
+      const salesmanByName = new Map(salesmen.map((s) => [s.name.trim().toLowerCase(), s.id]));
+      const imported: Retailer[] = [];
+      rows.forEach((row) => {
+        const name = pick(row, ["name", "shop", "shopname", "retailer", "retailername"]);
+        if (!name) return;
+        const cat = pick(row, ["category", "cat"]).toUpperCase();
+        const sm = pick(row, ["salesman", "salesmanname"]).toLowerCase();
+        imported.push({
+          id: uid(),
+          name,
+          owner: pick(row, ["owner", "ownername"]),
+          city: pick(row, ["city"]),
+          phone: pick(row, ["phone", "mobile", "contact", "phoneno", "mobileno"]),
+          address: pick(row, ["address", "area"]),
+          notes: pick(row, ["notes", "note", "remarks"]),
+          category: (SHOP_CATEGORIES as readonly string[]).includes(cat) ? (cat as ShopCategory) : undefined,
+          salesmanId: salesmanByName.get(sm),
+        });
+      });
+      if (!imported.length) return toast.error("No rows found. Include a 'Name' column.");
+      store.setRetailers([...imported, ...store.getRetailers()]);
+      toast.success(`Imported ${imported.length} retailers`);
+      refresh();
+    } catch {
+      toast.error("Could not read that file. Use a .csv or .xlsx file.");
+    }
+  };
+
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Retailers</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
-          <RetailerDialog salesmen={sortedSalesmen} onSaved={() => { refresh(); setOpen(false); }} />
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importFile(f);
+              e.target.value = "";
+            }}
+          />
+          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+            <Upload className="w-4 h-4 mr-1" /> Import
+          </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
+            <RetailerDialog salesmen={sortedSalesmen} onSaved={() => { refresh(); setOpen(false); }} />
+          </Dialog>
+        </div>
       </div>
+      <p className="text-[10px] text-muted-foreground -mt-2">
+        Import columns: Name, Owner, City, Phone, Address, Category, Salesman, Notes
+      </p>
+
 
       <Input placeholder="Search by name, city or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
 
