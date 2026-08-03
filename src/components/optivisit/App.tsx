@@ -320,7 +320,6 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
   const [salesman, setSalesman] = useState("");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
-  const [visitStatus, setVisitStatus] = useState<VisitStatus>("Visited");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [notes, setNotes] = useState("");
 
@@ -333,7 +332,15 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
     if (!retailerId) return toast.error("Please select a retailer");
     if (!salesman) return toast.error("Please select a salesman");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
+    const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
+    const p = finalPurpose.toLowerCase();
+    const derivedActivity: VisitActivity = p.includes("recovery")
+      ? "Recovery Visits"
+      : p.includes("complaint")
+        ? "Complaints Visits"
+        : "Visits";
     const v: Visit = {
+
       id: uid(),
       date: new Date().toISOString(),
       retailerId,
