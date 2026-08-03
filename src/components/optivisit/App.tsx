@@ -340,12 +340,11 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
         ? "Complaints Visits"
         : "Visits";
     const v: Visit = {
-
       id: uid(),
       date: new Date().toISOString(),
       retailerId,
       salesman,
-      purpose: purpose === "Other" ? otherPurpose.trim() : purpose,
+      purpose: finalPurpose,
       visitStatus: "Visited",
       activity: derivedActivity,
       outcome,
