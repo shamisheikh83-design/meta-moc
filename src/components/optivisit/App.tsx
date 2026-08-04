@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, UNAVAILABLE_REASONS, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type UnavailableReason } from "@/lib/optivisit-store";
-import { THEME_COLORS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { THEME_PALETTE, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
+type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
 
 export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -61,16 +62,14 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             <SalesmanVisitLog visits={visits} retailers={retailers} salesmen={salesmen} refresh={refreshVisits} />
           </TabsContent>
           <TabsContent value="retailers"><Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} /></TabsContent>
-          <TabsContent value="salesmen"><Salesmen salesmen={salesmen} refresh={refreshSalesmen} /></TabsContent>
-          <TabsContent value="settings"><SettingsPanel onLock={onLock} /></TabsContent>
+          <TabsContent value="settings"><SettingsPanel onLock={onLock} salesmen={salesmen} refreshSalesmen={refreshSalesmen} /></TabsContent>
 
           <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur">
-            <TabsList className="max-w-3xl mx-auto w-full grid grid-cols-6 h-16 bg-transparent p-0 rounded-none">
+            <TabsList className="max-w-3xl mx-auto w-full grid grid-cols-5 h-16 bg-transparent p-0 rounded-none">
               <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />
               <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />
               <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />
               <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />
-              <NavTab value="salesmen" icon={<Users className="w-5 h-5" />} label="Salesmen" />
               <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
             </TabsList>
           </nav>
@@ -1151,6 +1150,22 @@ function SalesmanDialog({ onSaved }: { onSaved: () => void }) {
 }
 
 /* ---------------- Settings ---------------- */
+function swatchStyle(value: string): React.CSSProperties {
+  if (value === NO_FILL) return { backgroundImage: "linear-gradient(135deg, transparent 45%, var(--border) 45%, var(--border) 55%, transparent 55%)" };
+  if (!value) return { background: "var(--muted)" };
+  return { backgroundColor: value };
+}
+
+function colorLabel(value: string) {
+  if (value === NO_FILL) return "No fill";
+  if (!value) return "Default";
+  for (const g of THEME_PALETTE) {
+    const hit = g.colors.find((c) => c.value === value);
+    if (hit) return hit.name;
+  }
+  return "Custom";
+}
+
 function ColorPicker({
   label,
   value,
@@ -1162,39 +1177,60 @@ function ColorPicker({
   onChange: (v: string) => void;
   allowNoFill?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const pick = (v: string) => { onChange(v); setOpen(false); };
+
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs text-aqua font-medium">{label}</Label>
-      <div className="flex flex-wrap gap-1.5">
-        {allowNoFill && (
+    <div className="flex items-center justify-between gap-3">
+      <Label className="text-xs font-medium">{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
           <button
             type="button"
-            onClick={() => onChange(NO_FILL)}
-            title="No fill"
-            className={`h-7 px-2 rounded-md border text-[10px] ${value === NO_FILL ? "ring-2 ring-ring" : ""}`}
+            className="flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 text-xs hover:bg-accent transition"
           >
-            No fill
+            <span className="h-5 w-5 rounded-full border" style={swatchStyle(value)} />
+            <span className="text-muted-foreground">{colorLabel(value)}</span>
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          title="Default"
-          className={`h-7 px-2 rounded-md border text-[10px] ${value === "" ? "ring-2 ring-ring" : ""}`}
-        >
-          Default
-        </button>
-        {THEME_COLORS.map((c) => (
-          <button
-            key={c.name}
-            type="button"
-            title={c.name}
-            onClick={() => onChange(c.value)}
-            style={{ backgroundColor: c.value }}
-            className={`h-7 w-7 rounded-md border ${value === c.value ? "ring-2 ring-ring" : ""}`}
-          />
-        ))}
-      </div>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64 p-3 space-y-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => pick("")}
+              className={`flex-1 h-7 rounded-md border text-[11px] ${value === "" ? "ring-2 ring-ring" : ""}`}
+            >
+              Default
+            </button>
+            {allowNoFill && (
+              <button
+                type="button"
+                onClick={() => pick(NO_FILL)}
+                className={`flex-1 h-7 rounded-md border text-[11px] ${value === NO_FILL ? "ring-2 ring-ring" : ""}`}
+              >
+                No fill
+              </button>
+            )}
+          </div>
+          {THEME_PALETTE.map((g) => (
+            <div key={g.group} className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{g.group}</div>
+              <div className="grid grid-cols-8 gap-1.5">
+                {g.colors.map((c) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    title={c.name}
+                    onClick={() => pick(c.value)}
+                    style={{ backgroundColor: c.value }}
+                    className={`h-6 w-6 rounded-full border ${value === c.value ? "ring-2 ring-ring ring-offset-1" : ""}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
@@ -1213,19 +1249,21 @@ function ThemePanel() {
   };
 
   return (
-    <section className="bg-card border rounded-2xl p-4 space-y-4">
-      <h3 className="text-sm font-semibold">Color theme</h3>
-      <ColorPicker label="Background color" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
-      <ColorPicker label="Ticket / token background" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
-      <ColorPicker label="Font color" value={theme.font} onChange={(v) => update({ font: v })} />
-      <Button size="sm" variant="outline" onClick={() => update({ background: "", card: "", font: "" })}>
-        Reset theme
-      </Button>
+    <section className="bg-card border rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Color theme</h3>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => update({ background: "", card: "", font: "" })}>
+          Reset
+        </Button>
+      </div>
+      <ColorPicker label="Background" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
+      <ColorPicker label="Ticket / token" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
+      <ColorPicker label="Font" value={theme.font} onChange={(v) => update({ font: v })} />
     </section>
   );
 }
 
-function SettingsPanel({ onLock }: { onLock: () => void }) {
+function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => void; salesmen: Salesman[]; refreshSalesmen: () => void }) {
 
   const [newPin, setNewPin] = useState("");
   const [wipePin, setWipePin] = useState("");
@@ -1265,6 +1303,12 @@ function SettingsPanel({ onLock }: { onLock: () => void }) {
       <h2 className="text-lg font-semibold">Settings</h2>
 
       <ThemePanel />
+
+      <section className="bg-card border rounded-2xl p-4">
+        <Salesmen salesmen={salesmen} refresh={refreshSalesmen} />
+      </section>
+
+
 
 
 

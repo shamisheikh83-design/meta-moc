@@ -26,6 +26,49 @@ export const THEME_COLORS: ThemeColor[] = [
   { name: "Ash White", value: "oklch(0.97 0.005 100)" },
 ];
 
+// Grouped palette by intensity for the minimalist picker
+export const THEME_PALETTE: { group: "Light" | "Mid" | "Bright"; colors: ThemeColor[] }[] = [
+  {
+    group: "Light",
+    colors: [
+      { name: "Ash White", value: "oklch(0.97 0.005 100)" },
+      { name: "Mist", value: "oklch(0.94 0.012 250)" },
+      { name: "Sky", value: "oklch(0.90 0.05 230)" },
+      { name: "Aqua", value: "oklch(0.91 0.05 205)" },
+      { name: "Mint", value: "oklch(0.92 0.05 165)" },
+      { name: "Sand", value: "oklch(0.92 0.05 90)" },
+      { name: "Blush", value: "oklch(0.90 0.05 25)" },
+      { name: "Lilac", value: "oklch(0.90 0.05 300)" },
+    ],
+  },
+  {
+    group: "Mid",
+    colors: [
+      { name: "Slate", value: "oklch(0.55 0.03 250)" },
+      { name: "Steel Blue", value: "oklch(0.55 0.10 245)" },
+      { name: "Teal", value: "oklch(0.55 0.10 195)" },
+      { name: "Sea Green", value: "oklch(0.58 0.12 160)" },
+      { name: "Olive", value: "oklch(0.58 0.10 120)" },
+      { name: "Bronze", value: "oklch(0.60 0.10 70)" },
+      { name: "Brick", value: "oklch(0.55 0.14 30)" },
+      { name: "Plum", value: "oklch(0.52 0.13 320)" },
+    ],
+  },
+  {
+    group: "Bright",
+    colors: [
+      { name: "Royal Blue", value: "oklch(0.55 0.20 262)" },
+      { name: "Cyan", value: "oklch(0.72 0.15 210)" },
+      { name: "Emerald", value: "oklch(0.68 0.18 155)" },
+      { name: "Lime", value: "oklch(0.82 0.19 130)" },
+      { name: "Gold", value: "oklch(0.82 0.17 90)" },
+      { name: "Orange", value: "oklch(0.70 0.19 50)" },
+      { name: "Crimson", value: "oklch(0.58 0.23 22)" },
+      { name: "Magenta", value: "oklch(0.62 0.24 330)" },
+    ],
+  },
+];
+
 export const NO_FILL = "none";
 
 export type AppTheme = {
