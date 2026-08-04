@@ -1576,7 +1576,11 @@ function SalesmanVisitLog({
         {target && (
           <RecordVisitDialog
             retailer={target}
-            salesmanName={salesman?.name ?? ""}
+            salesmanName={
+              sortedSalesmen.find((s) => s.id === target.salesmanId)?.name ??
+              singleSalesman?.name ??
+              "Unassigned"
+            }
             onSaved={() => { refresh(); setTarget(null); }}
           />
         )}
