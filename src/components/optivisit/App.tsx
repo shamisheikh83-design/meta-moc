@@ -1263,7 +1263,7 @@ function ThemePanel() {
   );
 }
 
-function SettingsPanel({ onLock }: { onLock: () => void }) {
+function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => void; salesmen: Salesman[]; refreshSalesmen: () => void }) {
 
   const [newPin, setNewPin] = useState("");
   const [wipePin, setWipePin] = useState("");
