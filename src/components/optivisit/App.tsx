@@ -317,7 +317,6 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
 
 function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: () => void }) {
   const [retailerId, setRetailerId] = useState("");
-  const [salesman, setSalesman] = useState("");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
@@ -328,9 +327,13 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
     []
   );
 
+  const selectedRetailer = retailers.find((r) => r.id === retailerId);
+  const salesman = selectedRetailer
+    ? (salesmenList.find((s) => s.id === selectedRetailer.salesmanId)?.name ?? "Unassigned")
+    : "";
+
   const save = () => {
     if (!retailerId) return toast.error("Please select a retailer");
-    if (!salesman) return toast.error("Please select a salesman");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
     const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
     const p = finalPurpose.toLowerCase();
@@ -343,7 +346,7 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       id: uid(),
       date: new Date().toISOString(),
       retailerId,
-      salesman,
+      salesman: salesman || "Unassigned",
       purpose: finalPurpose,
       visitStatus: "Visited",
       activity: derivedActivity,
@@ -372,17 +375,11 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
           )}
         </Field>
         <Field label="Salesman">
-          {salesmenList.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Add a salesman first in the Salesmen tab.</p>
-          ) : (
-            <Select value={salesman} onValueChange={setSalesman}>
-              <SelectTrigger><SelectValue placeholder="Select salesman" /></SelectTrigger>
-              <SelectContent>
-                {salesmenList.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          <div className="h-9 flex items-center px-3 rounded-md border bg-muted/40 text-sm">
+            {salesman || "Select a retailer first"}
+          </div>
         </Field>
+
         <Field label="Purpose">
           <Select value={purpose} onValueChange={setPurpose}>
             <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
