@@ -1369,24 +1369,47 @@ function SalesmanVisitLog({
   salesmen: Salesman[];
   refresh: () => void;
 }) {
-  const [salesmanId, setSalesmanId] = useState<string>("");
+  // "all" = All Salesmen (exclusive). Otherwise a multi-select of salesman ids + "unassigned".
+  const [selected, setSelected] = useState<string[]>(["all"]);
   const [target, setTarget] = useState<Retailer | null>(null);
 
   const sortedSalesmen = useMemo(
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
     [salesmen]
   );
-  const salesman = sortedSalesmen.find((s) => s.id === salesmanId) || null;
+  const isAll = selected.includes("all");
+  const toggleSel = (key: string) => {
+    if (key === "all") return setSelected(["all"]);
+    setSelected((prev) => {
+      const base = prev.filter((k) => k !== "all");
+      const next = base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
+      return next.length === 0 ? ["all"] : next;
+    });
+  };
+  const singleSalesman =
+    !isAll && selected.length === 1 && selected[0] !== "unassigned"
+      ? (sortedSalesmen.find((s) => s.id === selected[0]) ?? null)
+      : null;
 
   const scopedRetailers = useMemo(
-    () => (salesman ? retailers.filter((r) => r.salesmanId === salesman.id) : retailers),
-    [retailers, salesman]
+    () =>
+      isAll
+        ? retailers
+        : retailers.filter((r) =>
+            r.salesmanId ? selected.includes(r.salesmanId) : selected.includes("unassigned")
+          ),
+    [retailers, selected, isAll]
   );
 
-  const scopedVisits = useMemo(
-    () => (salesman ? visits.filter((v) => v.salesman === salesman.name) : visits),
-    [visits, salesman]
-  );
+  const scopedVisits = useMemo(() => {
+    if (isAll) return visits;
+    const ids = new Set(scopedRetailers.map((r) => r.id));
+    const names = new Set(
+      sortedSalesmen.filter((s) => selected.includes(s.id)).map((s) => s.name)
+    );
+    return visits.filter((v) => ids.has(v.retailerId) || names.has(v.salesman));
+  }, [visits, scopedRetailers, sortedSalesmen, selected, isAll]);
+
 
   const visitsPerRetailer = useMemo(() => {
     const m = new Map<string, number>();
