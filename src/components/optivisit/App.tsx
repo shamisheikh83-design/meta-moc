@@ -1151,6 +1151,22 @@ function SalesmanDialog({ onSaved }: { onSaved: () => void }) {
 }
 
 /* ---------------- Settings ---------------- */
+function swatchStyle(value: string): React.CSSProperties {
+  if (value === NO_FILL) return { backgroundImage: "linear-gradient(135deg, transparent 45%, var(--border) 45%, var(--border) 55%, transparent 55%)" };
+  if (!value) return { background: "var(--muted)" };
+  return { backgroundColor: value };
+}
+
+function colorLabel(value: string) {
+  if (value === NO_FILL) return "No fill";
+  if (!value) return "Default";
+  for (const g of THEME_PALETTE) {
+    const hit = g.colors.find((c) => c.value === value);
+    if (hit) return hit.name;
+  }
+  return "Custom";
+}
+
 function ColorPicker({
   label,
   value,
@@ -1162,39 +1178,60 @@ function ColorPicker({
   onChange: (v: string) => void;
   allowNoFill?: boolean;
 }) {
+  const [open, setOpen] = useState(false);
+  const pick = (v: string) => { onChange(v); setOpen(false); };
+
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs text-aqua font-medium">{label}</Label>
-      <div className="flex flex-wrap gap-1.5">
-        {allowNoFill && (
+    <div className="flex items-center justify-between gap-3">
+      <Label className="text-xs font-medium">{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
           <button
             type="button"
-            onClick={() => onChange(NO_FILL)}
-            title="No fill"
-            className={`h-7 px-2 rounded-md border text-[10px] ${value === NO_FILL ? "ring-2 ring-ring" : ""}`}
+            className="flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 text-xs hover:bg-accent transition"
           >
-            No fill
+            <span className="h-5 w-5 rounded-full border" style={swatchStyle(value)} />
+            <span className="text-muted-foreground">{colorLabel(value)}</span>
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          title="Default"
-          className={`h-7 px-2 rounded-md border text-[10px] ${value === "" ? "ring-2 ring-ring" : ""}`}
-        >
-          Default
-        </button>
-        {THEME_COLORS.map((c) => (
-          <button
-            key={c.name}
-            type="button"
-            title={c.name}
-            onClick={() => onChange(c.value)}
-            style={{ backgroundColor: c.value }}
-            className={`h-7 w-7 rounded-md border ${value === c.value ? "ring-2 ring-ring" : ""}`}
-          />
-        ))}
-      </div>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64 p-3 space-y-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => pick("")}
+              className={`flex-1 h-7 rounded-md border text-[11px] ${value === "" ? "ring-2 ring-ring" : ""}`}
+            >
+              Default
+            </button>
+            {allowNoFill && (
+              <button
+                type="button"
+                onClick={() => pick(NO_FILL)}
+                className={`flex-1 h-7 rounded-md border text-[11px] ${value === NO_FILL ? "ring-2 ring-ring" : ""}`}
+              >
+                No fill
+              </button>
+            )}
+          </div>
+          {THEME_PALETTE.map((g) => (
+            <div key={g.group} className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{g.group}</div>
+              <div className="grid grid-cols-8 gap-1.5">
+                {g.colors.map((c) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    title={c.name}
+                    onClick={() => pick(c.value)}
+                    style={{ backgroundColor: c.value }}
+                    className={`h-6 w-6 rounded-full border ${value === c.value ? "ring-2 ring-ring ring-offset-1" : ""}`}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
@@ -1213,14 +1250,16 @@ function ThemePanel() {
   };
 
   return (
-    <section className="bg-card border rounded-2xl p-4 space-y-4">
-      <h3 className="text-sm font-semibold">Color theme</h3>
-      <ColorPicker label="Background color" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
-      <ColorPicker label="Ticket / token background" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
-      <ColorPicker label="Font color" value={theme.font} onChange={(v) => update({ font: v })} />
-      <Button size="sm" variant="outline" onClick={() => update({ background: "", card: "", font: "" })}>
-        Reset theme
-      </Button>
+    <section className="bg-card border rounded-2xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Color theme</h3>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => update({ background: "", card: "", font: "" })}>
+          Reset
+        </Button>
+      </div>
+      <ColorPicker label="Background" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
+      <ColorPicker label="Ticket / token" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
+      <ColorPicker label="Font" value={theme.font} onChange={(v) => update({ font: v })} />
     </section>
   );
 }
