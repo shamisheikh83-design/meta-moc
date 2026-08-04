@@ -1304,6 +1304,12 @@ function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => vo
 
       <ThemePanel />
 
+      <section className="bg-card border rounded-2xl p-4">
+        <Salesmen salesmen={salesmen} refresh={refreshSalesmen} />
+      </section>
+
+
+
 
 
       <section className="bg-card border rounded-2xl p-4 space-y-3">
