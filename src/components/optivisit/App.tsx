@@ -1460,22 +1460,39 @@ function SalesmanVisitLog({
 
       <div className="bg-card border rounded-2xl p-4">
         <Field label="Salesman">
-          {sortedSalesmen.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Add salesmen in the Salesmen tab first.</p>
-          ) : (
-            <Select value={salesmanId} onValueChange={setSalesmanId}>
-              <SelectTrigger><SelectValue placeholder="All salesmen" /></SelectTrigger>
-              <SelectContent>
-                {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => toggleSel("all")}
+              className={`px-2.5 py-1 rounded-full border text-xs ${isAll ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+            >
+              All Salesmen
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleSel("unassigned")}
+              className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes("unassigned") ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+            >
+              Unassigned
+            </button>
+            {sortedSalesmen.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => toggleSel(s.id)}
+                className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes(s.id) ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
         </Field>
         <p className="text-[10px] text-muted-foreground mt-2">
-          {salesman
-            ? `Showing ${salesman.name}'s linked shops, grouped city wise.`
-            : "Showing all shops, grouped city wise. Pick a salesman to record his visits."}
+          {isAll
+            ? "Showing all shops, grouped city wise."
+            : `Showing linked shops for ${selected.length} selection${selected.length === 1 ? "" : "s"}, grouped city wise.`}
         </p>
+
       </div>
 
       {cityGroups.length === 0 ? (
