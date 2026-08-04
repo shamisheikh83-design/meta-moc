@@ -14,7 +14,7 @@ import { THEME_PALETTE, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, t
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
 
-type Tab = "dashboard" | "visits" | "reports" | "retailers" | "salesmen" | "settings";
+type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
 
 export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
