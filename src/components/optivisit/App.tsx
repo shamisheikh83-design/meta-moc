@@ -74,8 +74,6 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
             </TabsList>
           </nav>
-
-          </nav>
         </Tabs>
       </main>
     </div>
