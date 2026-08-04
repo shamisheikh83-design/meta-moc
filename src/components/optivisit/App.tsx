@@ -317,7 +317,6 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
 
 function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: () => void }) {
   const [retailerId, setRetailerId] = useState("");
-  const [salesman, setSalesman] = useState("");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
@@ -328,9 +327,13 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
     []
   );
 
+  const selectedRetailer = retailers.find((r) => r.id === retailerId);
+  const salesman = selectedRetailer
+    ? (salesmenList.find((s) => s.id === selectedRetailer.salesmanId)?.name ?? "Unassigned")
+    : "";
+
   const save = () => {
     if (!retailerId) return toast.error("Please select a retailer");
-    if (!salesman) return toast.error("Please select a salesman");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
     const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
     const p = finalPurpose.toLowerCase();
@@ -343,7 +346,7 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       id: uid(),
       date: new Date().toISOString(),
       retailerId,
-      salesman,
+      salesman: salesman || "Unassigned",
       purpose: finalPurpose,
       visitStatus: "Visited",
       activity: derivedActivity,
@@ -372,17 +375,11 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
           )}
         </Field>
         <Field label="Salesman">
-          {salesmenList.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Add a salesman first in the Salesmen tab.</p>
-          ) : (
-            <Select value={salesman} onValueChange={setSalesman}>
-              <SelectTrigger><SelectValue placeholder="Select salesman" /></SelectTrigger>
-              <SelectContent>
-                {salesmenList.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          <div className="h-9 flex items-center px-3 rounded-md border bg-muted/40 text-sm">
+            {salesman || "Select a retailer first"}
+          </div>
         </Field>
+
         <Field label="Purpose">
           <Select value={purpose} onValueChange={setPurpose}>
             <SelectTrigger><SelectValue placeholder="Select purpose" /></SelectTrigger>
@@ -1372,24 +1369,47 @@ function SalesmanVisitLog({
   salesmen: Salesman[];
   refresh: () => void;
 }) {
-  const [salesmanId, setSalesmanId] = useState<string>("");
+  // "all" = All Salesmen (exclusive). Otherwise a multi-select of salesman ids + "unassigned".
+  const [selected, setSelected] = useState<string[]>(["all"]);
   const [target, setTarget] = useState<Retailer | null>(null);
 
   const sortedSalesmen = useMemo(
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
     [salesmen]
   );
-  const salesman = sortedSalesmen.find((s) => s.id === salesmanId) || null;
+  const isAll = selected.includes("all");
+  const toggleSel = (key: string) => {
+    if (key === "all") return setSelected(["all"]);
+    setSelected((prev) => {
+      const base = prev.filter((k) => k !== "all");
+      const next = base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
+      return next.length === 0 ? ["all"] : next;
+    });
+  };
+  const singleSalesman =
+    !isAll && selected.length === 1 && selected[0] !== "unassigned"
+      ? (sortedSalesmen.find((s) => s.id === selected[0]) ?? null)
+      : null;
 
   const scopedRetailers = useMemo(
-    () => (salesman ? retailers.filter((r) => r.salesmanId === salesman.id) : retailers),
-    [retailers, salesman]
+    () =>
+      isAll
+        ? retailers
+        : retailers.filter((r) =>
+            r.salesmanId ? selected.includes(r.salesmanId) : selected.includes("unassigned")
+          ),
+    [retailers, selected, isAll]
   );
 
-  const scopedVisits = useMemo(
-    () => (salesman ? visits.filter((v) => v.salesman === salesman.name) : visits),
-    [visits, salesman]
-  );
+  const scopedVisits = useMemo(() => {
+    if (isAll) return visits;
+    const ids = new Set(scopedRetailers.map((r) => r.id));
+    const names = new Set(
+      sortedSalesmen.filter((s) => selected.includes(s.id)).map((s) => s.name)
+    );
+    return visits.filter((v) => ids.has(v.retailerId) || names.has(v.salesman));
+  }, [visits, scopedRetailers, sortedSalesmen, selected, isAll]);
+
 
   const visitsPerRetailer = useMemo(() => {
     const m = new Map<string, number>();
@@ -1440,22 +1460,39 @@ function SalesmanVisitLog({
 
       <div className="bg-card border rounded-2xl p-4">
         <Field label="Salesman">
-          {sortedSalesmen.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Add salesmen in the Salesmen tab first.</p>
-          ) : (
-            <Select value={salesmanId} onValueChange={setSalesmanId}>
-              <SelectTrigger><SelectValue placeholder="All salesmen" /></SelectTrigger>
-              <SelectContent>
-                {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => toggleSel("all")}
+              className={`px-2.5 py-1 rounded-full border text-xs ${isAll ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+            >
+              All Salesmen
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleSel("unassigned")}
+              className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes("unassigned") ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+            >
+              Unassigned
+            </button>
+            {sortedSalesmen.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => toggleSel(s.id)}
+                className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes(s.id) ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
         </Field>
         <p className="text-[10px] text-muted-foreground mt-2">
-          {salesman
-            ? `Showing ${salesman.name}'s linked shops, grouped city wise.`
-            : "Showing all shops, grouped city wise. Pick a salesman to record his visits."}
+          {isAll
+            ? "Showing all shops, grouped city wise."
+            : `Showing linked shops for ${selected.length} selection${selected.length === 1 ? "" : "s"}, grouped city wise.`}
         </p>
+
       </div>
 
       {cityGroups.length === 0 ? (
@@ -1539,7 +1576,11 @@ function SalesmanVisitLog({
         {target && (
           <RecordVisitDialog
             retailer={target}
-            salesmanName={salesman?.name ?? ""}
+            salesmanName={
+              sortedSalesmen.find((s) => s.id === target.salesmanId)?.name ??
+              singleSalesman?.name ??
+              "Unassigned"
+            }
             onSaved={() => { refresh(); setTarget(null); }}
           />
         )}
