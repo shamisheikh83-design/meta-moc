@@ -13,6 +13,9 @@ import { THEME_PALETTE, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, t
 
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { AccessControl } from "./AccessControl";
+import { accessStore, can, type AppUser } from "@/lib/optivisit-access";
+
 
 type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
 
@@ -21,18 +24,38 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [retailers, setRetailers] = useState<Retailer[]>([]);
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [accessVersion, setAccessVersion] = useState(0);
+
+  const loadUser = () => {
+    const id = accessStore.getCurrentUserId();
+    setCurrentUser(id ? (accessStore.getUsers().find((u) => u.id === id) ?? null) : null);
+    setAccessVersion((v) => v + 1);
+  };
 
   useEffect(() => {
     setVisits(store.getVisits());
     setRetailers(store.getRetailers());
     setSalesmen(store.getSalesmen());
     applyTheme(getTheme());
-
+    loadUser();
   }, []);
+
+  const allowed = (p: string) => can(currentUser, p);
+  const hasUsers = typeof window !== "undefined" && accessStore.getUsers().length > 0;
+  const visibleTabs: Tab[] = (["dashboard", "reports", "visits", "retailers", "settings"] as Tab[]).filter(
+    (t) => t === "settings" || allowed(`tab.${t}`)
+  );
+
+  useEffect(() => {
+    if (!visibleTabs.includes(tab)) setTab(visibleTabs[0] ?? "settings");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessVersion]);
 
   const refreshVisits = () => setVisits(store.getVisits());
   const refreshRetailers = () => setRetailers(store.getRetailers());
   const refreshSalesmen = () => setSalesmen(store.getSalesmen());
+
 
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
@@ -55,24 +78,39 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
 
       <main className="max-w-3xl mx-auto px-4 pt-4">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-          <TabsContent value="dashboard"><Dashboard visits={visits} retailers={retailers} /></TabsContent>
-          <TabsContent value="reports"><Reports visits={visits} retailers={retailers} salesmen={salesmen} /></TabsContent>
-          <TabsContent value="visits" className="space-y-6">
-            <VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} />
-            <SalesmanVisitLog visits={visits} retailers={retailers} salesmen={salesmen} refresh={refreshVisits} />
+          {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visits} retailers={retailers} /></TabsContent>}
+          {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visits} retailers={retailers} salesmen={salesmen} /></TabsContent>}
+          {visibleTabs.includes("visits") && (
+            <TabsContent value="visits" className="space-y-6">
+              {allowed("module.visitLog") && <VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} />}
+              {allowed("module.salesmanVisitLog") && <SalesmanVisitLog visits={visits} retailers={retailers} salesmen={salesmen} refresh={refreshVisits} />}
+            </TabsContent>
+          )}
+          {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} /></TabsContent>}
+          <TabsContent value="settings">
+            <SettingsPanel
+              onLock={onLock}
+              salesmen={salesmen}
+              refreshSalesmen={refreshSalesmen}
+              currentUser={currentUser}
+              hasUsers={hasUsers}
+              onAccessChanged={loadUser}
+            />
           </TabsContent>
-          <TabsContent value="retailers"><Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} /></TabsContent>
-          <TabsContent value="settings"><SettingsPanel onLock={onLock} salesmen={salesmen} refreshSalesmen={refreshSalesmen} /></TabsContent>
 
           <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur">
-            <TabsList className="max-w-3xl mx-auto w-full grid grid-cols-5 h-16 bg-transparent p-0 rounded-none">
-              <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />
-              <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />
-              <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />
-              <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />
+            <TabsList
+              className="max-w-3xl mx-auto w-full grid h-16 bg-transparent p-0 rounded-none"
+              style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+            >
+              {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
+              {visibleTabs.includes("reports") && <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />}
+              {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
+              {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
               <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
             </TabsList>
           </nav>
+
         </Tabs>
       </main>
     </div>
@@ -1260,7 +1298,23 @@ function ThemePanel() {
   );
 }
 
-function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => void; salesmen: Salesman[]; refreshSalesmen: () => void }) {
+function SettingsPanel({
+  onLock,
+  salesmen,
+  refreshSalesmen,
+  currentUser,
+  hasUsers,
+  onAccessChanged,
+}: {
+  onLock: () => void;
+  salesmen: Salesman[];
+  refreshSalesmen: () => void;
+  currentUser: AppUser | null;
+  hasUsers: boolean;
+  onAccessChanged: () => void;
+}) {
+  const allow = (p: string) => !hasUsers || can(currentUser, p);
+
 
   const [newPin, setNewPin] = useState("");
   const [wipePin, setWipePin] = useState("");
@@ -1299,27 +1353,37 @@ function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => vo
     <div className="space-y-4 pt-2">
       <h2 className="text-lg font-semibold">Settings</h2>
 
-      <ThemePanel />
-
       <section className="bg-card border rounded-2xl p-4">
-        <Salesmen salesmen={salesmen} refresh={refreshSalesmen} />
+        <AccessControl currentUser={currentUser} onChanged={onAccessChanged} />
       </section>
 
+      {allow("setting.theme") && <ThemePanel />}
 
-
-
+      {allow("setting.salesmen") && (
+        <section className="bg-card border rounded-2xl p-4">
+          <Salesmen salesmen={salesmen} refresh={refreshSalesmen} />
+        </section>
+      )}
 
       <section className="bg-card border rounded-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold">Security</h3>
-        <Field label="Change PIN">
-          <Input inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
-        </Field>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={changePin}>Update PIN</Button>
+        {allow("setting.pin") && (
+          <>
+            <Field label="Change PIN">
+              <Input inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
+            </Field>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={changePin}>Update PIN</Button>
+              <Button size="sm" variant="outline" onClick={() => { store.setSession(false); onLock(); }}>Lock app</Button>
+            </div>
+          </>
+        )}
+        {!allow("setting.pin") && (
           <Button size="sm" variant="outline" onClick={() => { store.setSession(false); onLock(); }}>Lock app</Button>
-        </div>
+        )}
       </section>
 
+      {allow("setting.erase") && (
       <section className="bg-card border rounded-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
         <p className="text-xs text-muted-foreground">This clears everything stored on this device. Requires your PIN to confirm.</p>
@@ -1327,6 +1391,7 @@ function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => vo
           <DialogTrigger asChild>
             <Button variant="destructive" size="sm">Erase all data</Button>
           </DialogTrigger>
+
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Confirm with PIN</DialogTitle></DialogHeader>
             <div className="space-y-3">
@@ -1351,6 +1416,8 @@ function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => vo
           </DialogContent>
         </Dialog>
       </section>
+      )}
+
 
       <p className="text-[10px] text-center text-muted-foreground pt-2">OptiVisit · data stored locally on this device</p>
     </div>
