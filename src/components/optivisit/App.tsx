@@ -78,24 +78,39 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
 
       <main className="max-w-3xl mx-auto px-4 pt-4">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-          <TabsContent value="dashboard"><Dashboard visits={visits} retailers={retailers} /></TabsContent>
-          <TabsContent value="reports"><Reports visits={visits} retailers={retailers} salesmen={salesmen} /></TabsContent>
-          <TabsContent value="visits" className="space-y-6">
-            <VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} />
-            <SalesmanVisitLog visits={visits} retailers={retailers} salesmen={salesmen} refresh={refreshVisits} />
+          {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visits} retailers={retailers} /></TabsContent>}
+          {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visits} retailers={retailers} salesmen={salesmen} /></TabsContent>}
+          {visibleTabs.includes("visits") && (
+            <TabsContent value="visits" className="space-y-6">
+              {allowed("module.visitLog") && <VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} />}
+              {allowed("module.salesmanVisitLog") && <SalesmanVisitLog visits={visits} retailers={retailers} salesmen={salesmen} refresh={refreshVisits} />}
+            </TabsContent>
+          )}
+          {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} /></TabsContent>}
+          <TabsContent value="settings">
+            <SettingsPanel
+              onLock={onLock}
+              salesmen={salesmen}
+              refreshSalesmen={refreshSalesmen}
+              currentUser={currentUser}
+              hasUsers={hasUsers}
+              onAccessChanged={loadUser}
+            />
           </TabsContent>
-          <TabsContent value="retailers"><Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} /></TabsContent>
-          <TabsContent value="settings"><SettingsPanel onLock={onLock} salesmen={salesmen} refreshSalesmen={refreshSalesmen} /></TabsContent>
 
           <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur">
-            <TabsList className="max-w-3xl mx-auto w-full grid grid-cols-5 h-16 bg-transparent p-0 rounded-none">
-              <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />
-              <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />
-              <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />
-              <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />
+            <TabsList
+              className="max-w-3xl mx-auto w-full grid h-16 bg-transparent p-0 rounded-none"
+              style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+            >
+              {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
+              {visibleTabs.includes("reports") && <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />}
+              {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
+              {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
               <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
             </TabsList>
           </nav>
+
         </Tabs>
       </main>
     </div>
