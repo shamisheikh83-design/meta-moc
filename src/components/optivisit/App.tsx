@@ -1353,27 +1353,37 @@ function SettingsPanel({
     <div className="space-y-4 pt-2">
       <h2 className="text-lg font-semibold">Settings</h2>
 
-      <ThemePanel />
-
       <section className="bg-card border rounded-2xl p-4">
-        <Salesmen salesmen={salesmen} refresh={refreshSalesmen} />
+        <AccessControl currentUser={currentUser} onChanged={onAccessChanged} />
       </section>
 
+      {allow("setting.theme") && <ThemePanel />}
 
-
-
+      {allow("setting.salesmen") && (
+        <section className="bg-card border rounded-2xl p-4">
+          <Salesmen salesmen={salesmen} refresh={refreshSalesmen} />
+        </section>
+      )}
 
       <section className="bg-card border rounded-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold">Security</h3>
-        <Field label="Change PIN">
-          <Input inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
-        </Field>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={changePin}>Update PIN</Button>
+        {allow("setting.pin") && (
+          <>
+            <Field label="Change PIN">
+              <Input inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
+            </Field>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={changePin}>Update PIN</Button>
+              <Button size="sm" variant="outline" onClick={() => { store.setSession(false); onLock(); }}>Lock app</Button>
+            </div>
+          </>
+        )}
+        {!allow("setting.pin") && (
           <Button size="sm" variant="outline" onClick={() => { store.setSession(false); onLock(); }}>Lock app</Button>
-        </div>
+        )}
       </section>
 
+      {allow("setting.erase") && (
       <section className="bg-card border rounded-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
         <p className="text-xs text-muted-foreground">This clears everything stored on this device. Requires your PIN to confirm.</p>
@@ -1381,6 +1391,7 @@ function SettingsPanel({
           <DialogTrigger asChild>
             <Button variant="destructive" size="sm">Erase all data</Button>
           </DialogTrigger>
+
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Confirm with PIN</DialogTitle></DialogHeader>
             <div className="space-y-3">
