@@ -21,18 +21,38 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [retailers, setRetailers] = useState<Retailer[]>([]);
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [accessVersion, setAccessVersion] = useState(0);
+
+  const loadUser = () => {
+    const id = accessStore.getCurrentUserId();
+    setCurrentUser(id ? (accessStore.getUsers().find((u) => u.id === id) ?? null) : null);
+    setAccessVersion((v) => v + 1);
+  };
 
   useEffect(() => {
     setVisits(store.getVisits());
     setRetailers(store.getRetailers());
     setSalesmen(store.getSalesmen());
     applyTheme(getTheme());
-
+    loadUser();
   }, []);
+
+  const allowed = (p: string) => can(currentUser, p);
+  const hasUsers = typeof window !== "undefined" && accessStore.getUsers().length > 0;
+  const visibleTabs: Tab[] = (["dashboard", "reports", "visits", "retailers", "settings"] as Tab[]).filter(
+    (t) => t === "settings" || allowed(`tab.${t}`)
+  );
+
+  useEffect(() => {
+    if (!visibleTabs.includes(tab)) setTab(visibleTabs[0] ?? "settings");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessVersion]);
 
   const refreshVisits = () => setVisits(store.getVisits());
   const refreshRetailers = () => setRetailers(store.getRetailers());
   const refreshSalesmen = () => setSalesmen(store.getSalesmen());
+
 
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
