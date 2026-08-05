@@ -13,6 +13,9 @@ import { THEME_PALETTE, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, t
 
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { AccessControl } from "./AccessControl";
+import { accessStore, can, type AppUser } from "@/lib/optivisit-access";
+
 
 type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
 
