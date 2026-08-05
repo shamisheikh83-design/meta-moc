@@ -1416,6 +1416,8 @@ function SettingsPanel({
           </DialogContent>
         </Dialog>
       </section>
+      )}
+
 
       <p className="text-[10px] text-center text-muted-foreground pt-2">OptiVisit · data stored locally on this device</p>
     </div>
