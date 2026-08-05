@@ -1298,7 +1298,23 @@ function ThemePanel() {
   );
 }
 
-function SettingsPanel({ onLock, salesmen, refreshSalesmen }: { onLock: () => void; salesmen: Salesman[]; refreshSalesmen: () => void }) {
+function SettingsPanel({
+  onLock,
+  salesmen,
+  refreshSalesmen,
+  currentUser,
+  hasUsers,
+  onAccessChanged,
+}: {
+  onLock: () => void;
+  salesmen: Salesman[];
+  refreshSalesmen: () => void;
+  currentUser: AppUser | null;
+  hasUsers: boolean;
+  onAccessChanged: () => void;
+}) {
+  const allow = (p: string) => !hasUsers || can(currentUser, p);
+
 
   const [newPin, setNewPin] = useState("");
   const [wipePin, setWipePin] = useState("");
