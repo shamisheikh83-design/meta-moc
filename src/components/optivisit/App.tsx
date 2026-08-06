@@ -92,7 +92,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               <div className="text-[10px] text-muted-foreground mt-0.5 capitalize">{tab}</div>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => { store.setSession(false); onLock(); }}>
+          <Button variant="ghost" size="sm" onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}>
             <LogOut className="w-4 h-4" />
           </Button>
         </div>
@@ -1449,12 +1449,12 @@ function SettingsPanel({
             </Field>
             <div className="flex gap-2">
               <Button size="sm" onClick={changePin}>Update PIN</Button>
-              <Button size="sm" variant="outline" onClick={() => { store.setSession(false); onLock(); }}>Lock app</Button>
+              <Button size="sm" variant="outline" onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}>Lock app</Button>
             </div>
           </>
         )}
         {!allow("setting.pin") && (
-          <Button size="sm" variant="outline" onClick={() => { store.setSession(false); onLock(); }}>Lock app</Button>
+          <Button size="sm" variant="outline" onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}>Lock app</Button>
         )}
       </section>
 
