@@ -67,6 +67,9 @@ export type Retailer = {
   notes: string;
   salesmanId?: string;
   category?: ShopCategory;
+  /** Access-control user id of whoever created this retailer. */
+  addedByUserId?: string;
+  addedByName?: string;
 };
 
 export type Salesman = {
