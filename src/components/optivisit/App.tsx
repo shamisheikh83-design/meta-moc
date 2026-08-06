@@ -14,7 +14,7 @@ import { THEME_PALETTE, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, t
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
-import { accessStore, can, type AppUser } from "@/lib/optivisit-access";
+import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
 
 
 type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
@@ -52,6 +52,28 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessVersion]);
 
+  const scopeIds = scopedSalesmanIds(currentUser);
+  const visibleRetailers = useMemo(() => {
+    if (!scopeIds) return retailers;
+    return retailers.filter(
+      (r) =>
+        (r.salesmanId && scopeIds.includes(r.salesmanId)) ||
+        (!r.salesmanId && r.addedByUserId === currentUser?.id)
+    );
+  }, [retailers, scopeIds?.join(","), currentUser?.id]);
+
+  const visibleRetailerIds = useMemo(() => new Set(visibleRetailers.map((r) => r.id)), [visibleRetailers]);
+
+  const visibleVisits = useMemo(
+    () => (scopeIds ? visits.filter((v) => visibleRetailerIds.has(v.retailerId)) : visits),
+    [visits, visibleRetailerIds, !!scopeIds]
+  );
+
+  const visibleSalesmen = useMemo(
+    () => (scopeIds ? salesmen.filter((s) => scopeIds.includes(s.id)) : salesmen),
+    [salesmen, scopeIds?.join(",")]
+  );
+
   const refreshVisits = () => setVisits(store.getVisits());
   const refreshRetailers = () => setRetailers(store.getRetailers());
   const refreshSalesmen = () => setSalesmen(store.getSalesmen());
@@ -78,15 +100,15 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
 
       <main className="max-w-3xl mx-auto px-4 pt-4">
         <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-          {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visits} retailers={retailers} /></TabsContent>}
-          {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visits} retailers={retailers} salesmen={salesmen} /></TabsContent>}
+          {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visibleVisits} retailers={visibleRetailers} currentUser={currentUser} /></TabsContent>}
+          {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} /></TabsContent>}
           {visibleTabs.includes("visits") && (
             <TabsContent value="visits" className="space-y-6">
-              {allowed("module.visitLog") && <VisitLog visits={visits} retailers={retailers} refresh={refreshVisits} />}
-              {allowed("module.salesmanVisitLog") && <SalesmanVisitLog visits={visits} retailers={retailers} salesmen={salesmen} refresh={refreshVisits} />}
+              {allowed("module.visitLog") && <VisitLog visits={visibleVisits} retailers={visibleRetailers} refresh={refreshVisits} />}
+              {allowed("module.salesmanVisitLog") && <SalesmanVisitLog visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshVisits} />}
             </TabsContent>
           )}
-          {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} /></TabsContent>}
+          {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshRetailers} currentUser={currentUser} /></TabsContent>}
           <TabsContent value="settings">
             <SettingsPanel
               onLock={onLock}
@@ -130,7 +152,17 @@ function NavTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
 }
 
 /* ---------------- Dashboard ---------------- */
-function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer[] }) {
+function greetingFor(d: Date) {
+  const h = d.getHours();
+  if (h >= 4 && h < 11) return "Good Morning";
+  if (h >= 11 && h < 15) return "Good Noon";
+  if (h >= 15 && h < 18) return "Good Afternoon";
+  if (h >= 18 && h < 21) return "Good Evening";
+  if (h >= 21 || h < 1) return "Good Night";
+  return "Hello Night Rider";
+}
+
+function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retailers: Retailer[]; currentUser?: AppUser | null }) {
   const today = new Date().toISOString().slice(0, 10);
   const thisMonth = new Date().toISOString().slice(0, 7);
   const visitsTodayList = visits.filter((v) => v.date.startsWith(today));
@@ -146,7 +178,9 @@ function Dashboard({ visits, retailers }: { visits: Visit[]; retailers: Retailer
   return (
     <div className="space-y-4 pt-2">
       <div>
-        <h2 className="text-lg font-semibold">Hi{settings.salesmanName ? `, ${settings.salesmanName}` : ""} 👋</h2>
+        <h2 className="text-lg font-semibold">
+          {greetingFor(new Date())}{currentUser?.name ? `, ${currentUser.name}` : settings.salesmanName ? `, ${settings.salesmanName}` : ""} 👋
+        </h2>
         <p className="text-sm text-muted-foreground">Here's your activity snapshot · tap a card for details</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -873,7 +907,19 @@ function SegmentCard({
 }
 
 /* ---------------- Retailers ---------------- */
-function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; salesmen: Salesman[]; refresh: () => void }) {
+function Retailers({
+  retailers,
+  salesmen,
+  refresh,
+  currentUser,
+}: {
+  retailers: Retailer[];
+  salesmen: Salesman[];
+  refresh: () => void;
+  currentUser?: AppUser | null;
+}) {
+  const isPrivileged = !currentUser || !isScopedRole(currentUser.role);
+  const canSeeAddedBy = (r: Retailer) => isPrivileged || r.addedByUserId === currentUser?.id;
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [salesmanFilter, setSalesmanFilter] = useState<string>("all");
@@ -970,7 +1016,7 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
-            <RetailerDialog salesmen={sortedSalesmen} onSaved={() => { refresh(); setOpen(false); }} />
+            <RetailerDialog salesmen={sortedSalesmen} currentUser={currentUser} onSaved={() => { refresh(); setOpen(false); }} />
           </Dialog>
         </div>
       </div>
@@ -1017,6 +1063,9 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
                 </div>
               )}
               {r.notes && <div className="text-[11px] mt-1 text-muted-foreground">{r.notes}</div>}
+              {r.addedByName && canSeeAddedBy(r) && (
+                <div className="text-[11px] mt-1 text-muted-foreground">Added by: {r.addedByName}</div>
+              )}
 
               <div className="mt-2 flex items-center gap-1.5">
                 <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
@@ -1031,7 +1080,7 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
                     <Button variant="outline" size="icon" className="h-8 w-8 shrink-0"><Pencil className="w-3.5 h-3.5" /></Button>
                   </DialogTrigger>
                   {editing?.id === r.id && (
-                    <RetailerDialog salesmen={sortedSalesmen} initial={r} onSaved={() => { refresh(); setEditing(null); }} />
+                    <RetailerDialog salesmen={sortedSalesmen} currentUser={currentUser} initial={r} onSaved={() => { refresh(); setEditing(null); }} />
                   )}
                 </Dialog>
                 <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => remove(r.id)}>
@@ -1046,7 +1095,18 @@ function Retailers({ retailers, salesmen, refresh }: { retailers: Retailer[]; sa
   );
 }
 
-function RetailerDialog({ salesmen, onSaved, initial }: { salesmen: Salesman[]; onSaved: () => void; initial?: Retailer }) {
+function RetailerDialog({
+  salesmen,
+  onSaved,
+  initial,
+  currentUser,
+}: {
+  salesmen: Salesman[];
+  onSaved: () => void;
+  initial?: Retailer;
+  currentUser?: AppUser | null;
+}) {
+  const scoped = !!currentUser && isScopedRole(currentUser.role);
   const [f, setF] = useState<Omit<Retailer, "id">>(
     initial
       ? { name: initial.name, owner: initial.owner, city: initial.city, phone: initial.phone, address: initial.address, notes: initial.notes, salesmanId: initial.salesmanId, category: initial.category }
@@ -1058,7 +1118,16 @@ function RetailerDialog({ salesmen, onSaved, initial }: { salesmen: Salesman[]; 
       store.setRetailers(store.getRetailers().map((r) => (r.id === initial.id ? { ...r, ...f } : r)));
       toast.success("Retailer updated");
     } else {
-      store.setRetailers([{ id: uid(), ...f }, ...store.getRetailers()]);
+      store.setRetailers([
+        {
+          id: uid(),
+          ...f,
+          salesmanId: scoped ? undefined : f.salesmanId,
+          addedByUserId: currentUser?.id,
+          addedByName: currentUser?.name,
+        },
+        ...store.getRetailers(),
+      ]);
       toast.success("Retailer added");
     }
     onSaved();
@@ -1082,6 +1151,11 @@ function RetailerDialog({ salesmen, onSaved, initial }: { salesmen: Salesman[]; 
             </SelectContent>
           </Select>
         </Field>
+        {scoped && !initial ? (
+          <p className="text-xs text-muted-foreground">
+            New retailers you add are saved as <span className="font-medium">Unassigned</span> and tagged with your name.
+          </p>
+        ) : (
         <Field label="Assigned salesman">
           {salesmen.length === 0 ? (
             <p className="text-xs text-muted-foreground">Add salesmen first in the Salesmen tab.</p>
@@ -1095,6 +1169,7 @@ function RetailerDialog({ salesmen, onSaved, initial }: { salesmen: Salesman[]; 
             </Select>
           )}
         </Field>
+        )}
         <Field label="Address"><Input value={f.address} onChange={upd("address")} /></Field>
         <Field label="Notes"><Textarea value={f.notes} onChange={upd("notes")} rows={2} /></Field>
       </div>
