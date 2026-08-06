@@ -280,6 +280,7 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
           ) : (
             <>
               <PermissionChecklist value={perms} onChange={setPerms} />
+              {isScopedRole(role) && (
               <div className="space-y-1">
                 <Label className="text-xs">Salesmen data access</Label>
                 <p className="text-[10px] text-muted-foreground">
@@ -287,6 +288,7 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
                 </p>
                 <SalesmenChecklist salesmen={salesmenList} value={linkedSalesmen} onChange={setLinkedSalesmen} />
               </div>
+              )}
             </>
           )}
         </div>
