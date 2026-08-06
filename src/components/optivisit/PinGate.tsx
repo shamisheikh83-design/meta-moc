@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { store, hashPin } from "@/lib/optivisit-store";
 import { Eye, Mail } from "lucide-react";
+import { accessStore, signIn } from "@/lib/optivisit-access";
 
 type Mode =
   | "loading"
@@ -38,8 +39,11 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
   const [recoveryInput, setRecoveryInput] = useState("");
   const [error, setError] = useState("");
   const [resetting, setResetting] = useState(false); // true after successful recovery verify
+  const [userId, setUserId] = useState("");
+  const [hasUsers, setHasUsers] = useState(false);
 
   useEffect(() => {
+    setHasUsers(accessStore.getUsers().length > 0);
     const s = store.getSettings();
     if (!s.pinHash) {
       setMode("collect-email");
@@ -71,6 +75,22 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
         store.setSession(true);
         onUnlock();
       } else if (mode === "enter") {
+        if (hasUsers) {
+          if (!userId.trim()) {
+            setError("Enter your User ID");
+            setPin("");
+            return;
+          }
+          const user = await signIn(userId.trim(), pin);
+          if (user) {
+            store.setSession(true);
+            onUnlock();
+          } else {
+            setError("Invalid User ID or PIN");
+            setPin("");
+          }
+          return;
+        }
         const hash = await hashPin(pin);
         if (hash === store.getSettings().pinHash) {
           store.setSession(true);
@@ -81,7 +101,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
         }
       }
     })();
-  }, [pin, mode, firstPin, onUnlock]);
+  }, [pin, mode, firstPin, onUnlock, hasUsers, userId]);
 
   const savedEmail = useMemo(() => store.getSettings().email ?? "", [mode]);
 
@@ -98,7 +118,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
   const subtitle =
     mode === "collect-email" ? "Used to reset your PIN if you forget it"
     : mode === "prompt-email" ? "One-time setup so you can reset your PIN later"
-    : mode === "enter" ? "Unlock to continue"
+    : mode === "enter" ? (hasUsers ? "Enter your User ID and PIN to continue" : "Unlock to continue")
     : mode === "forgot" ? "We'll open your mail app with a recovery code"
     : mode === "verify-recovery" ? "Paste the code from the email you sent yourself"
     : "Used to unlock the app on this device";
@@ -184,6 +204,20 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                   Not now
                 </Button>
               )}
+            </div>
+          )}
+
+          {mode === "enter" && hasUsers && (
+            <div className="space-y-1.5 mb-4">
+              <Label htmlFor="userid" className="text-xs">User ID</Label>
+              <Input
+                id="userid"
+                autoFocus
+                autoCapitalize="none"
+                placeholder="Your user ID"
+                value={userId}
+                onChange={(e) => { setUserId(e.target.value); setError(""); }}
+              />
             </div>
           )}
 

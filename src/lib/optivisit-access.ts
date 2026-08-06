@@ -130,8 +130,24 @@ export type AppUser = {
   role: Role;
   pinHash: string;
   permissions: string[];
+  /** For Agent / Member / Guest: which salesmen's data this user may see. Empty = none restricted set chosen. */
+  salesmanIds?: string[];
   createdAt: string;
 };
+
+/** Roles whose data visibility is limited to their linked salesmen. */
+export const SCOPED_ROLES: Role[] = ["Agent", "Member", "Guest"];
+
+export function isScopedRole(role: Role) {
+  return SCOPED_ROLES.includes(role);
+}
+
+/** Returns the salesman ids this user is limited to, or null when unrestricted. */
+export function scopedSalesmanIds(user: AppUser | null): string[] | null {
+  if (!user) return null;
+  if (!isScopedRole(user.role)) return null;
+  return user.salesmanIds ?? [];
+}
 
 const K_USERS = "ov_users";
 const K_CURRENT = "ov_current_user";
@@ -180,6 +196,7 @@ export async function createUser(input: {
   role: Role;
   pin: string;
   permissions: string[];
+  salesmanIds?: string[];
 }): Promise<{ ok: true; user: AppUser } | { ok: false; error: string }> {
   const users = accessStore.getUsers();
   const name = input.name.trim();
@@ -198,6 +215,7 @@ export async function createUser(input: {
     role: input.role,
     pinHash: await hashPin(input.pin),
     permissions: input.role === "Super Admin" ? allPermissionIds() : input.permissions,
+    salesmanIds: isScopedRole(input.role) ? (input.salesmanIds ?? []) : undefined,
     createdAt: new Date().toISOString(),
   };
   accessStore.setUsers([...users, user]);
@@ -217,7 +235,12 @@ export function changeRole(userId: string, role: Role): { ok: true } | { ok: fal
   accessStore.setUsers(
     users.map((u) =>
       u.id === userId
-        ? { ...u, role, permissions: role === "Super Admin" ? allPermissionIds() : ROLE_DEFAULTS[role] }
+        ? {
+            ...u,
+            role,
+            permissions: role === "Super Admin" ? allPermissionIds() : ROLE_DEFAULTS[role],
+            salesmanIds: isScopedRole(role) ? (u.salesmanIds ?? []) : undefined,
+          }
         : u
     )
   );
@@ -227,6 +250,12 @@ export function changeRole(userId: string, role: Role): { ok: true } | { ok: fal
 export function setPermissions(userId: string, permissions: string[]) {
   accessStore.setUsers(
     accessStore.getUsers().map((u) => (u.id === userId ? { ...u, permissions } : u))
+  );
+}
+
+export function setSalesmanIds(userId: string, salesmanIds: string[]) {
+  accessStore.setUsers(
+    accessStore.getUsers().map((u) => (u.id === userId ? { ...u, salesmanIds } : u))
   );
 }
 

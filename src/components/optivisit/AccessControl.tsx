@@ -22,9 +22,12 @@ import {
   setPermissions,
   deleteUser,
   signIn,
+  isScopedRole,
+  setSalesmanIds,
   type AppUser,
   type Role,
 } from "@/lib/optivisit-access";
+import { store, type Salesman } from "@/lib/optivisit-store";
 
 export function AccessControl({
   currentUser,
@@ -175,6 +178,7 @@ function SuperUserPanel({
               </div>
               <div className="flex items-center gap-1">
                 <PermissionsDialog user={u} onChanged={onChanged} />
+                {isScopedRole(u.role) && <SalesmenDialog user={u} onChanged={onChanged} />}
                 <Button
                   size="icon"
                   variant="ghost"
@@ -224,6 +228,11 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
   const [pin, setPin] = useState("");
   const [role, setRole] = useState<Role>("Member");
   const [perms, setPerms] = useState<string[]>(ROLE_DEFAULTS["Member"]);
+  const [linkedSalesmen, setLinkedSalesmen] = useState<string[]>([]);
+  const salesmenList = useMemo(
+    () => store.getSalesmen().slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [open]
+  );
 
   const pickRole = (r: Role) => {
     setRole(r);
@@ -231,10 +240,12 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
   };
 
   const save = async () => {
-    const res = await createUser({ name, username, role, pin, permissions: perms });
+    if (isScopedRole(role) && linkedSalesmen.length === 0)
+      return toast.error("Select at least one salesman for this user");
+    const res = await createUser({ name, username, role, pin, permissions: perms, salesmanIds: linkedSalesmen });
     if (!res.ok) return toast.error(res.error);
     toast.success("User created");
-    setName(""); setUsername(""); setPin(""); pickRole("Member");
+    setName(""); setUsername(""); setPin(""); setLinkedSalesmen([]); pickRole("Member");
     setOpen(false);
     onChanged();
   };
@@ -267,7 +278,18 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
           {role === "Super Admin" ? (
             <p className="text-xs text-muted-foreground">Super Users are linked to every feature automatically.</p>
           ) : (
-            <PermissionChecklist value={perms} onChange={setPerms} />
+            <>
+              <PermissionChecklist value={perms} onChange={setPerms} />
+              {isScopedRole(role) && (
+              <div className="space-y-1">
+                <Label className="text-xs">Salesmen data access</Label>
+                <p className="text-[10px] text-muted-foreground">
+                  This user will only see data of the selected salesmen.
+                </p>
+                <SalesmenChecklist salesmen={salesmenList} value={linkedSalesmen} onChange={setLinkedSalesmen} />
+              </div>
+              )}
+            </>
           )}
         </div>
         <DialogFooter>
@@ -314,6 +336,77 @@ function PermissionsDialog({ user, onChanged }: { user: AppUser; onChanged: () =
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SalesmenDialog({ user, onChanged }: { user: AppUser; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [ids, setIds] = useState<string[]>(user.salesmanIds ?? []);
+  const salesmen = useMemo(
+    () => store.getSalesmen().slice().sort((a, b) => a.name.localeCompare(b.name)),
+    [open]
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) setIds(user.salesmanIds ?? []); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-8 text-xs">Salesmen</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{user.name} · linked salesmen</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Only the selected salesmen's retailers, visits, logs and reports will be visible to this user.
+        </p>
+        <SalesmenChecklist salesmen={salesmen} value={ids} onChange={setIds} />
+        <DialogFooter>
+          <Button
+            size="sm"
+            onClick={() => {
+              setSalesmanIds(user.id, ids);
+              toast.success("Linked salesmen updated");
+              setOpen(false);
+              onChanged();
+            }}
+          >
+            Save salesmen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SalesmenChecklist({
+  salesmen,
+  value,
+  onChange,
+}: {
+  salesmen: Salesman[];
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  if (salesmen.length === 0)
+    return <p className="text-xs text-muted-foreground">No salesmen registered yet. Add them in Settings first.</p>;
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  return (
+    <div className="rounded-lg border p-2 space-y-1">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-semibold">Registered salesmen</span>
+        <button
+          type="button"
+          className="text-[10px] underline text-muted-foreground"
+          onClick={() => onChange(value.length === salesmen.length ? [] : salesmen.map((s) => s.id))}
+        >
+          toggle all
+        </button>
+      </div>
+      {salesmen.map((s) => (
+        <label key={s.id} className="flex items-center gap-2 text-xs">
+          <Checkbox checked={value.includes(s.id)} onCheckedChange={() => toggle(s.id)} />
+          <span>{s.name}{s.city ? ` · ${s.city}` : ""}</span>
+        </label>
+      ))}
+    </div>
   );
 }
 
