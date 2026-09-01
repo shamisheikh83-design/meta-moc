@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { PinGate } from "@/components/optivisit/PinGate";
 import { OptiVisitApp } from "@/components/optivisit/App";
 import { store } from "@/lib/optivisit-store";
+import { startSync, SYNC_EVENT } from "@/lib/optivisit-sync";
+import { registerServiceWorker } from "@/lib/pwa";
 import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/")({
@@ -20,17 +22,31 @@ export const Route = createFileRoute("/")({
 function Index() {
   const [ready, setReady] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [syncTick, setSyncTick] = useState(0);
 
   useEffect(() => {
+    const stop = startSync();
+    registerServiceWorker();
     setUnlocked(store.getSession());
     setReady(true);
+
+    const onSync = () => setSyncTick((t) => t + 1);
+    window.addEventListener(SYNC_EVENT, onSync);
+    return () => {
+      window.removeEventListener(SYNC_EVENT, onSync);
+      stop?.();
+    };
   }, []);
 
   if (!ready) return null;
 
   return (
     <>
-      {unlocked ? <OptiVisitApp onLock={() => setUnlocked(false)} /> : <PinGate onUnlock={() => setUnlocked(true)} />}
+      {unlocked ? (
+        <OptiVisitApp key={syncTick} onLock={() => setUnlocked(false)} />
+      ) : (
+        <PinGate key={syncTick} onUnlock={() => setUnlocked(true)} />
+      )}
       <Toaster position="top-center" />
     </>
   );
