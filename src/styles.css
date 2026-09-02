@@ -120,7 +120,14 @@
   --sidebar-accent-foreground: var(--navy);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--aqua);
+
+  /* Themeable app chrome */
+  --ov-heading: var(--navy);
+  --ov-subheading: var(--maroon-ink);
+  --ov-toolbar: linear-gradient(100deg, oklch(0.34 0.11 258), oklch(0.46 0.13 226));
+  --ov-toolbar-foreground: oklch(0.98 0.01 220);
 }
+
 
 .dark {
   --background: oklch(0.18 0.04 255);
