@@ -127,6 +127,7 @@ export type AppUser = {
   id: string;
   name: string;
   username: string;
+  email?: string;
   role: Role;
   pinHash: string;
   permissions: string[];
@@ -134,6 +135,7 @@ export type AppUser = {
   salesmanIds?: string[];
   createdAt: string;
 };
+
 
 /** Roles whose data visibility is limited to their linked salesmen. */
 export const SCOPED_ROLES: Role[] = ["Agent", "Member", "Guest"];
