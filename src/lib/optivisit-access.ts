@@ -195,6 +195,7 @@ export function superAdmins(users: AppUser[]): AppUser[] {
 export async function createUser(input: {
   name: string;
   username: string;
+  email?: string;
   role: Role;
   pin: string;
   permissions: string[];
@@ -214,6 +215,7 @@ export async function createUser(input: {
     id: uid(),
     name,
     username,
+    email: input.email?.trim() || undefined,
     role: input.role,
     pinHash: await hashPin(input.pin),
     permissions: input.role === "Super Admin" ? allPermissionIds() : input.permissions,
@@ -279,4 +281,47 @@ export async function signIn(username: string, pin: string): Promise<AppUser | n
   if (hash !== user.pinHash) return null;
   accessStore.setCurrentUserId(user.id);
   return user;
+}
+
+/** Verify a user's own PIN (used for sensitive Super User actions). */
+export async function verifyPin(user: AppUser, pin: string): Promise<boolean> {
+  if (!/^\d{4}$/.test(pin)) return false;
+  return (await hashPin(pin)) === user.pinHash;
+}
+
+/** Update profile fields, user ID and/or PIN of an existing user. */
+export async function updateUser(
+  userId: string,
+  patch: { name?: string; username?: string; email?: string; pin?: string }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const users = accessStore.getUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return { ok: false, error: "User not found" };
+
+  const next: AppUser = { ...target };
+
+  if (patch.name !== undefined) {
+    const name = patch.name.trim();
+    if (!name) return { ok: false, error: "Enter a name" };
+    next.name = name;
+  }
+  if (patch.username !== undefined) {
+    const username = patch.username.trim().toLowerCase();
+    if (!username) return { ok: false, error: "Enter a user ID" };
+    if (users.some((u) => u.id !== userId && u.username === username))
+      return { ok: false, error: "User ID already exists" };
+    next.username = username;
+  }
+  if (patch.email !== undefined) {
+    const email = patch.email.trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter a valid email" };
+    next.email = email || undefined;
+  }
+  if (patch.pin !== undefined && patch.pin !== "") {
+    if (!/^\d{4}$/.test(patch.pin)) return { ok: false, error: "Enter a 4-digit PIN" };
+    next.pinHash = await hashPin(patch.pin);
+  }
+
+  accessStore.setUsers(users.map((u) => (u.id === userId ? next : u)));
+  return { ok: true };
 }
