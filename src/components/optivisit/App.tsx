@@ -424,6 +424,7 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
       activity: derivedActivity,
       outcome,
       notes,
+      addedByUserId: accessStore.getCurrentUserId() ?? undefined,
     };
     store.setVisits([v, ...store.getVisits()]);
     toast.success("Visit logged");
@@ -1765,6 +1766,7 @@ function RecordVisitDialog({
       outcome,
       notes,
       activity,
+      addedByUserId: accessStore.getCurrentUserId() ?? undefined,
       ...(isOthers ? { unavailableReason } : {}),
     };
     store.setVisits([v, ...store.getVisits()]);

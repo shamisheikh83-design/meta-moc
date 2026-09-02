@@ -52,6 +52,9 @@ export type Visit = {
   notes: string;
   activity?: VisitActivity;
   unavailableReason?: UnavailableReason;
+  /** Access-control user id of whoever recorded this visit. */
+  addedByUserId?: string;
+  addedByName?: string;
 };
 
 export const SHOP_CATEGORIES = ["A+", "A", "B", "C"] as const;

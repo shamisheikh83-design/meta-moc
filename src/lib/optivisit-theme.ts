@@ -71,15 +71,192 @@ export const THEME_PALETTE: { group: "Light" | "Mid" | "Bright"; colors: ThemeCo
 
 export const NO_FILL = "none";
 
+/** A complete, designed look: toolbar, surfaces, tokens, accents and text. */
+export type ThemePreset = {
+  id: string;
+  name: string;
+  mood: string;
+  /** Preview swatches, in order: toolbar, surface, accent, token */
+  swatches: [string, string, string, string];
+  vars: Record<string, string>;
+};
+
+const preset = (
+  id: string,
+  name: string,
+  mood: string,
+  v: {
+    background: string;
+    card: string;
+    foreground: string;
+    muted: string;
+    mutedFg: string;
+    border: string;
+    primary: string;
+    primaryFg: string;
+    accent: string;
+    accentFg: string;
+    heading: string;
+    subheading: string;
+    toolbar: string;
+    toolbarFg: string;
+    ring: string;
+  }
+): ThemePreset => ({
+  id,
+  name,
+  mood,
+  swatches: [v.toolbar, v.background, v.primary, v.card],
+  vars: {
+    "--background": v.background,
+    "--card": v.card,
+    "--popover": v.card,
+    "--foreground": v.foreground,
+    "--card-foreground": v.foreground,
+    "--popover-foreground": v.foreground,
+    "--muted": v.muted,
+    "--muted-foreground": v.mutedFg,
+    "--border": v.border,
+    "--input": v.border,
+    "--primary": v.primary,
+    "--primary-foreground": v.primaryFg,
+    "--secondary": v.muted,
+    "--secondary-foreground": v.foreground,
+    "--accent": v.accent,
+    "--accent-foreground": v.accentFg,
+    "--ring": v.ring,
+    "--sidebar": v.card,
+    "--sidebar-foreground": v.foreground,
+    "--sidebar-accent": v.accent,
+    "--sidebar-border": v.border,
+    "--ov-heading": v.heading,
+    "--ov-subheading": v.subheading,
+    "--ov-toolbar": v.toolbar,
+    "--ov-toolbar-foreground": v.toolbarFg,
+    "--chart-1": v.primary,
+    "--chart-2": v.subheading,
+    "--chart-3": v.accentFg,
+  },
+});
+
+export const THEME_PRESETS: ThemePreset[] = [
+  preset("harbour", "Harbour", "Navy · aqua · ash", {
+    background: "oklch(0.975 0.006 220)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.30 0.06 255)",
+    muted: "oklch(0.95 0.02 205)",
+    mutedFg: "oklch(0.50 0.04 250)",
+    border: "oklch(0.89 0.015 235)",
+    primary: "oklch(0.42 0.13 255)",
+    primaryFg: "oklch(0.99 0.01 220)",
+    accent: "oklch(0.93 0.04 205)",
+    accentFg: "oklch(0.36 0.10 240)",
+    heading: "oklch(0.33 0.10 255)",
+    subheading: "oklch(0.45 0.13 30)",
+    toolbar: "linear-gradient(100deg, oklch(0.34 0.11 258), oklch(0.46 0.13 226))",
+    toolbarFg: "oklch(0.98 0.01 220)",
+    ring: "oklch(0.55 0.12 210)",
+  }),
+  preset("saffron", "Saffron", "Warm amber · plum", {
+    background: "oklch(0.98 0.014 85)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.32 0.05 45)",
+    muted: "oklch(0.95 0.035 80)",
+    mutedFg: "oklch(0.52 0.05 60)",
+    border: "oklch(0.90 0.03 70)",
+    primary: "oklch(0.62 0.16 55)",
+    primaryFg: "oklch(0.99 0.01 90)",
+    accent: "oklch(0.94 0.05 75)",
+    accentFg: "oklch(0.42 0.12 40)",
+    heading: "oklch(0.36 0.10 35)",
+    subheading: "oklch(0.48 0.14 320)",
+    toolbar: "linear-gradient(100deg, oklch(0.55 0.16 40), oklch(0.70 0.16 70))",
+    toolbarFg: "oklch(0.99 0.01 90)",
+    ring: "oklch(0.68 0.15 60)",
+  }),
+  preset("emerald", "Emerald", "Fresh green · teal", {
+    background: "oklch(0.975 0.012 165)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.30 0.05 175)",
+    muted: "oklch(0.95 0.03 165)",
+    mutedFg: "oklch(0.50 0.04 175)",
+    border: "oklch(0.89 0.025 168)",
+    primary: "oklch(0.50 0.13 165)",
+    primaryFg: "oklch(0.99 0.01 160)",
+    accent: "oklch(0.93 0.05 165)",
+    accentFg: "oklch(0.38 0.10 170)",
+    heading: "oklch(0.32 0.08 175)",
+    subheading: "oklch(0.46 0.12 45)",
+    toolbar: "linear-gradient(100deg, oklch(0.38 0.10 175), oklch(0.55 0.14 158))",
+    toolbarFg: "oklch(0.99 0.01 160)",
+    ring: "oklch(0.58 0.12 165)",
+  }),
+  preset("orchid", "Orchid", "Violet · rose", {
+    background: "oklch(0.975 0.012 310)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.31 0.06 305)",
+    muted: "oklch(0.95 0.03 305)",
+    mutedFg: "oklch(0.51 0.05 305)",
+    border: "oklch(0.90 0.025 305)",
+    primary: "oklch(0.50 0.17 305)",
+    primaryFg: "oklch(0.99 0.01 300)",
+    accent: "oklch(0.94 0.04 320)",
+    accentFg: "oklch(0.40 0.13 315)",
+    heading: "oklch(0.34 0.11 300)",
+    subheading: "oklch(0.50 0.15 10)",
+    toolbar: "linear-gradient(100deg, oklch(0.38 0.14 305), oklch(0.55 0.16 340))",
+    toolbarFg: "oklch(0.99 0.01 310)",
+    ring: "oklch(0.60 0.14 310)",
+  }),
+  preset("graphite", "Graphite", "Quiet neutral", {
+    background: "oklch(0.97 0.003 250)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.28 0.01 250)",
+    muted: "oklch(0.945 0.005 250)",
+    mutedFg: "oklch(0.50 0.01 250)",
+    border: "oklch(0.89 0.005 250)",
+    primary: "oklch(0.34 0.02 250)",
+    primaryFg: "oklch(0.98 0 0)",
+    accent: "oklch(0.94 0.01 250)",
+    accentFg: "oklch(0.32 0.02 250)",
+    heading: "oklch(0.28 0.02 250)",
+    subheading: "oklch(0.45 0.05 250)",
+    toolbar: "linear-gradient(100deg, oklch(0.27 0.01 250), oklch(0.40 0.02 250))",
+    toolbarFg: "oklch(0.98 0 0)",
+    ring: "oklch(0.55 0.02 250)",
+  }),
+  preset("midnight", "Midnight", "Dark mode · cyan", {
+    background: "oklch(0.19 0.03 255)",
+    card: "oklch(0.24 0.035 250)",
+    foreground: "oklch(0.96 0.01 230)",
+    muted: "oklch(0.28 0.035 250)",
+    mutedFg: "oklch(0.75 0.02 240)",
+    border: "oklch(0.34 0.03 250)",
+    primary: "oklch(0.72 0.13 205)",
+    primaryFg: "oklch(0.18 0.04 255)",
+    accent: "oklch(0.32 0.05 210)",
+    accentFg: "oklch(0.93 0.02 205)",
+    heading: "oklch(0.93 0.03 205)",
+    subheading: "oklch(0.80 0.10 60)",
+    toolbar: "linear-gradient(100deg, oklch(0.24 0.05 255), oklch(0.32 0.07 210))",
+    toolbarFg: "oklch(0.97 0.01 205)",
+    ring: "oklch(0.72 0.13 205)",
+  }),
+];
+
 export type AppTheme = {
+  /** Preset id, or "" for the app default look. */
+  preset: string;
   background: string; // color value or NO_FILL
   card: string; // color value or NO_FILL
   font: string; // color value
+  /** Accent / primary override. */
+  accent: string;
 };
 
 const K_THEME = "ov_theme";
 
-export const defaultTheme: AppTheme = { background: "", card: "", font: "" };
+export const defaultTheme: AppTheme = { preset: "", background: "", card: "", font: "", accent: "" };
 
 export function getTheme(): AppTheme {
   if (typeof window === "undefined") return defaultTheme;
@@ -97,26 +274,47 @@ export function setTheme(t: AppTheme) {
   applyTheme(t);
 }
 
+export function findPreset(id: string) {
+  return THEME_PRESETS.find((p) => p.id === id) ?? null;
+}
+
+const PRESET_VAR_NAMES = Array.from(new Set(THEME_PRESETS.flatMap((p) => Object.keys(p.vars))));
+
 export function applyTheme(t: AppTheme) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  const custom = !!(t.background || t.card || t.font);
-  root.toggleAttribute("data-custom-theme", custom);
 
-  const set = (name: string, v: string | null) => (v ? root.style.setProperty(name, v) : root.style.removeProperty(name));
+  // Reset everything a theme can own, then re-apply.
+  for (const name of PRESET_VAR_NAMES) root.style.removeProperty(name);
+  root.style.removeProperty("--theme-font");
 
-  set("--background", t.background === NO_FILL ? "transparent" : t.background || null);
-  set("--card", t.card === NO_FILL ? "transparent" : t.card || null);
-  set("--popover", t.card === NO_FILL ? null : t.card || null);
+  const p = findPreset(t.preset);
+  if (p) for (const [k, v] of Object.entries(p.vars)) root.style.setProperty(k, v);
+
+  const custom = !!(t.background || t.card || t.font || t.accent);
+  root.toggleAttribute("data-custom-theme", custom || !!p);
+
+  const set = (name: string, v: string | null) =>
+    v ? root.style.setProperty(name, v) : undefined;
+
+  if (t.background) set("--background", t.background === NO_FILL ? "transparent" : t.background);
+  if (t.card) {
+    set("--card", t.card === NO_FILL ? "transparent" : t.card);
+    if (t.card !== NO_FILL) set("--popover", t.card);
+  }
+  if (t.accent) {
+    set("--primary", t.accent);
+    set("--ring", t.accent);
+    set("--ov-toolbar", `linear-gradient(100deg, ${t.accent}, color-mix(in oklab, ${t.accent} 55%, black))`);
+    set("--ov-toolbar-foreground", `oklch(0.99 0.01 220)`);
+    set("--primary-foreground", `oklch(0.99 0.01 220)`);
+  }
   if (t.font) {
     set("--foreground", t.font);
     set("--card-foreground", t.font);
     set("--popover-foreground", t.font);
+    set("--ov-heading", t.font);
+    set("--ov-subheading", t.font);
     root.style.setProperty("--theme-font", t.font);
-  } else {
-    set("--foreground", null);
-    set("--card-foreground", null);
-    set("--popover-foreground", null);
-    root.style.removeProperty("--theme-font");
   }
 }

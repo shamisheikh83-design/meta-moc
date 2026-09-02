@@ -120,7 +120,14 @@
   --sidebar-accent-foreground: var(--navy);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--aqua);
+
+  /* Themeable app chrome */
+  --ov-heading: var(--navy);
+  --ov-subheading: var(--maroon-ink);
+  --ov-toolbar: linear-gradient(100deg, oklch(0.34 0.11 258), oklch(0.46 0.13 226));
+  --ov-toolbar-foreground: oklch(0.98 0.01 220);
 }
+
 
 .dark {
   --background: oklch(0.18 0.04 255);
@@ -168,11 +175,11 @@
   }
 
   h1, h2 {
-    color: var(--navy);
+    color: var(--ov-heading);
   }
 
   h3, h4, h5, h6 {
-    color: var(--maroon-ink);
+    color: var(--ov-subheading);
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -187,7 +194,7 @@
   /* Practical surfaces: clean cards, clear edges, subtle depth */
   .bg-card {
     border-color: var(--border);
-    box-shadow: 0 1px 2px color-mix(in oklab, var(--navy) 8%, transparent);
+    box-shadow: 0 1px 2px color-mix(in oklab, var(--foreground) 8%, transparent);
   }
 
   input, textarea, [role="combobox"] {
@@ -196,27 +203,26 @@
   }
 
   input:focus-visible, textarea:focus-visible, [role="combobox"]:focus-visible {
-    border-color: var(--aqua);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--aqua) 18%, transparent);
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 18%, transparent);
   }
 
-  /* Dropdown lists and filter menus: clean surfaces with navy text */
+  /* Dropdown lists and filter menus */
   [role="listbox"] {
     background-color: var(--popover);
     border-color: var(--border);
   }
 
   [role="option"] {
-    color: var(--navy);
+    color: var(--popover-foreground);
   }
 
   [role="option"][data-state="checked"],
   [role="option"][data-highlighted] {
-    background-color: var(--aqua-soft);
-    color: var(--navy);
+    background-color: var(--accent);
+    color: var(--accent-foreground);
   }
 
-  /* Custom theme from Settings overrides the decorative gradients */
   [data-custom-theme] body {
     background-image: none;
   }
@@ -224,14 +230,19 @@
   [data-custom-theme] .bg-card {
     background-image: none;
   }
-
-  [data-custom-theme] h1,
-  [data-custom-theme] h2,
-  [data-custom-theme] h3,
-  [data-custom-theme] h4,
-  [data-custom-theme] h5,
-  [data-custom-theme] h6 {
-    color: var(--theme-font, inherit);
-  }
 }
+
+@utility ov-toolbar {
+  background-image: var(--ov-toolbar);
+  color: var(--ov-toolbar-foreground);
+}
+
+@utility ov-subheading {
+  color: var(--ov-subheading);
+}
+
+@utility ov-heading {
+  color: var(--ov-heading);
+}
+
 
