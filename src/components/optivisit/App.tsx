@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, UNAVAILABLE_REASONS, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type UnavailableReason } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { THEME_PALETTE, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
+import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -1388,17 +1388,114 @@ function ThemePanel() {
   };
 
   return (
-    <section className="bg-card border rounded-2xl p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Color theme</h3>
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => update({ background: "", card: "", font: "" })}>
+    <section className="bg-card border rounded-2xl overflow-hidden">
+      <div className="ov-toolbar px-4 py-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-current">Appearance</h3>
+          <p className="text-[11px] opacity-85">Toolbar, tickets, tokens, fonts and background</p>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs text-current hover:bg-white/15"
+          onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "" })}
+        >
           Reset
         </Button>
       </div>
-      <ColorPicker label="Background" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
-      <ColorPicker label="Ticket / token" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
-      <ColorPicker label="Font" value={theme.font} onChange={(v) => update({ font: v })} />
+
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Theme</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <ThemeCard
+              name="Classic"
+              mood="App default"
+              swatches={["linear-gradient(100deg, oklch(0.34 0.11 258), oklch(0.46 0.13 226))", "oklch(0.975 0.004 220)", "oklch(0.33 0.10 255)", "oklch(1 0 0)"]}
+              active={!theme.preset}
+              onClick={() => update({ preset: "" })}
+            />
+            {THEME_PRESETS.map((p) => (
+              <ThemeCard
+                key={p.id}
+                name={p.name}
+                mood={p.mood}
+                swatches={p.swatches}
+                active={theme.preset === p.id}
+                onClick={() => update({ preset: p.id })}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold">Fine tuning</Label>
+            <span className="text-[10px] text-muted-foreground">Applies on top of the theme</span>
+          </div>
+          <ColorPicker label="Accent / toolbar" value={theme.accent} onChange={(v) => update({ accent: v })} />
+          <ColorPicker label="Background" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
+          <ColorPicker label="Ticket / token" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
+          <ColorPicker label="Font" value={theme.font} onChange={(v) => update({ font: v })} />
+        </div>
+
+        <div className="rounded-xl border overflow-hidden">
+          <div className="ov-toolbar px-3 py-2 text-xs font-semibold">Live preview</div>
+          <div className="p-3 bg-background space-y-2">
+            <div className="flex gap-2">
+              <div className="flex-1 bg-card border rounded-xl p-2">
+                <div className="text-[10px] text-muted-foreground">Visits today</div>
+                <div className="text-lg font-semibold">12</div>
+              </div>
+              <div className="flex-1 bg-card border rounded-xl p-2">
+                <div className="text-[10px] text-muted-foreground">Retailers</div>
+                <div className="text-lg font-semibold">48</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="h-7 text-xs">Primary</Button>
+              <Badge variant="secondary" className="text-[10px]">Token</Badge>
+              <span className="text-xs ov-subheading font-medium">Sub heading</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
+  );
+}
+
+function ThemeCard({
+  name,
+  mood,
+  swatches,
+  active,
+  onClick,
+}: {
+  name: string;
+  mood: string;
+  swatches: readonly string[];
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-xl border overflow-hidden transition hover:shadow-md ${active ? "ring-2 ring-ring border-transparent" : ""}`}
+    >
+      <div className="h-8 w-full" style={{ backgroundImage: swatches[0], backgroundColor: swatches[0] }} />
+      <div className="p-2 space-y-1.5" style={{ backgroundColor: swatches[1] }}>
+        <div className="flex gap-1">
+          {swatches.slice(1).map((c, i) => (
+            <span key={i} className="h-3.5 w-3.5 rounded-full border border-black/10" style={{ backgroundColor: c }} />
+          ))}
+        </div>
+        <div>
+          <div className="text-xs font-semibold" style={{ color: swatches[2] }}>{name}</div>
+          <div className="text-[10px] opacity-70" style={{ color: swatches[2] }}>{mood}</div>
+        </div>
+      </div>
+    </button>
   );
 }
 
