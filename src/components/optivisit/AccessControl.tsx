@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound } from "lucide-react";
+import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   ROLES,
@@ -21,6 +21,8 @@ import {
   changeRole,
   setPermissions,
   deleteUser,
+  updateUser,
+  verifyPin,
   signIn,
   isScopedRole,
   setSalesmanIds,
@@ -28,6 +30,14 @@ import {
   type Role,
 } from "@/lib/optivisit-access";
 import { store, type Salesman } from "@/lib/optivisit-store";
+import {
+  countUserData,
+  deleteUserData,
+  exportUserDataCsv,
+  exportUserDataJson,
+  transferUserData,
+  type DateRange,
+} from "@/lib/optivisit-userdata";
 
 export function AccessControl({
   currentUser,
@@ -174,25 +184,14 @@ function SuperUserPanel({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">{u.name}</div>
-                <div className="text-[11px] text-muted-foreground">@{u.username}</div>
+                <div className="text-[11px] text-muted-foreground">@{u.username}{u.email ? ` · ${u.email}` : ""}</div>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center justify-end gap-1">
                 <PermissionsDialog user={u} onChanged={onChanged} />
                 {isScopedRole(u.role) && <SalesmenDialog user={u} onChanged={onChanged} />}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-destructive"
-                  onClick={() => {
-                    const res = deleteUser(u.id);
-                    if (!res.ok) return toast.error(res.error);
-                    if (u.id === currentUser.id) accessStore.setCurrentUserId(null);
-                    toast.success("User deleted");
-                    onChanged();
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <EditUserDialog user={u} onChanged={onChanged} />
+                <TransferDataDialog user={u} users={users} onChanged={onChanged} />
+                <DeleteUserDialog user={u} users={users} currentUser={currentUser} onChanged={onChanged} />
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -225,6 +224,7 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [role, setRole] = useState<Role>("Member");
   const [perms, setPerms] = useState<string[]>(ROLE_DEFAULTS["Member"]);
@@ -242,10 +242,10 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
   const save = async () => {
     if (isScopedRole(role) && linkedSalesmen.length === 0)
       return toast.error("Select at least one salesman for this user");
-    const res = await createUser({ name, username, role, pin, permissions: perms, salesmanIds: linkedSalesmen });
+    const res = await createUser({ name, username, email, role, pin, permissions: perms, salesmanIds: linkedSalesmen });
     if (!res.ok) return toast.error(res.error);
     toast.success("User created");
-    setName(""); setUsername(""); setPin(""); setLinkedSalesmen([]); pickRole("Member");
+    setName(""); setUsername(""); setEmail(""); setPin(""); setLinkedSalesmen([]); pickRole("Member");
     setOpen(false);
     onChanged();
   };
@@ -260,6 +260,7 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
         <div className="space-y-3">
           <Row label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Row>
           <Row label="User ID"><Input value={username} onChange={(e) => setUsername(e.target.value)} /></Row>
+          <Row label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" /></Row>
           <Row label="4-digit PIN">
             <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
           </Row>
