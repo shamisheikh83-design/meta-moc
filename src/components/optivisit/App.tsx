@@ -80,26 +80,41 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
 
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-24">
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur border-b">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
-              <Eye className="w-4 h-4" />
+    <div className="min-h-screen bg-background pb-24 md:pb-8">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <header className="sticky top-0 z-20 ov-toolbar shadow-sm">
+          <div className="max-w-6xl mx-auto px-4 h-14 md:h-16 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-white/15 ring-1 ring-white/25 flex items-center justify-center">
+                <Eye className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <div className="text-sm md:text-base font-semibold leading-none tracking-tight">Meta Opti Connect</div>
+                <div className="text-[10px] opacity-80 mt-0.5 capitalize">{tab}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-semibold leading-none">OptiVisit</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 capitalize">{tab}</div>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}>
-            <LogOut className="w-4 h-4" />
-          </Button>
-        </div>
-      </header>
 
-      <main className="max-w-3xl mx-auto px-4 pt-4">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+            {/* Desktop navigation lives in the toolbar */}
+            <TabsList className="hidden md:flex bg-white/10 rounded-full p-1 h-10 gap-1">
+              {visibleTabs.includes("dashboard") && <TopTab value="dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label="Home" />}
+              {visibleTabs.includes("reports") && <TopTab value="reports" icon={<BarChart3 className="w-4 h-4" />} label="Reports" />}
+              {visibleTabs.includes("visits") && <TopTab value="visits" icon={<ClipboardList className="w-4 h-4" />} label="Visits" />}
+              {visibleTabs.includes("retailers") && <TopTab value="retailers" icon={<Store className="w-4 h-4" />} label="Retailers" />}
+              <TopTab value="settings" icon={<SettingsIcon className="w-4 h-4" />} label="Settings" />
+            </TabsList>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-current hover:bg-white/15"
+              onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto px-4 pt-4">
           {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visibleVisits} retailers={visibleRetailers} currentUser={currentUser} /></TabsContent>}
           {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} /></TabsContent>}
           {visibleTabs.includes("visits") && (
@@ -119,23 +134,35 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               onAccessChanged={loadUser}
             />
           </TabsContent>
+        </main>
 
-          <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur">
-            <TabsList
-              className="max-w-3xl mx-auto w-full grid h-16 bg-transparent p-0 rounded-none"
-              style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
-            >
-              {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
-              {visibleTabs.includes("reports") && <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />}
-              {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
-              {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
-              <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
-            </TabsList>
-          </nav>
-
-        </Tabs>
-      </main>
+        {/* Mobile bottom navigation */}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 border-t bg-card/95 backdrop-blur">
+          <TabsList
+            className="max-w-3xl mx-auto w-full grid h-16 bg-transparent p-0 rounded-none"
+            style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+          >
+            {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
+            {visibleTabs.includes("reports") && <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />}
+            {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
+            {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
+            <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
+          </TabsList>
+        </nav>
+      </Tabs>
     </div>
+  );
+}
+
+function TopTab({ value, icon, label }: { value: string; icon: React.ReactNode; label: string }) {
+  return (
+    <TabsTrigger
+      value={value}
+      className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-current/85 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+    >
+      {icon}
+      <span>{label}</span>
+    </TabsTrigger>
   );
 }
 
@@ -150,6 +177,7 @@ function NavTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
     </TabsTrigger>
   );
 }
+
 
 /* ---------------- Dashboard ---------------- */
 function greetingFor(d: Date) {
