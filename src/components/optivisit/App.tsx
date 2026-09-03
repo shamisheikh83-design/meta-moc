@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, UNAVAILABLE_REASONS, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type UnavailableReason } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { THEME_PALETTE, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
+import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -80,26 +80,41 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
 
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-24">
-      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur border-b">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
-              <Eye className="w-4 h-4" />
+    <div className="min-h-screen bg-background pb-24 md:pb-8">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <header className="sticky top-0 z-20 ov-toolbar shadow-sm">
+          <div className="max-w-6xl mx-auto px-4 h-14 md:h-16 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-white/15 ring-1 ring-white/25 flex items-center justify-center">
+                <Eye className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <div className="text-sm md:text-base font-semibold leading-none tracking-tight">Meta Opti Connect</div>
+                <div className="text-[10px] opacity-80 mt-0.5 capitalize">{tab}</div>
+              </div>
             </div>
-            <div>
-              <div className="text-sm font-semibold leading-none">OptiVisit</div>
-              <div className="text-[10px] text-muted-foreground mt-0.5 capitalize">{tab}</div>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}>
-            <LogOut className="w-4 h-4" />
-          </Button>
-        </div>
-      </header>
 
-      <main className="max-w-3xl mx-auto px-4 pt-4">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+            {/* Desktop navigation lives in the toolbar */}
+            <TabsList className="hidden md:flex bg-white/10 rounded-full p-1 h-10 gap-1">
+              {visibleTabs.includes("dashboard") && <TopTab value="dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label="Home" />}
+              {visibleTabs.includes("reports") && <TopTab value="reports" icon={<BarChart3 className="w-4 h-4" />} label="Reports" />}
+              {visibleTabs.includes("visits") && <TopTab value="visits" icon={<ClipboardList className="w-4 h-4" />} label="Visits" />}
+              {visibleTabs.includes("retailers") && <TopTab value="retailers" icon={<Store className="w-4 h-4" />} label="Retailers" />}
+              <TopTab value="settings" icon={<SettingsIcon className="w-4 h-4" />} label="Settings" />
+            </TabsList>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-current hover:bg-white/15"
+              onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto px-4 pt-4">
           {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visibleVisits} retailers={visibleRetailers} currentUser={currentUser} /></TabsContent>}
           {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} /></TabsContent>}
           {visibleTabs.includes("visits") && (
@@ -119,23 +134,35 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               onAccessChanged={loadUser}
             />
           </TabsContent>
+        </main>
 
-          <nav className="fixed bottom-0 inset-x-0 z-20 border-t bg-background/95 backdrop-blur">
-            <TabsList
-              className="max-w-3xl mx-auto w-full grid h-16 bg-transparent p-0 rounded-none"
-              style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
-            >
-              {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
-              {visibleTabs.includes("reports") && <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />}
-              {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
-              {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
-              <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
-            </TabsList>
-          </nav>
-
-        </Tabs>
-      </main>
+        {/* Mobile bottom navigation */}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 border-t bg-card/95 backdrop-blur">
+          <TabsList
+            className="max-w-3xl mx-auto w-full grid h-16 bg-transparent p-0 rounded-none"
+            style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
+          >
+            {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
+            {visibleTabs.includes("reports") && <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />}
+            {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
+            {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
+            <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
+          </TabsList>
+        </nav>
+      </Tabs>
     </div>
+  );
+}
+
+function TopTab({ value, icon, label }: { value: string; icon: React.ReactNode; label: string }) {
+  return (
+    <TabsTrigger
+      value={value}
+      className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-current/85 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+    >
+      {icon}
+      <span>{label}</span>
+    </TabsTrigger>
   );
 }
 
@@ -150,6 +177,7 @@ function NavTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
     </TabsTrigger>
   );
 }
+
 
 /* ---------------- Dashboard ---------------- */
 function greetingFor(d: Date) {
@@ -586,7 +614,7 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
       if (r) {
         shops.add(r.id);
         if ((r.city || "").trim()) cities.add(normalizeCity(r.city));
-        const area = (r.address || "").split(",")[0]?.trim();
+        const area = (r.area || (r.address || "").split(",")[0] || "").trim();
         if (area) areas.add(area.toLowerCase());
       }
       const p = `${v.purpose || ""} ${v.activity || ""}`.toLowerCase();
@@ -938,7 +966,7 @@ function Retailers({
           ? !r.salesmanId
           : r.salesmanId === salesmanFilter
     )
-    .filter((r) => [r.name, r.city, r.owner].some((s) => (s || "").toLowerCase().includes(q.toLowerCase())));
+    .filter((r) => [r.name, r.city, r.area, r.owner].some((s) => (s || "").toLowerCase().includes(q.toLowerCase())));
 
   const remove = (id: string) => {
     if (!confirm("Delete this retailer?")) return;
@@ -980,8 +1008,9 @@ function Retailers({
           name,
           owner: pick(row, ["owner", "ownername"]),
           city: pick(row, ["city"]),
+          area: pick(row, ["area", "areaname", "locality", "zone", "sector"]),
           phone: pick(row, ["phone", "mobile", "contact", "phoneno", "mobileno"]),
-          address: pick(row, ["address", "area"]),
+          address: pick(row, ["address"]),
           notes: pick(row, ["notes", "note", "remarks"]),
           category: (SHOP_CATEGORIES as readonly string[]).includes(cat) ? (cat as ShopCategory) : undefined,
           salesmanId: salesmanByName.get(sm),
@@ -1022,11 +1051,11 @@ function Retailers({
         </div>
       </div>
       <p className="text-[10px] text-muted-foreground -mt-2">
-        Import columns: Name, Owner, City, Phone, Address, Category, Salesman, Notes
+        Import columns: Name, Owner, City, Area, Phone, Address, Category, Salesman, Notes
       </p>
 
 
-      <Input placeholder="Search by name, city or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input placeholder="Search by name, city, area or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
 
       <Select value={salesmanFilter} onValueChange={setSalesmanFilter}>
         <SelectTrigger><SelectValue placeholder="Filter by salesman" /></SelectTrigger>
@@ -1057,10 +1086,10 @@ function Retailers({
                 </div>
               </div>
 
-              {(r.address || r.city) && (
+              {(r.address || r.city || r.area) && (
                 <div className="text-[11px] text-muted-foreground mt-1.5 flex items-start gap-1.5">
                   <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                  <span className="min-w-0">{[r.address, r.city].filter(Boolean).join(", ")}</span>
+                  <span className="min-w-0">{[r.address, r.area, r.city].filter(Boolean).join(", ")}</span>
                 </div>
               )}
               {r.notes && <div className="text-[11px] mt-1 text-muted-foreground">{r.notes}</div>}
@@ -1110,8 +1139,8 @@ function RetailerDialog({
   const scoped = !!currentUser && isScopedRole(currentUser.role);
   const [f, setF] = useState<Omit<Retailer, "id">>(
     initial
-      ? { name: initial.name, owner: initial.owner, city: initial.city, phone: initial.phone, address: initial.address, notes: initial.notes, salesmanId: initial.salesmanId, category: initial.category }
-      : { name: "", owner: "", city: "", phone: "", address: "", notes: "" }
+      ? { name: initial.name, owner: initial.owner, city: initial.city, area: initial.area ?? "", phone: initial.phone, address: initial.address, notes: initial.notes, salesmanId: initial.salesmanId, category: initial.category }
+      : { name: "", owner: "", city: "", area: "", phone: "", address: "", notes: "" }
   );
   const save = () => {
     if (!f.name.trim()) return toast.error("Name is required");
@@ -1142,8 +1171,9 @@ function RetailerDialog({
         <Field label="Owner / contact"><Input value={f.owner} onChange={upd("owner")} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="City"><Input value={f.city} onChange={upd("city")} /></Field>
-          <Field label="Phone"><Input value={f.phone} onChange={upd("phone")} /></Field>
+          <Field label="Area"><Input value={f.area} onChange={upd("area")} placeholder="Saddar" /></Field>
         </div>
+        <Field label="Phone"><Input value={f.phone} onChange={upd("phone")} /></Field>
         <Field label="Shop category">
           <Select value={f.category ?? ""} onValueChange={(v) => setF({ ...f, category: v as ShopCategory })}>
             <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
@@ -1360,17 +1390,114 @@ function ThemePanel() {
   };
 
   return (
-    <section className="bg-card border rounded-2xl p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Color theme</h3>
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => update({ background: "", card: "", font: "" })}>
+    <section className="bg-card border rounded-2xl overflow-hidden">
+      <div className="ov-toolbar px-4 py-3 flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-current">Appearance</h3>
+          <p className="text-[11px] opacity-85">Toolbar, tickets, tokens, fonts and background</p>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs text-current hover:bg-white/15"
+          onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "" })}
+        >
           Reset
         </Button>
       </div>
-      <ColorPicker label="Background" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
-      <ColorPicker label="Ticket / token" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
-      <ColorPicker label="Font" value={theme.font} onChange={(v) => update({ font: v })} />
+
+      <div className="p-4 space-y-4">
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Theme</Label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <ThemeCard
+              name="Classic"
+              mood="App default"
+              swatches={["linear-gradient(100deg, oklch(0.34 0.11 258), oklch(0.46 0.13 226))", "oklch(0.975 0.004 220)", "oklch(0.33 0.10 255)", "oklch(1 0 0)"]}
+              active={!theme.preset}
+              onClick={() => update({ preset: "" })}
+            />
+            {THEME_PRESETS.map((p) => (
+              <ThemeCard
+                key={p.id}
+                name={p.name}
+                mood={p.mood}
+                swatches={p.swatches}
+                active={theme.preset === p.id}
+                onClick={() => update({ preset: p.id })}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold">Fine tuning</Label>
+            <span className="text-[10px] text-muted-foreground">Applies on top of the theme</span>
+          </div>
+          <ColorPicker label="Accent / toolbar" value={theme.accent} onChange={(v) => update({ accent: v })} />
+          <ColorPicker label="Background" value={theme.background} onChange={(v) => update({ background: v })} allowNoFill />
+          <ColorPicker label="Ticket / token" value={theme.card} onChange={(v) => update({ card: v })} allowNoFill />
+          <ColorPicker label="Font" value={theme.font} onChange={(v) => update({ font: v })} />
+        </div>
+
+        <div className="rounded-xl border overflow-hidden">
+          <div className="ov-toolbar px-3 py-2 text-xs font-semibold">Live preview</div>
+          <div className="p-3 bg-background space-y-2">
+            <div className="flex gap-2">
+              <div className="flex-1 bg-card border rounded-xl p-2">
+                <div className="text-[10px] text-muted-foreground">Visits today</div>
+                <div className="text-lg font-semibold">12</div>
+              </div>
+              <div className="flex-1 bg-card border rounded-xl p-2">
+                <div className="text-[10px] text-muted-foreground">Retailers</div>
+                <div className="text-lg font-semibold">48</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="h-7 text-xs">Primary</Button>
+              <Badge variant="secondary" className="text-[10px]">Token</Badge>
+              <span className="text-xs ov-subheading font-medium">Sub heading</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
+  );
+}
+
+function ThemeCard({
+  name,
+  mood,
+  swatches,
+  active,
+  onClick,
+}: {
+  name: string;
+  mood: string;
+  swatches: readonly string[];
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`text-left rounded-xl border overflow-hidden transition hover:shadow-md ${active ? "ring-2 ring-ring border-transparent" : ""}`}
+    >
+      <div className="h-8 w-full" style={{ backgroundImage: swatches[0], backgroundColor: swatches[0] }} />
+      <div className="p-2 space-y-1.5" style={{ backgroundColor: swatches[1] }}>
+        <div className="flex gap-1">
+          {swatches.slice(1).map((c, i) => (
+            <span key={i} className="h-3.5 w-3.5 rounded-full border border-black/10" style={{ backgroundColor: c }} />
+          ))}
+        </div>
+        <div>
+          <div className="text-xs font-semibold" style={{ color: swatches[2] }}>{name}</div>
+          <div className="text-[10px] opacity-70" style={{ color: swatches[2] }}>{mood}</div>
+        </div>
+      </div>
+    </button>
   );
 }
 

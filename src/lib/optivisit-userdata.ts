@@ -88,9 +88,9 @@ export function exportUserDataCsv(userLabel: string, userId: string, range?: Dat
     );
   lines.push("");
   lines.push("RETAILERS");
-  lines.push(["name", "owner", "city", "phone", "address", "category", "notes"].join(","));
+  lines.push(["name", "owner", "city", "area", "phone", "address", "category", "notes"].join(","));
   for (const r of retailers)
-    lines.push([r.name, r.owner, r.city, r.phone, r.address, r.category ?? "", r.notes].map(csvCell).join(","));
+    lines.push([r.name, r.owner, r.city, r.area ?? "", r.phone, r.address, r.category ?? "", r.notes].map(csvCell).join(","));
 
   download(`${userLabel}-data.csv`, lines.join("\n"), "text/csv;charset=utf-8");
   return { visits: visits.length, retailers: retailers.length };

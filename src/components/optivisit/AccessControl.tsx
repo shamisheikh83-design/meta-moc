@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound } from "lucide-react";
+import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   ROLES,
@@ -21,6 +21,8 @@ import {
   changeRole,
   setPermissions,
   deleteUser,
+  updateUser,
+  verifyPin,
   signIn,
   isScopedRole,
   setSalesmanIds,
@@ -28,6 +30,14 @@ import {
   type Role,
 } from "@/lib/optivisit-access";
 import { store, type Salesman } from "@/lib/optivisit-store";
+import {
+  countUserData,
+  deleteUserData,
+  exportUserDataCsv,
+  exportUserDataJson,
+  transferUserData,
+  type DateRange,
+} from "@/lib/optivisit-userdata";
 
 export function AccessControl({
   currentUser,
@@ -174,25 +184,14 @@ function SuperUserPanel({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">{u.name}</div>
-                <div className="text-[11px] text-muted-foreground">@{u.username}</div>
+                <div className="text-[11px] text-muted-foreground">@{u.username}{u.email ? ` · ${u.email}` : ""}</div>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex flex-wrap items-center justify-end gap-1">
                 <PermissionsDialog user={u} onChanged={onChanged} />
                 {isScopedRole(u.role) && <SalesmenDialog user={u} onChanged={onChanged} />}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-destructive"
-                  onClick={() => {
-                    const res = deleteUser(u.id);
-                    if (!res.ok) return toast.error(res.error);
-                    if (u.id === currentUser.id) accessStore.setCurrentUserId(null);
-                    toast.success("User deleted");
-                    onChanged();
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                <EditUserDialog user={u} onChanged={onChanged} />
+                <TransferDataDialog user={u} users={users} onChanged={onChanged} />
+                <DeleteUserDialog user={u} users={users} currentUser={currentUser} onChanged={onChanged} />
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -225,6 +224,7 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [role, setRole] = useState<Role>("Member");
   const [perms, setPerms] = useState<string[]>(ROLE_DEFAULTS["Member"]);
@@ -242,10 +242,10 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
   const save = async () => {
     if (isScopedRole(role) && linkedSalesmen.length === 0)
       return toast.error("Select at least one salesman for this user");
-    const res = await createUser({ name, username, role, pin, permissions: perms, salesmanIds: linkedSalesmen });
+    const res = await createUser({ name, username, email, role, pin, permissions: perms, salesmanIds: linkedSalesmen });
     if (!res.ok) return toast.error(res.error);
     toast.success("User created");
-    setName(""); setUsername(""); setPin(""); setLinkedSalesmen([]); pickRole("Member");
+    setName(""); setUsername(""); setEmail(""); setPin(""); setLinkedSalesmen([]); pickRole("Member");
     setOpen(false);
     onChanged();
   };
@@ -260,6 +260,7 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
         <div className="space-y-3">
           <Row label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Row>
           <Row label="User ID"><Input value={username} onChange={(e) => setUsername(e.target.value)} /></Row>
+          <Row label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" /></Row>
           <Row label="4-digit PIN">
             <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
           </Row>
@@ -452,5 +453,257 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <Label className="text-xs">{label}</Label>
       {children}
     </div>
+  );
+}
+
+/* --------------- edit profile / credentials --------------- */
+function EditUserDialog({ user, onChanged }: { user: AppUser; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(user.name);
+  const [username, setUsername] = useState(user.username);
+  const [email, setEmail] = useState(user.email ?? "");
+  const [pin, setPin] = useState("");
+
+  const reset = () => {
+    setName(user.name);
+    setUsername(user.username);
+    setEmail(user.email ?? "");
+    setPin("");
+  };
+
+  const save = async () => {
+    const res = await updateUser(user.id, { name, username, email, pin });
+    if (!res.ok) return toast.error(res.error);
+    toast.success("User updated");
+    setOpen(false);
+    onChanged();
+  };
+
+  const resetPin = async () => {
+    const fresh = String(Math.floor(1000 + Math.random() * 9000));
+    const res = await updateUser(user.id, { pin: fresh });
+    if (!res.ok) return toast.error(res.error);
+    toast.success(`New PIN for ${user.name}: ${fresh}`, { duration: 12000 });
+    setOpen(false);
+    onChanged();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-8 w-8" title="Edit user">
+          <Pencil className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Edit {user.name}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Row label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} /></Row>
+          <Row label="User ID"><Input value={username} onChange={(e) => setUsername(e.target.value)} /></Row>
+          <Row label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" /></Row>
+          <Row label="New PIN (optional)">
+            <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="Leave blank to keep" />
+          </Row>
+          <Button size="sm" variant="outline" className="w-full" onClick={resetPin}>
+            <KeyRound className="w-3.5 h-3.5 mr-1" /> Reset PIN to a random code
+          </Button>
+        </div>
+        <DialogFooter>
+          <Button size="sm" onClick={save}>Save changes</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* --------------- date range helper --------------- */
+function RangeFields({ range, onChange }: { range: DateRange; onChange: (r: DateRange) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <Row label="From"><Input type="date" value={range.from} onChange={(e) => onChange({ ...range, from: e.target.value })} /></Row>
+      <Row label="To"><Input type="date" value={range.to} onChange={(e) => onChange({ ...range, to: e.target.value })} /></Row>
+    </div>
+  );
+}
+
+/* --------------- shift data to another user --------------- */
+function TransferDataDialog({ user, users, onChanged }: { user: AppUser; users: AppUser[]; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState("");
+  const [range, setRange] = useState<DateRange>({ from: "", to: "" });
+  const counts = open ? countUserData(user.id, range) : { visits: 0, retailers: 0 };
+  const others = users.filter((u) => u.id !== user.id);
+
+  const run = () => {
+    const to = others.find((u) => u.id === target);
+    if (!to) return toast.error("Select the user to receive this data");
+    const moved = transferUserData(user.id, to.id, to.name, range);
+    toast.success(`Moved ${moved.visits} visits and ${moved.retailers} retailers to ${to.name}`);
+    setOpen(false);
+    onChanged();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) { setTarget(""); setRange({ from: "", to: "" }); } }}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-8 w-8" title="Shift data to another user">
+          <ArrowRightLeft className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Shift {user.name}'s data</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Row label="Move to user">
+            <Select value={target} onValueChange={setTarget}>
+              <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+              <SelectContent>
+                {others.map((u) => <SelectItem key={u.id} value={u.id}>{u.name} · {u.role}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Row>
+          <RangeFields range={range} onChange={setRange} />
+          <p className="text-[11px] text-muted-foreground">
+            Leave dates blank for all data. In range: {counts.visits} visits · {counts.retailers} retailers.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button size="sm" onClick={run}>Shift data</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* --------------- Super-User-only deletion, dual PIN --------------- */
+function DeleteUserDialog({
+  user,
+  users,
+  currentUser,
+  onChanged,
+}: {
+  user: AppUser;
+  users: AppUser[];
+  currentUser: AppUser;
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [pin1, setPin1] = useState("");
+  const [pin2, setPin2] = useState("");
+  const [keepData, setKeepData] = useState(true);
+  const [transferTo, setTransferTo] = useState("");
+  const [range, setRange] = useState<DateRange>({ from: "", to: "" });
+  const counts = open ? countUserData(user.id) : { visits: 0, retailers: 0 };
+  const others = users.filter((u) => u.id !== user.id);
+  const label = user.username || user.name;
+
+  const reset = () => {
+    setStep(1); setPin1(""); setPin2(""); setKeepData(true); setTransferTo(""); setRange({ from: "", to: "" });
+  };
+
+  const checkFirst = async () => {
+    if (!(await verifyPin(currentUser, pin1))) return toast.error("Incorrect Super User PIN");
+    setStep(2);
+  };
+
+  const checkSecond = async () => {
+    if (!(await verifyPin(currentUser, pin2))) return toast.error("Second confirmation failed");
+    setStep(3);
+  };
+
+  const finish = () => {
+    if (!keepData) {
+      deleteUserData(user.id);
+    } else if (transferTo) {
+      const to = others.find((u) => u.id === transferTo);
+      if (to) transferUserData(user.id, to.id, to.name, range);
+    }
+    const res = deleteUser(user.id);
+    if (!res.ok) return toast.error(res.error);
+    if (user.id === currentUser.id) accessStore.setCurrentUserId(null);
+    toast.success(keepData ? "User deleted · data kept" : "User and their data deleted");
+    setOpen(false);
+    onChanged();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) reset(); }}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" title="Delete user">
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Delete {user.name}</DialogTitle></DialogHeader>
+
+        {step === 1 && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Only a Super User can delete an account, and it needs your own PIN twice. Step 1 of 2.
+            </p>
+            <Row label="Your Super User PIN">
+              <Input inputMode="numeric" maxLength={4} value={pin1} autoFocus onChange={(e) => setPin1(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+            </Row>
+            <DialogFooter><Button size="sm" variant="destructive" onClick={checkFirst}>Continue</Button></DialogFooter>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">Confirm once more — enter your PIN again. Step 2 of 2.</p>
+            <Row label="Re-enter your PIN">
+              <Input inputMode="numeric" maxLength={4} value={pin2} autoFocus onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+            </Row>
+            <DialogFooter><Button size="sm" variant="destructive" onClick={checkSecond}>Verify</Button></DialogFooter>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              {user.name} has {counts.visits} visits and {counts.retailers} retailers. Keep this data or remove it?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" variant={keepData ? "default" : "outline"} onClick={() => setKeepData(true)}>Keep data</Button>
+              <Button size="sm" variant={!keepData ? "destructive" : "outline"} onClick={() => setKeepData(false)}>Delete data</Button>
+            </div>
+
+            {keepData && (
+              <div className="space-y-3 rounded-lg border p-2">
+                <p className="text-[11px] text-muted-foreground">Access or export the data before the account goes:</p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => exportUserDataCsv(label, user.id)}>
+                    <Download className="w-3.5 h-3.5 mr-1" /> CSV
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => exportUserDataJson(label, user.id)}>
+                    <Download className="w-3.5 h-3.5 mr-1" /> JSON
+                  </Button>
+                </div>
+                <Row label="Optionally hand data to">
+                  <Select value={transferTo} onValueChange={setTransferTo}>
+                    <SelectTrigger><SelectValue placeholder="Nobody — leave as is" /></SelectTrigger>
+                    <SelectContent>
+                      {others.map((u) => <SelectItem key={u.id} value={u.id}>{u.name} · {u.role}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Row>
+                {transferTo && <RangeFields range={range} onChange={setRange} />}
+              </div>
+            )}
+
+            {!keepData && (
+              <p className="text-[11px] text-destructive">
+                All visits and retailers created by this user will be permanently removed.
+              </p>
+            )}
+
+            <DialogFooter className="gap-2">
+              <Button size="sm" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button size="sm" variant="destructive" onClick={finish}>Delete user</Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
