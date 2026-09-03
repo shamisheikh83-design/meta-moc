@@ -966,7 +966,7 @@ function Retailers({
           ? !r.salesmanId
           : r.salesmanId === salesmanFilter
     )
-    .filter((r) => [r.name, r.city, r.owner].some((s) => (s || "").toLowerCase().includes(q.toLowerCase())));
+    .filter((r) => [r.name, r.city, r.area, r.owner].some((s) => (s || "").toLowerCase().includes(q.toLowerCase())));
 
   const remove = (id: string) => {
     if (!confirm("Delete this retailer?")) return;
