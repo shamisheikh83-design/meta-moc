@@ -65,6 +65,7 @@ export type Retailer = {
   name: string;
   owner: string;
   city: string;
+  area: string;
   phone: string;
   address: string;
   notes: string;

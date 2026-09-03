@@ -614,7 +614,7 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
       if (r) {
         shops.add(r.id);
         if ((r.city || "").trim()) cities.add(normalizeCity(r.city));
-        const area = (r.address || "").split(",")[0]?.trim();
+        const area = (r.area || (r.address || "").split(",")[0] || "").trim();
         if (area) areas.add(area.toLowerCase());
       }
       const p = `${v.purpose || ""} ${v.activity || ""}`.toLowerCase();
@@ -1008,8 +1008,9 @@ function Retailers({
           name,
           owner: pick(row, ["owner", "ownername"]),
           city: pick(row, ["city"]),
+          area: pick(row, ["area", "areaname", "locality", "zone", "sector"]),
           phone: pick(row, ["phone", "mobile", "contact", "phoneno", "mobileno"]),
-          address: pick(row, ["address", "area"]),
+          address: pick(row, ["address"]),
           notes: pick(row, ["notes", "note", "remarks"]),
           category: (SHOP_CATEGORIES as readonly string[]).includes(cat) ? (cat as ShopCategory) : undefined,
           salesmanId: salesmanByName.get(sm),
@@ -1050,11 +1051,11 @@ function Retailers({
         </div>
       </div>
       <p className="text-[10px] text-muted-foreground -mt-2">
-        Import columns: Name, Owner, City, Phone, Address, Category, Salesman, Notes
+        Import columns: Name, Owner, City, Area, Phone, Address, Category, Salesman, Notes
       </p>
 
 
-      <Input placeholder="Search by name, city or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
+      <Input placeholder="Search by name, city, area or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
 
       <Select value={salesmanFilter} onValueChange={setSalesmanFilter}>
         <SelectTrigger><SelectValue placeholder="Filter by salesman" /></SelectTrigger>
@@ -1085,10 +1086,10 @@ function Retailers({
                 </div>
               </div>
 
-              {(r.address || r.city) && (
+              {(r.address || r.city || r.area) && (
                 <div className="text-[11px] text-muted-foreground mt-1.5 flex items-start gap-1.5">
                   <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                  <span className="min-w-0">{[r.address, r.city].filter(Boolean).join(", ")}</span>
+                  <span className="min-w-0">{[r.address, r.area, r.city].filter(Boolean).join(", ")}</span>
                 </div>
               )}
               {r.notes && <div className="text-[11px] mt-1 text-muted-foreground">{r.notes}</div>}
@@ -1138,8 +1139,8 @@ function RetailerDialog({
   const scoped = !!currentUser && isScopedRole(currentUser.role);
   const [f, setF] = useState<Omit<Retailer, "id">>(
     initial
-      ? { name: initial.name, owner: initial.owner, city: initial.city, phone: initial.phone, address: initial.address, notes: initial.notes, salesmanId: initial.salesmanId, category: initial.category }
-      : { name: "", owner: "", city: "", phone: "", address: "", notes: "" }
+      ? { name: initial.name, owner: initial.owner, city: initial.city, area: initial.area ?? "", phone: initial.phone, address: initial.address, notes: initial.notes, salesmanId: initial.salesmanId, category: initial.category }
+      : { name: "", owner: "", city: "", area: "", phone: "", address: "", notes: "" }
   );
   const save = () => {
     if (!f.name.trim()) return toast.error("Name is required");
@@ -1170,8 +1171,9 @@ function RetailerDialog({
         <Field label="Owner / contact"><Input value={f.owner} onChange={upd("owner")} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="City"><Input value={f.city} onChange={upd("city")} /></Field>
-          <Field label="Phone"><Input value={f.phone} onChange={upd("phone")} /></Field>
+          <Field label="Area"><Input value={f.area} onChange={upd("area")} placeholder="Saddar" /></Field>
         </div>
+        <Field label="Phone"><Input value={f.phone} onChange={upd("phone")} /></Field>
         <Field label="Shop category">
           <Select value={f.category ?? ""} onValueChange={(v) => setF({ ...f, category: v as ShopCategory })}>
             <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
