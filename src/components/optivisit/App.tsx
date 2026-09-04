@@ -11,7 +11,7 @@ import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CAT
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
@@ -358,7 +358,34 @@ function EmptyHint({ text }: { text: string }) {
 /* ---------------- Visit Log ---------------- */
 function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: Retailer[]; refresh: () => void }) {
   const [open, setOpen] = useState(false);
-  const sorted = [...visits].sort((a, b) => b.date.localeCompare(a.date));
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest" | "retailer" | "salesman">("newest");
+  const [salesmanFilter, setSalesmanFilter] = useState<string>("all");
+
+  const salesmanNames = useMemo(
+    () => Array.from(new Set(visits.map((v) => v.salesman).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
+    [visits]
+  );
+
+  const sorted = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const nameOf = (v: Visit) => retailers.find((r) => r.id === v.retailerId)?.name ?? "";
+    let list = visits.filter((v) => {
+      if (salesmanFilter !== "all" && v.salesman !== salesmanFilter) return false;
+      if (!q) return true;
+      const r = retailers.find((x) => x.id === v.retailerId);
+      return [nameOf(v), v.salesman, v.purpose, v.notes, v.outcome, v.visitStatus, r?.city, r?.area]
+        .filter(Boolean)
+        .some((s) => String(s).toLowerCase().includes(q));
+    });
+    list = [...list].sort((a, b) => {
+      if (sort === "newest") return b.date.localeCompare(a.date);
+      if (sort === "oldest") return a.date.localeCompare(b.date);
+      if (sort === "retailer") return nameOf(a).localeCompare(nameOf(b));
+      return (a.salesman || "").localeCompare(b.salesman || "");
+    });
+    return list;
+  }, [visits, retailers, query, sort, salesmanFilter]);
 
   const remove = (id: string) => {
     if (!confirm("Delete this visit?")) return;
@@ -374,14 +401,39 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="w-4 h-4 mr-1" /> New visit</Button>
           </DialogTrigger>
-          <VisitDialog retailers={retailers} onSaved={() => { refresh(); setOpen(false); }} />
+          {open && <VisitDialog retailers={retailers} onSaved={() => { refresh(); setOpen(false); }} />}
         </Dialog>
+      </div>
+
+      <div className="bg-card border rounded-2xl p-3 space-y-2">
+        <div className="relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search retailer, salesman, purpose, area..." className="pl-9 h-9" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+            <SelectTrigger className="h-9 text-xs"><ArrowUpDown className="w-3.5 h-3.5 mr-1" /><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest first</SelectItem>
+              <SelectItem value="oldest">Oldest first</SelectItem>
+              <SelectItem value="retailer">Retailer A–Z</SelectItem>
+              <SelectItem value="salesman">Salesman A–Z</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={salesmanFilter} onValueChange={setSalesmanFilter}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All salesmen</SelectItem>
+              {salesmanNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {sorted.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
           <ClipboardList className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">No visits yet. Tap "New visit" to log one.</p>
+          <p className="text-sm text-muted-foreground">No visits found. Tap "New visit" to log one.</p>
         </div>
       ) : (
         <ul className="space-y-2">
@@ -415,10 +467,28 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
   );
 }
 
-function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: () => void }) {
-  const [retailerId, setRetailerId] = useState("");
+function todayISODate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function VisitDialog({
+  retailers,
+  onSaved,
+  presetRetailer,
+}: {
+  retailers: Retailer[];
+  onSaved: () => void;
+  presetRetailer?: Retailer;
+}) {
+  const [retailerId, setRetailerId] = useState(presetRetailer?.id ?? "");
+  const [date, setDate] = useState<string>(todayISODate());
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"az" | "area">("az");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
+  const [activity, setActivity] = useState<VisitActivity>("Visits");
+  const [unavailableReason, setUnavailableReason] = useState<UnavailableReason>("Holiday");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [notes, setNotes] = useState("");
 
@@ -427,32 +497,55 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
     []
   );
 
-  const selectedRetailer = retailers.find((r) => r.id === retailerId);
+  const filteredRetailers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = retailers.filter((r) =>
+      !q ? true : [r.name, r.owner, r.city, r.area, r.address, r.phone].filter(Boolean).some((s) => String(s).toLowerCase().includes(q))
+    );
+    return [...list].sort((a, b) =>
+      sort === "az"
+        ? a.name.localeCompare(b.name)
+        : (a.area || "").localeCompare(b.area || "") || a.name.localeCompare(b.name)
+    );
+  }, [retailers, search, sort]);
+
+  const selectedRetailer = presetRetailer ?? retailers.find((r) => r.id === retailerId);
   const salesman = selectedRetailer
     ? (salesmenList.find((s) => s.id === selectedRetailer.salesmanId)?.name ?? "Unassigned")
     : "";
 
+  const isOthers = activity === "Others Reasons";
+
   const save = () => {
     if (!retailerId) return toast.error("Please select a retailer");
+    if (!date) return toast.error("Please select a visit date");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
+    if (isOthers && !unavailableReason) return toast.error("Please select a non-available reason");
     const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
     const p = finalPurpose.toLowerCase();
-    const derivedActivity: VisitActivity = p.includes("recovery")
-      ? "Recovery Visits"
-      : p.includes("complaint")
-        ? "Complaints Visits"
-        : "Visits";
+    const derivedActivity: VisitActivity =
+      activity !== "Visits"
+        ? activity
+        : p.includes("recovery")
+          ? "Recovery Visits"
+          : p.includes("complaint")
+            ? "Complaints Visits"
+            : "Visits";
+    const now = new Date();
+    const picked = new Date(`${date}T00:00:00`);
+    picked.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
     const v: Visit = {
       id: uid(),
-      date: new Date().toISOString(),
+      date: picked.toISOString(),
       retailerId,
       salesman: salesman || "Unassigned",
       purpose: finalPurpose,
-      visitStatus: "Visited",
+      visitStatus: isOthers ? "Holiday" : "Visited",
       activity: derivedActivity,
       outcome,
       notes,
       addedByUserId: accessStore.getCurrentUserId() ?? undefined,
+      ...(isOthers ? { unavailableReason } : {}),
     };
     store.setVisits([v, ...store.getVisits()]);
     toast.success("Visit logged");
@@ -460,21 +553,56 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
   };
 
   return (
-    <DialogContent className="max-w-md">
-      <DialogHeader><DialogTitle>Log a visit</DialogTitle></DialogHeader>
+    <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>{presetRetailer ? `Record visit · ${presetRetailer.name}` : "Log a visit"}</DialogTitle>
+      </DialogHeader>
       <div className="space-y-3">
-        <Field label="Retailer">
-          {retailers.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Add a retailer first in the Retailers tab.</p>
-          ) : (
-            <Select value={retailerId} onValueChange={setRetailerId}>
-              <SelectTrigger><SelectValue placeholder="Select retailer" /></SelectTrigger>
-              <SelectContent>
-                {retailers.map((r) => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
+        <Field label="Visit date">
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
+
+        {presetRetailer ? (
+          <Field label="Retailer">
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <div className="font-medium">{presetRetailer.name}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {[presetRetailer.area, normalizeCity(presetRetailer.city || ""), presetRetailer.category].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+          </Field>
+        ) : retailers.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Add a retailer first in the Retailers tab.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search retailers..." className="pl-9 h-9" />
+              </div>
+              <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+                <SelectTrigger className="h-9 w-28 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="az">A – Z</SelectItem>
+                  <SelectItem value="area">Area wise</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Field label="Retailer">
+              <Select value={retailerId} onValueChange={setRetailerId}>
+                <SelectTrigger><SelectValue placeholder="Select retailer" /></SelectTrigger>
+                <SelectContent>
+                  {filteredRetailers.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}{r.area ? ` · ${r.area}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </>
+        )}
+
         <Field label="Salesman">
           <div className="h-9 flex items-center px-3 rounded-md border bg-muted/40 text-sm">
             {salesman || "Select a retailer first"}
@@ -492,6 +620,24 @@ function VisitDialog({ retailers, onSaved }: { retailers: Retailer[]; onSaved: (
         {purpose === "Other" && (
           <Field label="Specify purpose">
             <Input value={otherPurpose} onChange={(e) => setOtherPurpose(e.target.value)} placeholder="Enter purpose" />
+          </Field>
+        )}
+        <Field label="Visit record">
+          <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {VISIT_ACTIVITIES.map((a, i) => <SelectItem key={a} value={a}>{i + 1}. {a}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        {isOthers && (
+          <Field label="Non available reason">
+            <Select value={unavailableReason} onValueChange={(v) => setUnavailableReason(v as UnavailableReason)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {UNAVAILABLE_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </Field>
         )}
         <Field label="Outcome">
