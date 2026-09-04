@@ -158,7 +158,7 @@ function TopTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
   return (
     <TabsTrigger
       value={value}
-      className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium opacity-80 data-[state=active]:opacity-100 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+      className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-[color:var(--ov-toolbar-foreground)] opacity-75 data-[state=active]:opacity-100 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
     >
       {icon}
       <span>{label}</span>
