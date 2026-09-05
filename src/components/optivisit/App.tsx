@@ -1805,10 +1805,6 @@ function SalesmanVisitLog({
       return next.length === 0 ? ["unassigned"] : next;
     });
   };
-  const singleSalesman =
-    !isAll && selected.length === 1 && selected[0] !== "unassigned"
-      ? (sortedSalesmen.find((s) => s.id === selected[0]) ?? null)
-      : null;
 
   const scopedRetailers = useMemo(
     () =>
