@@ -1114,6 +1114,22 @@ function Retailers({
     )
     .filter((r) => [r.name, r.city, r.area, r.owner].some((s) => (s || "").toLowerCase().includes(q.toLowerCase())));
 
+  const groups = useMemo(() => {
+    const out: { key: string; label: string; items: Retailer[] }[] = [];
+    sortedSalesmen.forEach((s) => {
+      const items = filtered.filter((r) => r.salesmanId === s.id).sort((a, b) => a.name.localeCompare(b.name));
+      if (items.length) out.push({ key: s.id, label: s.name, items });
+    });
+    const un = filtered.filter((r) => !r.salesmanId || !sortedSalesmen.some((s) => s.id === r.salesmanId))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (un.length) out.push({ key: "unassigned", label: "Unassigned", items: un });
+    return out;
+  }, [filtered, salesmen]);
+
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const toggleGroup = (k: string) =>
+    setOpenGroups((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+
   const remove = (id: string) => {
     if (!confirm("Delete this retailer?")) return;
     store.setRetailers(retailers.filter((r) => r.id !== id));
