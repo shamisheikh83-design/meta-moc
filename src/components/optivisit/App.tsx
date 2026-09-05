@@ -1786,8 +1786,11 @@ function SalesmanVisitLog({
   refresh: () => void;
 }) {
   // "all" = All Salesmen (exclusive). Otherwise a multi-select of salesman ids + "unassigned".
-  const [selected, setSelected] = useState<string[]>(["all"]);
+  const [selected, setSelected] = useState<string[]>(["unassigned"]);
   const [target, setTarget] = useState<Retailer | null>(null);
+  const [openCities, setOpenCities] = useState<string[]>([]);
+  const toggleCity = (c: string) =>
+    setOpenCities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
   const sortedSalesmen = useMemo(
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
@@ -1799,13 +1802,9 @@ function SalesmanVisitLog({
     setSelected((prev) => {
       const base = prev.filter((k) => k !== "all");
       const next = base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
-      return next.length === 0 ? ["all"] : next;
+      return next.length === 0 ? ["unassigned"] : next;
     });
   };
-  const singleSalesman =
-    !isAll && selected.length === 1 && selected[0] !== "unassigned"
-      ? (sortedSalesmen.find((s) => s.id === selected[0]) ?? null)
-      : null;
 
   const scopedRetailers = useMemo(
     () =>
@@ -1879,13 +1878,6 @@ function SalesmanVisitLog({
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
-              onClick={() => toggleSel("all")}
-              className={`px-2.5 py-1 rounded-full border text-xs ${isAll ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
-            >
-              All Salesmen
-            </button>
-            <button
-              type="button"
               onClick={() => toggleSel("unassigned")}
               className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes("unassigned") ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
             >
@@ -1901,6 +1893,13 @@ function SalesmanVisitLog({
                 {s.name}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => toggleSel("all")}
+              className={`px-2.5 py-1 rounded-full border text-xs ${isAll ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+            >
+              All Salesmen
+            </button>
           </div>
         </Field>
         <p className="text-[10px] text-muted-foreground mt-2">
@@ -1914,17 +1913,22 @@ function SalesmanVisitLog({
       {cityGroups.length === 0 ? (
         <EmptyHint text="No shops linked yet. Assign retailers to this salesman in the Retailers tab." />
       ) : (
-        cityGroups.map((g) => (
+        cityGroups.map((g) => {
+          const isOpen = openCities.includes(g.city);
+          return (
           <div key={g.city} className="bg-card border rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-muted-foreground" />{g.city}</span>
+            <button type="button" onClick={() => toggleCity(g.city)} className="w-full flex items-center justify-between text-sm gap-2">
+              <span className="font-semibold flex items-center gap-1">
+                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />{g.city}
+              </span>
               <span className="flex items-center gap-1.5 text-xs font-medium">
                 <span className="text-blue-600 dark:text-blue-400">({g.total})</span>
                 <span className="text-yellow-600 dark:text-yellow-400">({g.single})</span>
                 <span className="text-green-600 dark:text-green-400">({g.multiple})</span>
                 <span className="text-red-600 dark:text-red-400">({g.notVisited})</span>
               </span>
-            </div>
+            </button>
             <div className="h-2 rounded-full bg-muted overflow-hidden flex">
               <div className="h-full bg-yellow-500" style={{ width: `${(g.single / (g.total || 1)) * 100}%` }} />
               <div className="h-full bg-green-500" style={{ width: `${(g.multiple / (g.total || 1)) * 100}%` }} />
@@ -1937,30 +1941,42 @@ function SalesmanVisitLog({
               <span className="text-red-600 dark:text-red-400">Not visited ({g.notVisited})</span>
             </div>
 
+            {isOpen && (
             <ul className="divide-y border-t">
               {g.list.map((r) => {
                 const n = visitsPerRetailer.get(r.id) || 0;
                 const dot = n === 0 ? "bg-red-500" : n === 1 ? "bg-yellow-500" : "bg-green-500";
+                const salesmanName = sortedSalesmen.find((s) => s.id === r.salesmanId)?.name ?? "Unassigned";
+                const line = [
+                  r.owner,
+                  r.phone,
+                  r.area,
+                  normalizeCity(r.city || ""),
+                  r.address,
+                  r.category,
+                  salesmanName,
+                  `${n} visit${n === 1 ? "" : "s"}`,
+                ].filter(Boolean).join(" · ");
                 return (
                   <li key={r.id} className="flex items-center justify-between gap-2 py-2">
-                    <div className="min-w-0 flex items-center gap-2">
+                    <div className="min-w-0 flex items-center gap-2 flex-1">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{r.name}</div>
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {r.category ? `${r.category} · ` : ""}{n} visit{n === 1 ? "" : "s"}
-                        </div>
+                      <div className="min-w-0 flex-1 flex items-baseline gap-2 overflow-hidden">
+                        <span className="text-sm font-medium shrink-0">{r.name}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">{line}</span>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0" onClick={() => setTarget(r)}>
+                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0 ml-auto" onClick={() => setTarget(r)}>
                       <Plus className="w-3.5 h-3.5 mr-1" /> Record
                     </Button>
                   </li>
                 );
               })}
             </ul>
+            )}
           </div>
-        ))
+          );
+        })
       )}
 
       {recent.length > 0 && (
@@ -1990,101 +2006,13 @@ function SalesmanVisitLog({
 
       <Dialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
         {target && (
-          <RecordVisitDialog
-            retailer={target}
-            salesmanName={
-              sortedSalesmen.find((s) => s.id === target.salesmanId)?.name ??
-              singleSalesman?.name ??
-              "Unassigned"
-            }
+          <VisitDialog
+            retailers={retailers}
+            presetRetailer={target}
             onSaved={() => { refresh(); setTarget(null); }}
           />
         )}
       </Dialog>
     </div>
-  );
-}
-
-function RecordVisitDialog({
-  retailer,
-  salesmanName,
-  onSaved,
-}: {
-  retailer: Retailer;
-  salesmanName: string;
-  onSaved: () => void;
-}) {
-  const [salesman, setSalesman] = useState(salesmanName);
-  const [purpose, setPurpose] = useState("");
-  const [activity, setActivity] = useState<VisitActivity>("Visits");
-  const [unavailableReason, setUnavailableReason] = useState<UnavailableReason>("Holiday");
-  const [outcome, setOutcome] = useState<Outcome>("Successful");
-  const [notes, setNotes] = useState("");
-
-  const isOthers = activity === "Others Reasons";
-
-  const save = () => {
-    if (!salesman.trim()) return toast.error("Enter the salesman name");
-    if (!activity) return toast.error("Please select a visit record reason (1-7)");
-    if (isOthers && !unavailableReason) {
-      return toast.error("Please select a non-available reason: Holiday, Sick, Weather Conditions, or Leave");
-    }
-    const v: Visit = {
-      id: uid(),
-      date: new Date().toISOString(),
-      retailerId: retailer.id,
-      salesman: salesman.trim(),
-      purpose,
-      visitStatus: isOthers ? "Holiday" : "Visited",
-      outcome,
-      notes,
-      activity,
-      addedByUserId: accessStore.getCurrentUserId() ?? undefined,
-      ...(isOthers ? { unavailableReason } : {}),
-    };
-    store.setVisits([v, ...store.getVisits()]);
-    toast.success("Visit recorded");
-    onSaved();
-  };
-
-  return (
-    <DialogContent className="max-w-md">
-      <DialogHeader><DialogTitle>Record visit · {retailer.name}</DialogTitle></DialogHeader>
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          {normalizeCity(retailer.city || "Unassigned city")}{retailer.category ? ` · ${retailer.category}` : ""}
-        </p>
-        <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Salesman name" /></Field>
-        <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
-        <Field label="Visit record">
-          <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {VISIT_ACTIVITIES.map((a, i) => <SelectItem key={a} value={a}>{i + 1}. {a}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        {isOthers && (
-          <Field label="Non available reason">
-            <Select value={unavailableReason} onValueChange={(v) => setUnavailableReason(v as UnavailableReason)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {UNAVAILABLE_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-        <Field label="Outcome">
-          <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {OUTCOMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Notes"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering..." rows={3} /></Field>
-      </div>
-      <DialogFooter><Button onClick={save} className="w-full">Save visit</Button></DialogFooter>
-    </DialogContent>
   );
 }
