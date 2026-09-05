@@ -1882,13 +1882,6 @@ function SalesmanVisitLog({
           <div className="flex flex-wrap gap-1.5">
             <button
               type="button"
-              onClick={() => toggleSel("all")}
-              className={`px-2.5 py-1 rounded-full border text-xs ${isAll ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
-            >
-              All Salesmen
-            </button>
-            <button
-              type="button"
               onClick={() => toggleSel("unassigned")}
               className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes("unassigned") ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
             >
@@ -1904,6 +1897,13 @@ function SalesmanVisitLog({
                 {s.name}
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => toggleSel("all")}
+              className={`px-2.5 py-1 rounded-full border text-xs ${isAll ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
+            >
+              All Salesmen
+            </button>
           </div>
         </Field>
         <p className="text-[10px] text-muted-foreground mt-2">
