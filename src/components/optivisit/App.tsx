@@ -1917,17 +1917,22 @@ function SalesmanVisitLog({
       {cityGroups.length === 0 ? (
         <EmptyHint text="No shops linked yet. Assign retailers to this salesman in the Retailers tab." />
       ) : (
-        cityGroups.map((g) => (
+        cityGroups.map((g) => {
+          const isOpen = openCities.includes(g.city);
+          return (
           <div key={g.city} className="bg-card border rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-muted-foreground" />{g.city}</span>
+            <button type="button" onClick={() => toggleCity(g.city)} className="w-full flex items-center justify-between text-sm gap-2">
+              <span className="font-semibold flex items-center gap-1">
+                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />{g.city}
+              </span>
               <span className="flex items-center gap-1.5 text-xs font-medium">
                 <span className="text-blue-600 dark:text-blue-400">({g.total})</span>
                 <span className="text-yellow-600 dark:text-yellow-400">({g.single})</span>
                 <span className="text-green-600 dark:text-green-400">({g.multiple})</span>
                 <span className="text-red-600 dark:text-red-400">({g.notVisited})</span>
               </span>
-            </div>
+            </button>
             <div className="h-2 rounded-full bg-muted overflow-hidden flex">
               <div className="h-full bg-yellow-500" style={{ width: `${(g.single / (g.total || 1)) * 100}%` }} />
               <div className="h-full bg-green-500" style={{ width: `${(g.multiple / (g.total || 1)) * 100}%` }} />
@@ -1940,30 +1945,42 @@ function SalesmanVisitLog({
               <span className="text-red-600 dark:text-red-400">Not visited ({g.notVisited})</span>
             </div>
 
+            {isOpen && (
             <ul className="divide-y border-t">
               {g.list.map((r) => {
                 const n = visitsPerRetailer.get(r.id) || 0;
                 const dot = n === 0 ? "bg-red-500" : n === 1 ? "bg-yellow-500" : "bg-green-500";
+                const salesmanName = sortedSalesmen.find((s) => s.id === r.salesmanId)?.name ?? "Unassigned";
+                const line = [
+                  r.owner,
+                  r.phone,
+                  r.area,
+                  normalizeCity(r.city || ""),
+                  r.address,
+                  r.category,
+                  salesmanName,
+                  `${n} visit${n === 1 ? "" : "s"}`,
+                ].filter(Boolean).join(" · ");
                 return (
                   <li key={r.id} className="flex items-center justify-between gap-2 py-2">
-                    <div className="min-w-0 flex items-center gap-2">
+                    <div className="min-w-0 flex items-center gap-2 flex-1">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{r.name}</div>
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {r.category ? `${r.category} · ` : ""}{n} visit{n === 1 ? "" : "s"}
-                        </div>
+                      <div className="min-w-0 flex-1 flex items-baseline gap-2 overflow-hidden">
+                        <span className="text-sm font-medium shrink-0">{r.name}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">{line}</span>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0" onClick={() => setTarget(r)}>
+                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0 ml-auto" onClick={() => setTarget(r)}>
                       <Plus className="w-3.5 h-3.5 mr-1" /> Record
                     </Button>
                   </li>
                 );
               })}
             </ul>
+            )}
           </div>
-        ))
+          );
+        })
       )}
 
       {recent.length > 0 && (
