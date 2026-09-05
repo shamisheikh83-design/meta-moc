@@ -1786,8 +1786,11 @@ function SalesmanVisitLog({
   refresh: () => void;
 }) {
   // "all" = All Salesmen (exclusive). Otherwise a multi-select of salesman ids + "unassigned".
-  const [selected, setSelected] = useState<string[]>(["all"]);
+  const [selected, setSelected] = useState<string[]>(["unassigned"]);
   const [target, setTarget] = useState<Retailer | null>(null);
+  const [openCities, setOpenCities] = useState<string[]>([]);
+  const toggleCity = (c: string) =>
+    setOpenCities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
   const sortedSalesmen = useMemo(
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
@@ -1799,7 +1802,7 @@ function SalesmanVisitLog({
     setSelected((prev) => {
       const base = prev.filter((k) => k !== "all");
       const next = base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
-      return next.length === 0 ? ["all"] : next;
+      return next.length === 0 ? ["unassigned"] : next;
     });
   };
   const singleSalesman =
