@@ -1219,54 +1219,66 @@ function Retailers({
         </div>
       ) : (
         <ul className="space-y-2">
-          {filtered.map((r) => (
-            <li key={r.id} className="bg-card border rounded-2xl p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-medium text-sm truncate">{r.name}</div>
-                  {r.category && <Badge variant="secondary" className="text-[10px] mt-0.5">{r.category}</Badge>}
-                </div>
-                <div className="min-w-0 text-right">
-                  {r.owner && <div className="text-xs truncate">{r.owner}</div>}
-                  {r.phone && <div className="text-[11px] text-muted-foreground truncate">{r.phone}</div>}
-                </div>
-              </div>
+          {groups.map((g) => {
+            const isOpen = openGroups.includes(g.key);
+            return (
+              <li key={g.key} className="bg-card border rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <span className="text-sm font-medium truncate">{g.label}</span>
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] shrink-0">{g.items.length}</Badge>
+                </button>
 
-              {(r.address || r.city || r.area) && (
-                <div className="text-[11px] text-muted-foreground mt-1.5 flex items-start gap-1.5">
-                  <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                  <span className="min-w-0">{[r.address, r.area, r.city].filter(Boolean).join(", ")}</span>
-                </div>
-              )}
-              {r.notes && <div className="text-[11px] mt-1 text-muted-foreground">{r.notes}</div>}
-              {r.addedByName && canSeeAddedBy(r) && (
-                <div className="text-[11px] mt-1 text-muted-foreground">Added by: {r.addedByName}</div>
-              )}
+                {isOpen && (
+                  <ul className="border-t divide-y">
+                    {g.items.map((r) => (
+                      <li key={r.id} className="px-3 py-2 flex items-center gap-2">
+                        <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+                          <span className="text-xs font-medium text-foreground truncate max-w-[45%]">{r.name}</span>
+                          {r.category && <Badge variant="secondary" className="text-[10px]">{r.category}</Badge>}
+                          {r.owner && <span className="truncate">{r.owner}</span>}
+                          {r.phone && <span className="truncate">{r.phone}</span>}
+                          {[r.address, r.area, r.city].filter(Boolean).length > 0 && (
+                            <span className="truncate">{[r.address, r.area, r.city].filter(Boolean).join(", ")}</span>
+                          )}
+                          {r.notes && <span className="truncate">{r.notes}</span>}
+                          {r.addedByName && canSeeAddedBy(r) && <span className="truncate">Added by: {r.addedByName}</span>}
+                        </div>
 
-              <div className="mt-2 flex items-center gap-1.5">
-                <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
-                  <SelectTrigger className="h-8 flex-1 text-xs"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Unassigned</SelectItem>
-                    {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Dialog open={editing?.id === r.id} onOpenChange={(o) => setEditing(o ? r : null)}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-8 w-8 shrink-0"><Pencil className="w-3.5 h-3.5" /></Button>
-                  </DialogTrigger>
-                  {editing?.id === r.id && (
-                    <RetailerDialog salesmen={sortedSalesmen} currentUser={currentUser} initial={r} onSaved={() => { refresh(); setEditing(null); }} />
-                  )}
-                </Dialog>
-                <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={() => remove(r.id)}>
-                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                </Button>
-              </div>
-            </li>
-          ))}
+                        <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
+                          <SelectTrigger className="h-7 w-[110px] shrink-0 text-[11px]"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Unassigned</SelectItem>
+                            {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Dialog open={editing?.id === r.id} onOpenChange={(o) => setEditing(o ? r : null)}>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-7 w-7 shrink-0"><Pencil className="w-3.5 h-3.5" /></Button>
+                          </DialogTrigger>
+                          {editing?.id === r.id && (
+                            <RetailerDialog salesmen={sortedSalesmen} currentUser={currentUser} initial={r} onSaved={() => { refresh(); setEditing(null); }} />
+                          )}
+                        </Dialog>
+                        <Button variant="outline" size="icon" className="h-7 w-7 shrink-0" onClick={() => remove(r.id)}>
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
+
     </div>
   );
 }
