@@ -2010,101 +2010,13 @@ function SalesmanVisitLog({
 
       <Dialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
         {target && (
-          <RecordVisitDialog
-            retailer={target}
-            salesmanName={
-              sortedSalesmen.find((s) => s.id === target.salesmanId)?.name ??
-              singleSalesman?.name ??
-              "Unassigned"
-            }
+          <VisitDialog
+            retailers={retailers}
+            presetRetailer={target}
             onSaved={() => { refresh(); setTarget(null); }}
           />
         )}
       </Dialog>
     </div>
-  );
-}
-
-function RecordVisitDialog({
-  retailer,
-  salesmanName,
-  onSaved,
-}: {
-  retailer: Retailer;
-  salesmanName: string;
-  onSaved: () => void;
-}) {
-  const [salesman, setSalesman] = useState(salesmanName);
-  const [purpose, setPurpose] = useState("");
-  const [activity, setActivity] = useState<VisitActivity>("Visits");
-  const [unavailableReason, setUnavailableReason] = useState<UnavailableReason>("Holiday");
-  const [outcome, setOutcome] = useState<Outcome>("Successful");
-  const [notes, setNotes] = useState("");
-
-  const isOthers = activity === "Others Reasons";
-
-  const save = () => {
-    if (!salesman.trim()) return toast.error("Enter the salesman name");
-    if (!activity) return toast.error("Please select a visit record reason (1-7)");
-    if (isOthers && !unavailableReason) {
-      return toast.error("Please select a non-available reason: Holiday, Sick, Weather Conditions, or Leave");
-    }
-    const v: Visit = {
-      id: uid(),
-      date: new Date().toISOString(),
-      retailerId: retailer.id,
-      salesman: salesman.trim(),
-      purpose,
-      visitStatus: isOthers ? "Holiday" : "Visited",
-      outcome,
-      notes,
-      activity,
-      addedByUserId: accessStore.getCurrentUserId() ?? undefined,
-      ...(isOthers ? { unavailableReason } : {}),
-    };
-    store.setVisits([v, ...store.getVisits()]);
-    toast.success("Visit recorded");
-    onSaved();
-  };
-
-  return (
-    <DialogContent className="max-w-md">
-      <DialogHeader><DialogTitle>Record visit · {retailer.name}</DialogTitle></DialogHeader>
-      <div className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          {normalizeCity(retailer.city || "Unassigned city")}{retailer.category ? ` · ${retailer.category}` : ""}
-        </p>
-        <Field label="Salesman"><Input value={salesman} onChange={(e) => setSalesman(e.target.value)} placeholder="Salesman name" /></Field>
-        <Field label="Purpose"><Input value={purpose} onChange={(e) => setPurpose(e.target.value)} placeholder="New order, demo, follow-up..." /></Field>
-        <Field label="Visit record">
-          <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {VISIT_ACTIVITIES.map((a, i) => <SelectItem key={a} value={a}>{i + 1}. {a}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        {isOthers && (
-          <Field label="Non available reason">
-            <Select value={unavailableReason} onValueChange={(v) => setUnavailableReason(v as UnavailableReason)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {UNAVAILABLE_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-        <Field label="Outcome">
-          <Select value={outcome} onValueChange={(v) => setOutcome(v as Outcome)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {OUTCOMES.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Notes"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering..." rows={3} /></Field>
-      </div>
-      <DialogFooter><Button onClick={save} className="w-full">Save visit</Button></DialogFooter>
-    </DialogContent>
   );
 }
