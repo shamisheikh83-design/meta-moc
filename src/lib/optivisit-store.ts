@@ -89,7 +89,12 @@ export type Settings = {
   pinHash: string | null;
   email: string | null;
   recoveryHash: string | null;
+  /** Epoch ms when the recovery code stops being valid. */
+  recoveryExpiresAt?: number | null;
+  /** Which app user requested the recovery (empty for device-level PIN). */
+  recoveryUserId?: string | null;
 };
+
 
 const K_VISITS = "ov_visits";
 const K_RETAILERS = "ov_retailers";
@@ -120,13 +125,55 @@ export const store = {
   setSalesmen: (v: Salesman[]) => write(K_SALESMEN, v),
   getSettings: () => read<Settings>(K_SETTINGS, { salesmanName: "", pinHash: null, email: null, recoveryHash: null }),
   setSettings: (v: Settings) => write(K_SETTINGS, v),
-  getSession: () => (typeof window !== "undefined" ? sessionStorage.getItem(K_SESSION) === "1" : false),
+  getSession: () => getSessionInfo() !== null,
   setSession: (v: boolean) => {
-    if (typeof window === "undefined") return;
-    if (v) sessionStorage.setItem(K_SESSION, "1");
-    else sessionStorage.removeItem(K_SESSION);
+    if (!v) endSession();
   },
 };
+
+/** Session record. Short-lived sessions live in sessionStorage, "keep me logged in" in localStorage. */
+export type SessionInfo = { userId: string | null; expiresAt: number; persistent: boolean };
+
+export const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours (normal)
+export const PERSISTENT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (keep me logged in)
+
+export function startSession(userId: string | null, persistent: boolean): SessionInfo {
+  const info: SessionInfo = {
+    userId,
+    persistent,
+    expiresAt: Date.now() + (persistent ? PERSISTENT_TTL_MS : SESSION_TTL_MS),
+  };
+  if (typeof window === "undefined") return info;
+  endSession();
+  const raw = JSON.stringify(info);
+  if (persistent) localStorage.setItem(K_SESSION, raw);
+  else sessionStorage.setItem(K_SESSION, raw);
+  return info;
+}
+
+export function getSessionInfo(): SessionInfo | null {
+  if (typeof window === "undefined") return null;
+  const raw = sessionStorage.getItem(K_SESSION) ?? localStorage.getItem(K_SESSION);
+  if (!raw) return null;
+  try {
+    const info = JSON.parse(raw) as SessionInfo;
+    if (!info?.expiresAt || Date.now() > info.expiresAt) {
+      endSession();
+      return null;
+    }
+    return info;
+  } catch {
+    endSession();
+    return null;
+  }
+}
+
+export function endSession() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(K_SESSION);
+  localStorage.removeItem(K_SESSION);
+}
+
 
 // Very simple hash (not real security — this is a local gate only)
 export async function hashPin(pin: string): Promise<string> {
