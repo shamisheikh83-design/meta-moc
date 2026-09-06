@@ -80,16 +80,16 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
 
 
   return (
-    <div className="min-h-screen bg-background pb-24 md:pb-8">
+    <div className="min-h-screen bg-background pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8">
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <header className="sticky top-0 z-20 ov-toolbar shadow-sm">
-          <div className="max-w-6xl mx-auto px-4 h-14 md:h-16 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2 shrink-0">
+          <div className="max-w-6xl mx-auto px-3 sm:px-4 h-14 md:h-16 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 md:flex md:justify-between">
+            <div className="flex min-w-0 items-center gap-2">
               <div className="w-9 h-9 rounded-xl bg-white/15 ring-1 ring-white/25 flex items-center justify-center">
                 <Eye className="w-4.5 h-4.5" />
               </div>
-              <div>
-                <div className="text-sm md:text-base font-semibold leading-none tracking-tight">Meta Opti Connect</div>
+              <div className="min-w-0">
+                <div className="truncate text-sm md:text-base font-semibold leading-none">Meta Opti Connect</div>
                 <div className="text-[10px] opacity-80 mt-0.5 capitalize">{tab}</div>
               </div>
             </div>
@@ -114,7 +114,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
           </div>
         </header>
 
-        <main className="max-w-6xl mx-auto px-4 pt-4">
+        <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-3 sm:pt-4">
           {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visibleVisits} retailers={visibleRetailers} currentUser={currentUser} /></TabsContent>}
           {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} /></TabsContent>}
           {visibleTabs.includes("visits") && (
@@ -137,9 +137,9 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
         </main>
 
         {/* Mobile bottom navigation */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 border-t bg-card/95 backdrop-blur">
+        <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 border-t bg-card/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
           <TabsList
-            className="max-w-3xl mx-auto w-full grid h-16 bg-transparent p-0 rounded-none"
+            className="max-w-3xl mx-auto w-full grid h-[4.25rem] bg-transparent p-0 rounded-none"
             style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
           >
             {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
@@ -170,10 +170,10 @@ function NavTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
   return (
     <TabsTrigger
       value={value}
-      className="flex flex-col items-center justify-center gap-1 h-full rounded-none data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground"
+      className="relative flex min-w-0 flex-col items-center justify-center gap-1 h-full rounded-none data-[state=active]:bg-accent/60 data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground after:absolute after:top-0 after:h-0.5 after:w-8 after:rounded-full after:bg-transparent data-[state=active]:after:bg-primary"
     >
       {icon}
-      <span className="text-[10px] font-medium">{label}</span>
+      <span className="max-w-full truncate px-0.5 text-[10px] font-medium">{label}</span>
     </TabsTrigger>
   );
 }
@@ -395,11 +395,11 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <h2 className="text-lg font-semibold">Visit log</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm"><Plus className="w-4 h-4 mr-1" /> New visit</Button>
+            <Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> New visit</Button>
           </DialogTrigger>
           {open && <VisitDialog retailers={retailers} onSaved={() => { refresh(); setOpen(false); }} />}
         </Dialog>
@@ -440,7 +440,7 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
           {sorted.map((v) => {
             const r = retailers.find((x) => x.id === v.retailerId);
             return (
-              <li key={v.id} className="bg-card border rounded-2xl p-4">
+              <li key={v.id} className="bg-card border rounded-2xl p-3 sm:p-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -454,7 +454,7 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
                     {v.purpose && <div className="text-xs mt-2"><span className="text-muted-foreground">Purpose:</span> {v.purpose}</div>}
                     {v.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-2">{v.notes}</div>}
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => remove(v.id)}>
+                  <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => remove(v.id)} aria-label="Delete visit">
                     <Trash2 className="w-4 h-4 text-muted-foreground" />
                   </Button>
                 </div>
@@ -553,7 +553,7 @@ function VisitDialog({
   };
 
   return (
-    <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+    <DialogContent className="w-[calc(100%-1rem)] max-w-md max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-xl p-4 sm:p-6">
       <DialogHeader>
         <DialogTitle>{presetRetailer ? `Record visit · ${presetRetailer.name}` : "Log a visit"}</DialogTitle>
       </DialogHeader>
@@ -575,13 +575,13 @@ function VisitDialog({
           <p className="text-xs text-muted-foreground">Add a retailer first in the Retailers tab.</p>
         ) : (
           <>
-            <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search retailers..." className="pl-9 h-9" />
               </div>
               <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
-                <SelectTrigger className="h-9 w-28 text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-10 w-full text-xs sm:w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="az">A – Z</SelectItem>
                   <SelectItem value="area">Area wise</SelectItem>
@@ -862,9 +862,9 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <h2 className="text-lg font-semibold">Visit Reports</h2>
-        <Button size="sm" variant="outline" onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
+        <Button size="sm" className="min-h-10" variant="outline" onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
       </div>
 
       <div className="bg-card border rounded-2xl p-4 space-y-3">
@@ -1189,9 +1189,9 @@ function Retailers({
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <h2 className="text-lg font-semibold">Retailers</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <input
             ref={fileRef}
             type="file"
@@ -1203,11 +1203,11 @@ function Retailers({
               e.target.value = "";
             }}
           />
-          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
-            <Upload className="w-4 h-4 mr-1" /> Import
+          <Button size="sm" className="min-h-10 px-2.5 sm:px-3" variant="outline" onClick={() => fileRef.current?.click()}>
+            <Upload className="w-4 h-4 sm:mr-1" /> <span className="hidden sm:inline">Import</span>
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
+            <DialogTrigger asChild><Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
             <RetailerDialog salesmen={sortedSalesmen} currentUser={currentUser} onSaved={() => { refresh(); setOpen(false); }} />
           </Dialog>
         </div>
@@ -1254,9 +1254,9 @@ function Retailers({
                 {isOpen && (
                   <ul className="border-t divide-y">
                     {g.items.map((r) => (
-                      <li key={r.id} className="px-3 py-2 flex items-center gap-2">
-                        <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
-                          <span className="text-xs font-medium text-foreground truncate max-w-[45%]">{r.name}</span>
+                      <li key={r.id} className="px-3 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 lg:flex lg:items-center lg:py-2">
+                        <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                          <span className="w-full text-sm font-medium text-foreground truncate sm:w-auto sm:max-w-[45%]">{r.name}</span>
                           {r.category && <Badge variant="secondary" className="text-[10px]">{r.category}</Badge>}
                           {r.owner && <span className="truncate">{r.owner}</span>}
                           {r.phone && <span className="truncate">{r.phone}</span>}
@@ -1267,24 +1267,26 @@ function Retailers({
                           {r.addedByName && canSeeAddedBy(r) && <span className="truncate">Added by: {r.addedByName}</span>}
                         </div>
 
-                        <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
-                          <SelectTrigger className="h-7 w-[110px] shrink-0 text-[11px]"><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Unassigned</SelectItem>
-                            {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Dialog open={editing?.id === r.id} onOpenChange={(o) => setEditing(o ? r : null)}>
-                          <DialogTrigger asChild>
-                            <Button variant="outline" size="icon" className="h-7 w-7 shrink-0"><Pencil className="w-3.5 h-3.5" /></Button>
-                          </DialogTrigger>
-                          {editing?.id === r.id && (
-                            <RetailerDialog salesmen={sortedSalesmen} currentUser={currentUser} initial={r} onSaved={() => { refresh(); setEditing(null); }} />
-                          )}
-                        </Dialog>
-                        <Button variant="outline" size="icon" className="h-7 w-7 shrink-0" onClick={() => remove(r.id)}>
-                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                        </Button>
+                        <div className="col-span-2 flex w-full items-center justify-end gap-2 lg:col-span-1 lg:w-auto">
+                          <Select value={r.salesmanId ?? "none"} onValueChange={(v) => assign(r.id, v)}>
+                            <SelectTrigger className="h-10 min-w-0 flex-1 text-xs sm:w-[140px] sm:flex-none"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Unassigned</SelectItem>
+                              {sortedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                          <Dialog open={editing?.id === r.id} onOpenChange={(o) => setEditing(o ? r : null)}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" aria-label={`Edit ${r.name}`}><Pencil className="w-4 h-4" /></Button>
+                            </DialogTrigger>
+                            {editing?.id === r.id && (
+                              <RetailerDialog salesmen={sortedSalesmen} currentUser={currentUser} initial={r} onSaved={() => { refresh(); setEditing(null); }} />
+                            )}
+                          </Dialog>
+                          <Button variant="outline" size="icon" className="h-10 w-10 shrink-0" onClick={() => remove(r.id)} aria-label={`Delete ${r.name}`}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -1338,12 +1340,12 @@ function RetailerDialog({
   };
   const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
   return (
-    <DialogContent className="max-w-md">
+    <DialogContent className="w-[calc(100%-1rem)] max-w-md max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-xl p-4 sm:p-6">
       <DialogHeader><DialogTitle>{initial ? "Edit retailer" : "Add retailer"}</DialogTitle></DialogHeader>
       <div className="space-y-3">
         <Field label="Shop name"><Input value={f.name} onChange={upd("name")} placeholder="Vision Optics" /></Field>
         <Field label="Owner / contact"><Input value={f.owner} onChange={upd("owner")} /></Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
           <Field label="City"><Input value={f.city} onChange={upd("city")} /></Field>
           <Field label="Area"><Input value={f.area} onChange={upd("area")} placeholder="Saddar" /></Field>
         </div>
@@ -1944,11 +1946,11 @@ function SalesmanVisitLog({
         cityGroups.map((g) => {
           const isOpen = openCities.includes(g.city);
           return (
-          <div key={g.city} className="bg-card border rounded-2xl p-4 space-y-3">
-            <button type="button" onClick={() => toggleCity(g.city)} className="w-full flex items-center justify-between text-sm gap-2">
-              <span className="font-semibold flex items-center gap-1">
+          <div key={g.city} className="bg-card border rounded-2xl p-3 sm:p-4 space-y-3">
+            <button type="button" onClick={() => toggleCity(g.city)} className="w-full grid grid-cols-[minmax(0,1fr)_auto] items-center text-sm gap-2 min-h-10 text-left">
+              <span className="min-w-0 font-semibold flex items-center gap-1">
                 <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />{g.city}
+                <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{g.city}</span>
               </span>
               <span className="flex items-center gap-1.5 text-xs font-medium">
                 <span className="text-blue-600 dark:text-blue-400">({g.total})</span>
@@ -1986,16 +1988,16 @@ function SalesmanVisitLog({
                   `${n} visit${n === 1 ? "" : "s"}`,
                 ].filter(Boolean).join(" · ");
                 return (
-                  <li key={r.id} className="flex items-center justify-between gap-2 py-2">
+                  <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
                     <div className="min-w-0 flex items-center gap-2 flex-1">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                      <div className="min-w-0 flex-1 flex items-baseline gap-2 overflow-hidden">
-                        <span className="text-sm font-medium shrink-0">{r.name}</span>
-                        <span className="text-[10px] text-muted-foreground truncate">{line}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate">{r.name}</div>
+                        <div className="text-[11px] text-muted-foreground line-clamp-2 sm:truncate">{line}</div>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" className="h-8 text-xs shrink-0 ml-auto" onClick={() => setTarget(r)}>
-                      <Plus className="w-3.5 h-3.5 mr-1" /> Record
+                    <Button size="sm" variant="outline" className="h-10 px-2.5 text-xs shrink-0" onClick={() => setTarget(r)}>
+                      <Plus className="w-3.5 h-3.5 sm:mr-1" /> <span className="hidden sm:inline">Record</span>
                     </Button>
                   </li>
                 );
