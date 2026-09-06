@@ -89,7 +89,12 @@ export type Settings = {
   pinHash: string | null;
   email: string | null;
   recoveryHash: string | null;
+  /** Epoch ms when the recovery code stops being valid. */
+  recoveryExpiresAt?: number | null;
+  /** Which app user requested the recovery (empty for device-level PIN). */
+  recoveryUserId?: string | null;
 };
+
 
 const K_VISITS = "ov_visits";
 const K_RETAILERS = "ov_retailers";
