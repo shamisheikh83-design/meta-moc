@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download } from "lucide-react";
+import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download, ArrowLeft, AlertTriangle, Mail } from "lucide-react";
 import { toast } from "sonner";
 import {
   ROLES,
@@ -24,6 +24,8 @@ import {
   updateUser,
   verifyPin,
   signIn,
+  requestPinReset,
+  resolvePinReset,
   isScopedRole,
   setSalesmanIds,
   type AppUser,
@@ -131,15 +133,55 @@ function FirstSuperUser({ onChanged }: { onChanged: () => void }) {
 
 /* --------------- sign in --------------- */
 function SignInPanel({ users, onChanged }: { users: AppUser[]; onChanged: () => void }) {
+  const [mode, setMode] = useState<"signin" | "forgot" | "requested">("signin");
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
+  const [identifier, setIdentifier] = useState("");
 
   const submit = async () => {
     const user = await signIn(username, pin);
-    if (!user) return toast.error("Invalid user ID or PIN");
+    if (!user) return toast.error("Invalid user ID/email or PIN");
     toast.success(`Welcome ${user.name}`);
     onChanged();
   };
+
+  const submitReset = () => {
+    const res = requestPinReset(identifier);
+    if (!res.ok) return toast.error(res.error);
+    setMode("requested");
+  };
+
+  if (mode === "forgot" || mode === "requested") {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-sm font-semibold flex items-center gap-1.5">
+          <Mail className="w-4 h-4" /> Forgot your PIN?
+        </h3>
+        {mode === "forgot" ? (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Enter your User ID or the email your Super User has on file. This sends a reset request — a Super
+              User will verify it's you and set a new PIN.
+            </p>
+            <Row label="User ID or email">
+              <Input value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="e.g. jdoe or jdoe@company.com" />
+            </Row>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={submitReset}>Send request</Button>
+              <Button size="sm" variant="outline" onClick={() => setMode("signin")}><ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Request sent. A Super User will confirm it's you and set a new PIN — ask them directly once you expect it's done.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => setMode("signin")}><ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to sign in</Button>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -147,11 +189,14 @@ function SignInPanel({ users, onChanged }: { users: AppUser[]; onChanged: () => 
         <KeyRound className="w-4 h-4" /> Sign in
       </h3>
       <p className="text-xs text-muted-foreground">{users.length} user{users.length === 1 ? "" : "s"} registered on this device.</p>
-      <Row label="User ID"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="User ID" /></Row>
+      <Row label="User ID or email"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="User ID or email" /></Row>
       <Row label="PIN">
         <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
       </Row>
-      <Button size="sm" onClick={submit}>Sign in</Button>
+      <div className="flex items-center justify-between">
+        <Button size="sm" onClick={submit}>Sign in</Button>
+        <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={() => setMode("forgot")}>Forgot your PIN?</Button>
+      </div>
     </div>
   );
 }
@@ -168,6 +213,7 @@ function SuperUserPanel({
 }) {
   const supers = superAdmins(users);
   const sorted = useMemo(() => [...users].sort((a, b) => a.name.localeCompare(b.name)), [users]);
+  const pending = users.filter((u) => u.pinResetRequestedAt);
 
   return (
     <div className="space-y-3">
@@ -178,15 +224,32 @@ function SuperUserPanel({
         <AddUserDialog onChanged={onChanged} supersCount={supers.length} />
       </div>
 
+      {pending.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-3 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            {pending.length} PIN reset request{pending.length === 1 ? "" : "s"} waiting — look for the badge below.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-2">
         {sorted.map((u) => (
-          <div key={u.id} className="rounded-xl border p-3 space-y-2">
+          <div key={u.id} className={`rounded-xl border p-3 space-y-2 ${u.pinResetRequestedAt ? "border-amber-300 dark:border-amber-800" : ""}`}>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{u.name}</div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="text-sm font-medium truncate">{u.name}</div>
+                  {u.pinResetRequestedAt && (
+                    <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300">
+                      <AlertTriangle className="w-3 h-3 mr-1" /> Reset requested
+                    </Badge>
+                  )}
+                </div>
                 <div className="text-[11px] text-muted-foreground">@{u.username}{u.email ? ` · ${u.email}` : ""}</div>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-1">
+                {u.pinResetRequestedAt && <PinResetRequestDialog user={u} onChanged={onChanged} />}
                 <PermissionsDialog user={u} onChanged={onChanged} />
                 {isScopedRole(u.role) && <SalesmenDialog user={u} onChanged={onChanged} />}
                 <EditUserDialog user={u} onChanged={onChanged} />
@@ -217,6 +280,80 @@ function SuperUserPanel({
         ))}
       </div>
     </div>
+  );
+}
+
+function PinResetRequestDialog({ user, onChanged }: { user: AppUser; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [newPin, setNewPin] = useState("");
+
+  const identifier = (user.pinResetRequestIdentifier ?? "").trim().toLowerCase();
+  const onFileEmail = (user.email ?? "").trim().toLowerCase();
+  const matchesEmail = !!onFileEmail && identifier === onFileEmail;
+  const matchesUsername = identifier === user.username.trim().toLowerCase();
+
+  const setPin = async () => {
+    const res = await resolvePinReset(user.id, newPin);
+    if (!res.ok) return toast.error(res.error);
+    toast.success(`${user.name}'s PIN updated`);
+    setOpen(false);
+    setNewPin("");
+    onChanged();
+  };
+
+  const dismiss = async () => {
+    await resolvePinReset(user.id);
+    toast.success("Request dismissed");
+    setOpen(false);
+    onChanged();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="h-8 text-xs border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300">
+          <AlertTriangle className="w-3.5 h-3.5 mr-1" /> Reset request
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>PIN reset request · {user.name}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="rounded-lg border p-3 space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Requested</span>
+              <span>{user.pinResetRequestedAt ? new Date(user.pinResetRequestedAt).toLocaleString() : "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Submitted as</span>
+              <span className="font-medium">{user.pinResetRequestIdentifier || "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Email on file</span>
+              <span className="font-medium">{user.email || "None on file"}</span>
+            </div>
+            <div className={`flex items-center gap-1.5 pt-1 ${matchesEmail || matchesUsername ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+              {matchesEmail ? (
+                <>✓ Matches the email on file.</>
+              ) : matchesUsername ? (
+                <>✓ Matches their User ID — no email on file to cross-check, verify identity yourself.</>
+              ) : (
+                <>⚠ Doesn't match what's on file — verify this is really {user.name} before resetting.</>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Confirm this person's identity (in person or by another channel), then set their new PIN below.
+          </p>
+          <Row label="New 4-digit PIN">
+            <Input inputMode="numeric" maxLength={4} value={newPin} autoFocus onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+          </Row>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button size="sm" variant="outline" onClick={dismiss}>Dismiss request</Button>
+          <Button size="sm" onClick={setPin} disabled={newPin.length !== 4}>Set PIN &amp; resolve</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

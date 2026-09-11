@@ -140,6 +140,10 @@ export type AppUser = {
   /** For Agent / Member / Guest: which salesmen's data this user may see. Empty = none restricted set chosen. */
   salesmanIds?: string[];
   createdAt: string;
+  /** Set when this user submits a "forgot my PIN" request. Cleared once a Super User resolves it. */
+  pinResetRequestedAt?: string;
+  /** The User ID or email the requester typed in, for the Super User to cross-check against the email on file. */
+  pinResetRequestIdentifier?: string;
 };
 
 
@@ -279,14 +283,60 @@ export function deleteUser(userId: string): { ok: true } | { ok: false; error: s
   return { ok: true };
 }
 
-export async function signIn(username: string, pin: string): Promise<AppUser | null> {
+/** Finds a user by their User ID first, falling back to a case-insensitive email match. */
+export function findUserByIdentifier(identifier: string): AppUser | null {
+  const id = identifier.trim().toLowerCase();
+  if (!id) return null;
   const users = accessStore.getUsers();
-  const user = users.find((u) => u.username === username.trim().toLowerCase());
+  return (
+    users.find((u) => u.username === id) ??
+    users.find((u) => (u.email ?? "").trim().toLowerCase() === id) ??
+    null
+  );
+}
+
+export async function signIn(identifier: string, pin: string): Promise<AppUser | null> {
+  const user = findUserByIdentifier(identifier);
   if (!user) return null;
   const hash = await hashPin(pin);
   if (hash !== user.pinHash) return null;
   accessStore.setCurrentUserId(user.id);
   return user;
+}
+
+/** A user (signed out) submits a "forgot my PIN" request by their User ID or email. */
+export function requestPinReset(identifier: string): { ok: true } | { ok: false; error: string } {
+  const user = findUserByIdentifier(identifier);
+  if (!user) return { ok: false, error: "No account matches that User ID or email." };
+  accessStore.setUsers(
+    accessStore.getUsers().map((u) =>
+      u.id === user.id
+        ? { ...u, pinResetRequestedAt: new Date().toISOString(), pinResetRequestIdentifier: identifier.trim() }
+        : u
+    )
+  );
+  return { ok: true };
+}
+
+/** Super User resolves a pending reset request: optionally sets a new PIN, always clears the flag. */
+export async function resolvePinReset(
+  userId: string,
+  newPin?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const users = accessStore.getUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return { ok: false, error: "User not found" };
+  let pinHash = target.pinHash;
+  if (newPin) {
+    if (!/^\d{4}$/.test(newPin)) return { ok: false, error: "Enter a 4-digit PIN" };
+    pinHash = await hashPin(newPin);
+  }
+  accessStore.setUsers(
+    users.map((u) =>
+      u.id === userId ? { ...u, pinHash, pinResetRequestedAt: undefined, pinResetRequestIdentifier: undefined } : u
+    )
+  );
+  return { ok: true };
 }
 
 /** Verify a user's own PIN (used for sensitive Super User actions). */
@@ -326,6 +376,8 @@ export async function updateUser(
   if (patch.pin !== undefined && patch.pin !== "") {
     if (!/^\d{4}$/.test(patch.pin)) return { ok: false, error: "Enter a 4-digit PIN" };
     next.pinHash = await hashPin(patch.pin);
+    next.pinResetRequestedAt = undefined;
+    next.pinResetRequestIdentifier = undefined;
   }
 
   accessStore.setUsers(users.map((u) => (u.id === userId ? next : u)));

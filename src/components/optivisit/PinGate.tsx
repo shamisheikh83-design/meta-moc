@@ -17,7 +17,7 @@ import {
   Lock,
   KeyRound,
 } from "lucide-react";
-import { accessStore, signIn } from "@/lib/optivisit-access";
+import { accessStore, signIn, requestPinReset } from "@/lib/optivisit-access";
 
 /** Brand mark: a pair of spectacles, standing in for opticians/lenses. */
 function GlassesMark({ className }: { className?: string }) {
@@ -66,8 +66,10 @@ type Mode =
   | "confirm"             // confirm new PIN
   | "prompt-email"        // existing user, one-time prompt to save email
   | "enter"               // normal unlock
-  | "forgot"              // send recovery code via mailto
-  | "verify-recovery";    // paste recovery code to unlock reset
+  | "forgot"              // send recovery code via mailto (single-device, no users mode)
+  | "verify-recovery"     // paste recovery code to unlock reset (single-device, no users mode)
+  | "request-reset"       // multi-user mode: submit a PIN reset request to a Super User
+  | "request-sent";       // multi-user mode: confirmation the request was submitted
 
 const RECOVERY_TTL_MS = 30 * 60 * 1000;
 
@@ -98,6 +100,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
   const [remember, setRemember] = useState(false);
   const [hasUsers, setHasUsers] = useState(false);
   const [recoveryTarget, setRecoveryTarget] = useState("");
+  const [resetIdentifier, setResetIdentifier] = useState("");
 
   useEffect(() => {
     setHasUsers(accessStore.getUsers().length > 0);
@@ -172,14 +175,18 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
     : mode === "enter" ? "Sign in"
     : mode === "forgot" ? "Reset your PIN"
     : mode === "verify-recovery" ? "Enter your reset code"
+    : mode === "request-reset" ? "Forgot your PIN?"
+    : mode === "request-sent" ? "Request sent"
     : "";
 
   const subtitle =
     mode === "collect-email" ? "We use it only to help you reset your PIN."
     : mode === "prompt-email" ? "A one-time setup so you can reset your PIN later."
-    : mode === "enter" ? (hasUsers ? "Enter your User ID and PIN to continue." : "Enter your PIN to continue.")
+    : mode === "enter" ? (hasUsers ? "Enter your User ID or email and PIN to continue." : "Enter your PIN to continue.")
     : mode === "forgot" ? "We'll prepare an email containing a reset code."
     : mode === "verify-recovery" ? "Paste the code from the reset email. It expires in 30 minutes."
+    : mode === "request-reset" ? "A Super User will verify it's you and set a new PIN."
+    : mode === "request-sent" ? "Ask your Super User to confirm and reset it for you."
     : "Choose a PIN you'll remember.";
 
   const handleSaveEmailAndContinue = () => {
@@ -196,20 +203,13 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
 
   const startForgot = () => {
     clearMessages();
-    const s = store.getSettings();
-    let target = s.email ?? "";
     if (hasUsers) {
-      const u = accessStore.getUsers().find((x) => x.username === userId.trim().toLowerCase());
-      if (!u) {
-        setError("Enter your User ID first so we know where to send the reset code.");
-        return;
-      }
-      if (!u.email) {
-        setError("No email is registered for this User ID. Ask an administrator to reset your PIN.");
-        return;
-      }
-      target = u.email;
+      setResetIdentifier(userId.trim());
+      setMode("request-reset");
+      return;
     }
+    const s = store.getSettings();
+    const target = s.email ?? "";
     if (!target) {
       setError("No recovery email is saved yet. Add one to enable PIN reset.");
       setMode("prompt-email");
@@ -217,6 +217,20 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
     }
     setRecoveryTarget(target);
     setMode("forgot");
+  };
+
+  const submitResetRequest = () => {
+    if (!resetIdentifier.trim()) {
+      setError("Enter your User ID or email.");
+      return;
+    }
+    const res = requestPinReset(resetIdentifier);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    clearMessages();
+    setMode("request-sent");
   };
 
   const handleSendRecovery = async () => {
@@ -385,7 +399,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
 
             {mode === "enter" && hasUsers && (
               <div className="space-y-1.5 mb-5">
-                <Label htmlFor="userid">User ID</Label>
+                <Label htmlFor="userid">User ID or email</Label>
                 <div className="relative">
                   <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -394,7 +408,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                     autoCapitalize="none"
                     autoComplete="username"
                     className="h-11 pl-9"
-                    placeholder="Your user ID"
+                    placeholder="Your user ID or email"
                     value={userId}
                     onChange={(e) => { setUserId(e.target.value); clearMessages(); }}
                   />
@@ -469,6 +483,42 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                   Verify code
                 </Button>
                 <Button variant="ghost" className="w-full" onClick={() => { clearMessages(); setMode("enter"); }}>
+                  <ArrowLeft className="w-4 h-4 mr-2" /> Back to sign in
+                </Button>
+              </div>
+            )}
+
+            {mode === "request-reset" && (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="reset-identifier">User ID or email</Label>
+                  <Input
+                    id="reset-identifier"
+                    autoFocus
+                    autoCapitalize="none"
+                    className="h-11"
+                    placeholder="Your user ID or registered email"
+                    value={resetIdentifier}
+                    onChange={(e) => { setResetIdentifier(e.target.value); clearMessages(); }}
+                    onKeyDown={(e) => e.key === "Enter" && submitResetRequest()}
+                  />
+                </div>
+                <Button className="w-full h-11" onClick={submitResetRequest}>
+                  <ShieldCheck className="w-4 h-4 mr-2" /> Send request
+                </Button>
+                <Button variant="ghost" className="w-full" onClick={() => { clearMessages(); setMode("enter"); }}>
+                  <ArrowLeft className="w-4 h-4 mr-2" /> Back to sign in
+                </Button>
+              </div>
+            )}
+
+            {mode === "request-sent" && (
+              <div className="space-y-4">
+                <div className="rounded-lg bg-primary/10 text-primary p-3 text-sm flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>A Super User will confirm it's you and set a new PIN. Ask them directly once you expect it's done.</span>
+                </div>
+                <Button variant="outline" className="w-full" onClick={() => { clearMessages(); setUserId(""); setMode("enter"); }}>
                   <ArrowLeft className="w-4 h-4 mr-2" /> Back to sign in
                 </Button>
               </div>
