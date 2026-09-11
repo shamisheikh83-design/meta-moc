@@ -5,7 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { store, hashPin, startSession } from "@/lib/optivisit-store";
-import { Eye, Mail, ArrowLeft, ShieldCheck, Loader2 } from "lucide-react";
+import {
+  Eye,
+  Mail,
+  ArrowLeft,
+  ShieldCheck,
+  Loader2,
+  User,
+  MapPin,
+  ClipboardList,
+  BarChart3,
+  Lock,
+  KeyRound,
+} from "lucide-react";
 import { accessStore, signIn } from "@/lib/optivisit-access";
 
 type Mode =
@@ -219,56 +231,104 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
   const showPinPad = mode === "setup" || mode === "confirm" || mode === "enter";
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/20 px-4 py-10">
-      <div className="w-full max-w-5xl grid lg:grid-cols-[1.1fr_minmax(0,420px)] gap-10 items-center">
-        {/* Brand panel — desktop only */}
-        <div className="hidden lg:flex flex-col gap-6 pr-6">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg">
-              <Eye className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight leading-none">Meta Opti Connect</h1>
-              <p className="text-sm text-muted-foreground mt-1">Field visit management for opticians</p>
-            </div>
-          </div>
-          <p className="text-base text-muted-foreground max-w-md leading-relaxed">
-            Record salesman visits, track retailers by city and area, and review performance reports — on desktop and on the road.
-          </p>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <ShieldCheck className="w-4 h-4 text-primary" />
-            Access is protected by your personal User ID and PIN.
-          </div>
-        </div>
+    <div className="relative min-h-screen w-full overflow-hidden bg-background">
+      {/* Decorative background mesh */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-32 -left-24 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute top-1/3 -right-32 h-[28rem] w-[28rem] rounded-full bg-aqua/25 blur-3xl" />
+        <div className="absolute -bottom-40 left-1/4 h-96 w-96 rounded-full bg-maroon/10 blur-3xl" />
+        <div
+          className="absolute inset-0 opacity-[0.035]"
+          style={{
+            backgroundImage:
+              "linear-gradient(color-mix(in oklab, var(--foreground) 100%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklab, var(--foreground) 100%, transparent) 1px, transparent 1px)",
+            backgroundSize: "36px 36px",
+          }}
+        />
+      </div>
 
-        {/* Card */}
-        <div className="w-full max-w-sm mx-auto lg:mx-0">
-          <div className="flex lg:hidden flex-col items-center text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mb-3 shadow-lg">
-              <Eye className="w-7 h-7" />
+      <div className="relative z-10 flex min-h-screen w-full items-center justify-center px-4 py-10">
+        <div className="w-full max-w-5xl grid lg:grid-cols-[1.15fr_minmax(0,420px)] gap-8 lg:gap-10 items-stretch">
+          {/* Brand panel — desktop only */}
+          <div className="hidden lg:flex animate-in fade-in-0 slide-in-from-left-4 duration-700">
+            <div className="ov-toolbar relative flex w-full flex-col justify-between overflow-hidden rounded-3xl p-10 shadow-2xl">
+              <div
+                className="pointer-events-none absolute inset-0 opacity-20"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle at 20% 20%, white 1px, transparent 1px), radial-gradient(circle at 60% 70%, white 1px, transparent 1px)",
+                  backgroundSize: "28px 28px, 42px 42px",
+                }}
+              />
+              <div className="relative">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur flex items-center justify-center shadow-lg">
+                    <Eye className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold tracking-tight leading-none text-[color:var(--ov-toolbar-foreground)]">Meta Opti Connect</h1>
+                    <p className="text-sm opacity-80 mt-1">Field visit management for opticians</p>
+                  </div>
+                </div>
+
+                <p className="text-base opacity-90 max-w-md leading-relaxed mt-8">
+                  Everything your field team needs to track visits, manage retailers, and report performance — in one place.
+                </p>
+
+                <ul className="mt-8 space-y-4">
+                  <FeatureRow icon={<ClipboardList className="w-4 h-4" />} text="Log salesman visits in seconds, on any device" />
+                  <FeatureRow icon={<MapPin className="w-4 h-4" />} text="Track retailers by city, area, and assigned salesman" />
+                  <FeatureRow icon={<BarChart3 className="w-4 h-4" />} text="Review performance with real-time reports" />
+                </ul>
+              </div>
+
+              <div className="relative mt-10 flex items-center gap-2 text-xs opacity-80 border-t border-white/15 pt-5">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                Access is protected by your personal User ID and PIN.
+              </div>
             </div>
-            <h1 className="text-xl font-bold tracking-tight">Meta Opti Connect</h1>
-            <p className="text-xs text-muted-foreground mt-1">Field visit management for opticians</p>
           </div>
 
-          <div className="bg-card rounded-2xl border shadow-lg p-6 sm:p-7">
-            <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-            <p className="text-sm text-muted-foreground mt-1 mb-6">{subtitle}</p>
+          {/* Card */}
+          <div className="w-full max-w-sm mx-auto lg:mx-0 flex flex-col justify-center animate-in fade-in-0 slide-in-from-bottom-4 duration-700">
+            <div className="flex lg:hidden flex-col items-center text-center mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mb-3 shadow-lg shadow-primary/30">
+                <Eye className="w-7 h-7" />
+              </div>
+              <h1 className="text-xl font-bold tracking-tight">Meta Opti Connect</h1>
+              <p className="text-xs text-muted-foreground mt-1">Field visit management for opticians</p>
+              <div className="mt-3 h-1 w-12 rounded-full bg-gradient-to-r from-primary via-aqua to-maroon" />
+            </div>
+
+            <div className="bg-card/95 backdrop-blur rounded-3xl border shadow-2xl shadow-primary/5 ring-1 ring-black/[0.02] p-6 sm:p-7">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="hidden sm:flex w-9 h-9 rounded-full bg-primary/10 text-primary items-center justify-center shrink-0">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1 mb-6">{subtitle}</p>
 
             {(mode === "collect-email" || mode === "prompt-email") && (
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoFocus
-                    autoComplete="email"
-                    placeholder="name@company.com"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); clearMessages(); }}
-                    onKeyDown={(e) => e.key === "Enter" && handleSaveEmailAndContinue()}
-                  />
+                  <div className="relative">
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      autoFocus
+                      autoComplete="email"
+                      placeholder="name@company.com"
+                      className="h-11 pl-9"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); clearMessages(); }}
+                      onKeyDown={(e) => e.key === "Enter" && handleSaveEmailAndContinue()}
+                    />
+                  </div>
                 </div>
                 <Button className="w-full h-11" onClick={handleSaveEmailAndContinue}>
                   {mode === "collect-email" ? "Continue" : "Save email"}
@@ -284,32 +344,36 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
             {mode === "enter" && hasUsers && (
               <div className="space-y-1.5 mb-5">
                 <Label htmlFor="userid">User ID</Label>
-                <Input
-                  id="userid"
-                  autoFocus
-                  autoCapitalize="none"
-                  autoComplete="username"
-                  className="h-11"
-                  placeholder="Your user ID"
-                  value={userId}
-                  onChange={(e) => { setUserId(e.target.value); clearMessages(); }}
-                />
+                <div className="relative">
+                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="userid"
+                    autoFocus
+                    autoCapitalize="none"
+                    autoComplete="username"
+                    className="h-11 pl-9"
+                    placeholder="Your user ID"
+                    value={userId}
+                    onChange={(e) => { setUserId(e.target.value); clearMessages(); }}
+                  />
+                </div>
               </div>
             )}
 
             {showPinPad && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="block text-center">
+              <div className="space-y-5">
+                <div className="space-y-2.5">
+                  <Label className="flex items-center justify-center gap-1.5 text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <KeyRound className="w-3.5 h-3.5" />
                     {mode === "enter" ? "4-digit PIN" : mode === "confirm" ? "Re-enter PIN" : "New 4-digit PIN"}
                   </Label>
                   <div className="flex justify-center">
                     <InputOTP maxLength={4} value={pin} onChange={(v) => { setPin(v); clearMessages(); }}>
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} />
-                        <InputOTPSlot index={1} />
-                        <InputOTPSlot index={2} />
-                        <InputOTPSlot index={3} />
+                      <InputOTPGroup className="gap-2.5">
+                        <InputOTPSlot index={0} className="h-13 w-13 rounded-xl border text-lg font-semibold" />
+                        <InputOTPSlot index={1} className="h-13 w-13 rounded-xl border text-lg font-semibold" />
+                        <InputOTPSlot index={2} className="h-13 w-13 rounded-xl border text-lg font-semibold" />
+                        <InputOTPSlot index={3} className="h-13 w-13 rounded-xl border text-lg font-semibold" />
                       </InputOTPGroup>
                     </InputOTP>
                   </div>
@@ -369,28 +433,44 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
             )}
 
             {error && (
-              <p role="alert" className="mt-5 rounded-lg bg-destructive/10 text-destructive text-sm px-3 py-2 text-center">
+              <p role="alert" aria-live="polite" className="mt-5 flex items-center gap-2 rounded-xl bg-destructive/10 text-destructive text-sm px-3 py-2.5">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-destructive/15 text-[11px] font-bold">!</span>
                 {error}
               </p>
             )}
             {!error && notice && (
-              <p className="mt-5 rounded-lg bg-primary/10 text-primary text-sm px-3 py-2 text-center">{notice}</p>
+              <p aria-live="polite" className="mt-5 flex items-center gap-2 rounded-xl bg-primary/10 text-primary text-sm px-3 py-2.5">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                {notice}
+              </p>
             )}
 
             {mode === "enter" && (
               <div className="mt-6 text-center border-t pt-4">
-                <Button variant="link" size="sm" className="h-auto p-0 text-sm" onClick={startForgot}>
+                <Button variant="link" size="sm" className="h-auto p-0 text-sm font-medium" onClick={startForgot}>
                   Forgot your PIN?
                 </Button>
               </div>
             )}
           </div>
 
-          <p className="text-[11px] text-muted-foreground text-center mt-4">
-            Meta Opti Connect · Secure field visit tracking
+          <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground text-center mt-4">
+            <Lock className="w-3 h-3" /> Meta Opti Connect · Secure field visit tracking
           </p>
+          </div>
         </div>
       </div>
     </div>
+  );
+}
+
+function FeatureRow({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <li className="flex items-center gap-3 text-sm">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
+        {icon}
+      </span>
+      <span className="opacity-90">{text}</span>
+    </li>
   );
 }
