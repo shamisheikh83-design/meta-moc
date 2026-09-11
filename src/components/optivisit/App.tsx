@@ -11,7 +11,7 @@ import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CAT
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Award } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
@@ -128,6 +128,8 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             <SettingsPanel
               onLock={onLock}
               salesmen={salesmen}
+              visits={visibleVisits}
+              retailers={visibleRetailers}
               refreshSalesmen={refreshSalesmen}
               currentUser={currentUser}
               hasUsers={hasUsers}
@@ -443,6 +445,21 @@ function OutcomeBadge({ outcome }: { outcome: Outcome }) {
 
 function StatusBadge({ status }: { status: VisitStatus }) {
   return <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${STATUS_COLORS[status]}`}>{status}</span>;
+}
+
+const CATEGORY_COLORS: Record<ShopCategory, string> = {
+  "A+": "bg-amber-100 text-amber-800 ring-1 ring-amber-300 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-800",
+  A: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  B: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  C: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+};
+
+function CategoryBadge({ category }: { category: ShopCategory }) {
+  return (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${CATEGORY_COLORS[category]}`}>
+      {category}
+    </span>
+  );
 }
 
 function EmptyHint({ text }: { text: string }) {
@@ -1397,7 +1414,7 @@ function Retailers({
                           <InitialAvatar name={r.name} className="h-8 w-8 text-xs mt-0.5 sm:mt-0" />
                           <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                             <span className="w-full text-sm font-medium text-foreground truncate sm:w-auto sm:max-w-[40%]">{r.name}</span>
-                            {r.category && <Badge variant="secondary" className="text-[10px]">{r.category}</Badge>}
+                            {r.category && <CategoryBadge category={r.category} />}
                             {r.owner && <span className="truncate">{r.owner}</span>}
                             {r.phone && <span className="truncate">{r.phone}</span>}
                             {[r.address, r.area, r.city].filter(Boolean).length > 0 && (
@@ -1528,7 +1545,17 @@ function RetailerDialog({
 
 
 /* ---------------- Salesmen ---------------- */
-function Salesmen({ salesmen, refresh }: { salesmen: Salesman[]; refresh: () => void }) {
+function Salesmen({
+  salesmen,
+  visits,
+  retailers,
+  refresh,
+}: {
+  salesmen: Salesman[];
+  visits: Visit[];
+  retailers: Retailer[];
+  refresh: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
@@ -1536,6 +1563,17 @@ function Salesmen({ salesmen, refresh }: { salesmen: Salesman[]; refresh: () => 
   const filtered = sorted.filter((s) =>
     [s.name, s.city, s.region, s.mobile].some((x) => (x || "").toLowerCase().includes(q.toLowerCase()))
   );
+
+  const thisMonth = new Date().toISOString().slice(0, 7);
+
+  const statsFor = (s: Salesman) => {
+    const own = visits.filter((v) => v.salesman === s.name);
+    const monthVisits = own.filter((v) => v.date.startsWith(thisMonth));
+    const successful = monthVisits.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory");
+    const successRate = monthVisits.length ? Math.round((successful.length / monthVisits.length) * 100) : null;
+    const assigned = retailers.filter((r) => r.salesmanId === s.id).length;
+    return { monthCount: monthVisits.length, successRate, assigned };
+  };
 
   const remove = (id: string) => {
     if (!confirm("Delete this salesman?")) return;
@@ -1546,7 +1584,7 @@ function Salesmen({ salesmen, refresh }: { salesmen: Salesman[]; refresh: () => 
   return (
     <div className="space-y-4 pt-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Salesmen data</h2>
+        <h2 className="text-lg font-semibold flex items-center gap-1.5"><Users className="w-4 h-4 text-muted-foreground" /> Salesmen data</h2>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild><Button size="sm"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
           <SalesmanDialog onSaved={() => { refresh(); setOpen(false); }} />
@@ -1557,25 +1595,46 @@ function Salesmen({ salesmen, refresh }: { salesmen: Salesman[]; refresh: () => 
 
       {filtered.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
-          <Users className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">{salesmen.length ? "No matches." : "No salesmen yet. Add your first."}</p>
+          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Users className="w-6 h-6 text-muted-foreground" />
+          </span>
+          <p className="text-sm font-medium">{salesmen.length ? "No matches" : "No salesmen yet"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{salesmen.length ? "Try a different search." : "Tap \"Add\" above to add your first salesman."}</p>
         </div>
       ) : (
         <ul className="space-y-2">
-          {filtered.map((s) => (
-            <li key={s.id} className="bg-card border rounded-2xl p-4">
-              <div className="flex justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm">{s.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    {(s.city || s.region) && <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3" />{[s.city, s.region].filter(Boolean).join(", ")}</div>}
-                    {s.mobile && <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" />{s.mobile}</div>}
+          {filtered.map((s) => {
+            const stats = statsFor(s);
+            return (
+              <li key={s.id} className="bg-card border rounded-2xl p-4 transition-shadow hover:shadow-md">
+                <div className="flex justify-between gap-3">
+                  <div className="min-w-0 flex-1 flex items-start gap-3">
+                    <InitialAvatar name={s.name} className="h-10 w-10 text-sm mt-0.5" />
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm">{s.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                        {(s.city || s.region) && <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3" />{[s.city, s.region].filter(Boolean).join(", ")}</div>}
+                        {s.mobile && <div className="flex items-center gap-1.5"><Phone className="w-3 h-3" />{s.mobile}</div>}
+                      </div>
+                    </div>
                   </div>
+                  <Button variant="ghost" size="icon" className="shrink-0" onClick={() => remove(s.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => remove(s.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
-              </div>
-            </li>
-          ))}
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
+                  <Badge variant="secondary" className="text-[10px] font-normal">{stats.assigned} retailer{stats.assigned === 1 ? "" : "s"}</Badge>
+                  <Badge variant="secondary" className="text-[10px] font-normal">{stats.monthCount} visit{stats.monthCount === 1 ? "" : "s"} this month</Badge>
+                  {stats.successRate !== null && (
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] font-normal ${stats.successRate >= 50 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300"}`}
+                    >
+                      {stats.successRate}% success
+                    </Badge>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
@@ -1821,6 +1880,8 @@ function ThemeCard({
 function SettingsPanel({
   onLock,
   salesmen,
+  visits,
+  retailers,
   refreshSalesmen,
   currentUser,
   hasUsers,
@@ -1828,6 +1889,8 @@ function SettingsPanel({
 }: {
   onLock: () => void;
   salesmen: Salesman[];
+  visits: Visit[];
+  retailers: Retailer[];
   refreshSalesmen: () => void;
   currentUser: AppUser | null;
   hasUsers: boolean;
@@ -1881,12 +1944,12 @@ function SettingsPanel({
 
       {allow("setting.salesmen") && (
         <section className="bg-card border rounded-2xl p-4">
-          <Salesmen salesmen={salesmen} refresh={refreshSalesmen} />
+          <Salesmen salesmen={salesmen} visits={visits} retailers={retailers} refresh={refreshSalesmen} />
         </section>
       )}
 
       <section className="bg-card border rounded-2xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold">Security</h3>
+        <h3 className="text-sm font-semibold flex items-center gap-1.5"><Lock className="w-4 h-4 text-muted-foreground" /> Security</h3>
         {allow("setting.pin") && (
           <>
             <Field label="Change PIN">
@@ -1904,8 +1967,8 @@ function SettingsPanel({
       </section>
 
       {allow("setting.erase") && (
-      <section className="bg-card border rounded-2xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-destructive">Danger zone</h3>
+      <section className="bg-card border border-destructive/20 rounded-2xl p-4 space-y-3">
+        <h3 className="text-sm font-semibold text-destructive flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> Danger zone</h3>
         <p className="text-xs text-muted-foreground">This clears everything stored on this device. Requires your PIN to confirm.</p>
         <Dialog open={wipeOpen} onOpenChange={(o) => { setWipeOpen(o); if (!o) setWipePin(""); }}>
           <DialogTrigger asChild>

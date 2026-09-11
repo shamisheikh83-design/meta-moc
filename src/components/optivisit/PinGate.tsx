@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { store, hashPin, startSession } from "@/lib/optivisit-store";
 import {
-  Eye,
   Mail,
   ArrowLeft,
   ShieldCheck,
@@ -19,6 +18,46 @@ import {
   KeyRound,
 } from "lucide-react";
 import { accessStore, signIn } from "@/lib/optivisit-access";
+
+/** Brand mark: a pair of spectacles, standing in for opticians/lenses. */
+function GlassesMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <circle cx="6.75" cy="13" r="4.25" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="17.25" cy="13" r="4.25" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M11 13h2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M2.5 12.2c0-1.9 1.1-3.4 2.6-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M21.5 12.2c0-1.9-1.1-3.4-2.6-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Decorative line-art sketch of an opticians' shopfront, with spectacles in the window. */
+function OpticalShopSketch({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 240 150" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M10 145h220M18 55l14-15 14 15-14 15zM46 55l14-15 14 15-14 15zM74 55l14-15 14 15-14 15zM102 55l14-15 14 15-14 15zM130 55l14-15 14 15-14 15zM158 55l14-15 14 15-14 15zM186 55l14-15 14 15-14 15z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <rect x="24" y="55" width="192" height="90" rx="2" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="40" y="70" width="58" height="46" rx="2" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="142" y="70" width="58" height="46" rx="2" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M169 82h34M186 70v46" stroke="currentColor" strokeWidth="1" opacity="0.6" />
+      <g transform="translate(50,84)">
+        <circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="1.4" />
+        <circle cx="29" cy="9" r="8" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M17 9h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M1 7.5C1 4.5 3 2 5.5 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M37 7.5c0-3-2-5.5-4.5-6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </g>
+      <rect x="106" y="96" width="28" height="49" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="128" cy="121" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
 
 type Mode =
   | "loading"
@@ -263,7 +302,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
               <div className="relative">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur flex items-center justify-center shadow-lg">
-                    <Eye className="w-6 h-6" />
+                    <GlassesMark className="w-6 h-6" />
                   </div>
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight leading-none text-[color:var(--ov-toolbar-foreground)]">Meta Opti Connect</h1>
@@ -280,6 +319,8 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                   <FeatureRow icon={<MapPin className="w-4 h-4" />} text="Track retailers by city, area, and assigned salesman" />
                   <FeatureRow icon={<BarChart3 className="w-4 h-4" />} text="Review performance with real-time reports" />
                 </ul>
+
+                <OpticalShopSketch className="w-full max-w-[280px] h-auto mt-8 opacity-80" />
               </div>
 
               <div className="relative mt-10 flex items-center gap-2 text-xs opacity-80 border-t border-white/15 pt-5">
@@ -293,11 +334,12 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
           <div className="w-full max-w-sm mx-auto lg:mx-0 flex flex-col justify-center animate-in fade-in-0 slide-in-from-bottom-4 duration-700">
             <div className="flex lg:hidden flex-col items-center text-center mb-6">
               <div className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mb-3 shadow-lg shadow-primary/30">
-                <Eye className="w-7 h-7" />
+                <GlassesMark className="w-7 h-7" />
               </div>
               <h1 className="text-xl font-bold tracking-tight">Meta Opti Connect</h1>
               <p className="text-xs text-muted-foreground mt-1">Field visit management for opticians</p>
               <div className="mt-3 h-1 w-12 rounded-full bg-gradient-to-r from-primary via-aqua to-maroon" />
+              <OpticalShopSketch className="w-full max-w-[220px] h-auto mt-5 text-primary/70" />
             </div>
 
             <div className="bg-card/95 backdrop-blur rounded-3xl border shadow-2xl shadow-primary/5 ring-1 ring-black/[0.02] p-6 sm:p-7">
