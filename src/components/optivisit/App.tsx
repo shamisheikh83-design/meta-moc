@@ -7,11 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, UNAVAILABLE_REASONS, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type UnavailableReason } from "@/lib/optivisit-store";
+import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Award } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Award, Clock, AlertCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
@@ -213,6 +213,37 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
 
   const activeRetailersThisMonth = new Set(visitsMonth.map((v) => v.retailerId)).size;
 
+  const dayMs = 86400000;
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+  const weekStart = new Date(todayStart.getTime() - 6 * dayMs);
+  const prevWeekStart = new Date(weekStart.getTime() - 7 * dayMs);
+  const inRange = (v: Visit, start: Date, endExclusive: Date) => {
+    const t = new Date(v.date).getTime();
+    return t >= start.getTime() && t < endExclusive.getTime();
+  };
+  const visitsThisWeek = visits.filter((v) => inRange(v, weekStart, new Date(todayStart.getTime() + dayMs)));
+  const visitsLastWeek = visits.filter((v) => inRange(v, prevWeekStart, weekStart));
+
+  const isComplaint = (v: Visit) => v.outcome === "Complaints" || (v.purpose || "").toLowerCase().includes("complaint");
+  const complaintsMonth = visitsMonth.filter(isComplaint);
+  const complaintsLastMonth = visitsLastMonth.filter(isComplaint);
+
+  const isRecovery = (v: Visit) => v.activity === "Recovery Visits" || (v.purpose || "").toLowerCase().includes("recovery");
+  const recoveryMonth = visitsMonth.filter(isRecovery);
+  const recoveryLastMonth = visitsLastMonth.filter(isRecovery);
+
+  const lastVisitByRetailer = new Map<string, number>();
+  visits.forEach((v) => {
+    const t = new Date(v.date).getTime();
+    const cur = lastVisitByRetailer.get(v.retailerId);
+    if (!cur || t > cur) lastVisitByRetailer.set(v.retailerId, t);
+  });
+  const THIRTY_DAYS = 30 * dayMs;
+  const staleRetailers = retailers.filter((r) => {
+    const last = lastVisitByRetailer.get(r.id);
+    return !last || now.getTime() - last > THIRTY_DAYS;
+  });
+
   const [drill, setDrill] = useState<null | { title: string; kind: "visits" | "retailers"; visits?: Visit[]; retailers?: Retailer[] }>(null);
 
   const recent = [...visits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
@@ -226,7 +257,7 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
         </h2>
         <p className="text-sm text-muted-foreground">Here's your activity snapshot · tap a card for details</p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <StatCard
           label="Visits today"
           value={visitsTodayList.length}
@@ -235,6 +266,14 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
           trend={trendOf(visitsTodayList.length, visitsYesterdayList.length)}
           trendCaption="vs yesterday"
           onClick={() => setDrill({ title: "Visits today", kind: "visits", visits: visitsTodayList })}
+        />
+        <StatCard
+          label="This week"
+          value={visitsThisWeek.length}
+          icon={<Clock className="w-4 h-4" />}
+          trend={trendOf(visitsThisWeek.length, visitsLastWeek.length)}
+          trendCaption="vs last week"
+          onClick={() => setDrill({ title: "Visits this week", kind: "visits", visits: visitsThisWeek })}
         />
         <StatCard
           label="This month"
@@ -258,6 +297,30 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
           icon={<Store className="w-4 h-4" />}
           caption={`${activeRetailersThisMonth} active this month`}
           onClick={() => setDrill({ title: "Retailers", kind: "retailers", retailers })}
+        />
+        <StatCard
+          label="Recovery visits"
+          value={recoveryMonth.length}
+          icon={<RotateCcw className="w-4 h-4" />}
+          trend={trendOf(recoveryMonth.length, recoveryLastMonth.length)}
+          trendCaption="vs last month"
+          onClick={() => setDrill({ title: "Recovery visits this month", kind: "visits", visits: recoveryMonth })}
+        />
+        <StatCard
+          label="Complaints"
+          value={complaintsMonth.length}
+          icon={<AlertCircle className="w-4 h-4" />}
+          trend={trendOf(complaintsMonth.length, complaintsLastMonth.length)}
+          trendCaption="vs last month"
+          goodDirection="down"
+          onClick={() => setDrill({ title: "Complaints this month", kind: "visits", visits: complaintsMonth })}
+        />
+        <StatCard
+          label="Needs attention"
+          value={staleRetailers.length}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          caption="not visited in 30+ days"
+          onClick={() => setDrill({ title: "Not visited in 30+ days", kind: "retailers", retailers: staleRetailers })}
         />
       </div>
       <div className="bg-card rounded-2xl border p-4">
@@ -355,6 +418,8 @@ function StatCard({
   tone,
   trend,
   trendCaption,
+  /** Which trend direction should read as "good" (green). Defaults to "up" — pass "down" for metrics like complaints where fewer is better. */
+  goodDirection = "up",
   caption,
   onClick,
 }: {
@@ -364,58 +429,61 @@ function StatCard({
   tone?: "primary";
   trend?: Trend;
   trendCaption?: string;
+  goodDirection?: "up" | "down";
   caption?: string;
   onClick?: () => void;
 }) {
   const primary = tone === "primary";
+  const isGood = trend && trend.direction !== "flat" && trend.direction === goodDirection;
+  const isBad = trend && trend.direction !== "flat" && trend.direction !== goodDirection;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`text-left rounded-2xl border p-4 transition active:scale-[0.98] hover:shadow-md ${primary ? "bg-primary text-primary-foreground" : "bg-card"}`}
+      className={`flex flex-col items-center text-center rounded-2xl border p-4 transition active:scale-[0.98] hover:shadow-md ${primary ? "bg-primary text-primary-foreground" : "bg-card"}`}
     >
-      <div className="flex items-center justify-between">
-        {icon && (
-          <span
-            className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-              primary ? "bg-white/15" : "bg-primary/10 text-primary"
-            }`}
-          >
-            {icon}
-          </span>
-        )}
-        {trend && (
-          <span
-            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-              trend.direction === "flat"
+      {icon && (
+        <span
+          className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+            primary ? "bg-white/15" : "bg-primary/10 text-primary"
+          }`}
+        >
+          {icon}
+        </span>
+      )}
+      <div className="text-3xl font-bold tabular-nums mt-3 leading-none">{value}</div>
+      <div className={`text-xs mt-1.5 ${primary ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{label}</div>
+      {trend && (
+        <span
+          className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium mt-2 ${
+            trend.direction === "flat"
+              ? primary
+                ? "bg-white/15 text-primary-foreground/80"
+                : "bg-muted text-muted-foreground"
+              : isGood
                 ? primary
-                  ? "bg-white/15 text-primary-foreground/80"
-                  : "bg-muted text-muted-foreground"
-                : trend.direction === "up"
+                  ? "bg-white/20 text-primary-foreground"
+                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                : isBad
                   ? primary
                     ? "bg-white/20 text-primary-foreground"
-                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                  : primary
-                    ? "bg-white/20 text-primary-foreground"
                     : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
-            }`}
-            title={trendCaption}
-          >
-            {trend.direction === "up" ? (
-              <TrendingUp className="w-3 h-3" />
-            ) : trend.direction === "down" ? (
-              <TrendingDown className="w-3 h-3" />
-            ) : (
-              <Minus className="w-3 h-3" />
-            )}
-            {trend.label}
-          </span>
-        )}
-      </div>
-      <div className="text-2xl font-bold tabular-nums mt-3">{value}</div>
-      <div className={`text-xs mt-0.5 ${primary ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{label}</div>
+                  : ""
+          }`}
+          title={trendCaption}
+        >
+          {trend.direction === "up" ? (
+            <TrendingUp className="w-3 h-3" />
+          ) : trend.direction === "down" ? (
+            <TrendingDown className="w-3 h-3" />
+          ) : (
+            <Minus className="w-3 h-3" />
+          )}
+          {trend.label}
+        </span>
+      )}
       {caption && (
-        <div className={`text-[10px] mt-1 ${primary ? "text-primary-foreground/70" : "text-muted-foreground/80"}`}>{caption}</div>
+        <div className={`text-[10px] mt-1.5 ${primary ? "text-primary-foreground/70" : "text-muted-foreground/80"}`}>{caption}</div>
       )}
     </button>
   );
@@ -597,8 +665,9 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
                       <StatusBadge status={v.visitStatus} />
                       <OutcomeBadge outcome={v.outcome} />
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {new Date(v.date).toLocaleString()} · {v.salesman || "—"}
+                    <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-x-1.5">
+                      <span>{new Date(v.date).toLocaleString()} · {v.salesman || "—"}</span>
+                      {v.area && <span className="inline-flex items-center gap-0.5"><MapPin className="w-3 h-3" />{v.area}</span>}
                     </div>
                     {v.purpose && <div className="text-xs mt-2"><span className="text-muted-foreground">Purpose:</span> {v.purpose}</div>}
                     {v.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-2">{v.notes}</div>}
@@ -636,8 +705,7 @@ function VisitDialog({
   const [sort, setSort] = useState<"az" | "area">("az");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
-  const [activity, setActivity] = useState<VisitActivity>("Visits");
-  const [unavailableReason, setUnavailableReason] = useState<UnavailableReason>("Holiday");
+  const [area, setArea] = useState(presetRetailer?.area ?? "");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
   const [notes, setNotes] = useState("");
 
@@ -663,23 +731,22 @@ function VisitDialog({
     ? (salesmenList.find((s) => s.id === selectedRetailer.salesmanId)?.name ?? "Unassigned")
     : "";
 
-  const isOthers = activity === "Others Reasons";
+  useEffect(() => {
+    setArea(selectedRetailer?.area ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retailerId]);
 
   const save = () => {
     if (!retailerId) return toast.error("Please select a retailer");
     if (!date) return toast.error("Please select a visit date");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
-    if (isOthers && !unavailableReason) return toast.error("Please select a non-available reason");
     const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
     const p = finalPurpose.toLowerCase();
-    const derivedActivity: VisitActivity =
-      activity !== "Visits"
-        ? activity
-        : p.includes("recovery")
-          ? "Recovery Visits"
-          : p.includes("complaint")
-            ? "Complaints Visits"
-            : "Visits";
+    const derivedActivity: VisitActivity = p.includes("recovery")
+      ? "Recovery Visits"
+      : p.includes("complaint")
+        ? "Complaints Visits"
+        : "Visits";
     const now = new Date();
     const picked = new Date(`${date}T00:00:00`);
     picked.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
@@ -689,12 +756,12 @@ function VisitDialog({
       retailerId,
       salesman: salesman || "Unassigned",
       purpose: finalPurpose,
-      visitStatus: isOthers ? "Holiday" : "Visited",
+      area: area.trim() || undefined,
+      visitStatus: "Visited",
       activity: derivedActivity,
       outcome,
       notes,
       addedByUserId: accessStore.getCurrentUserId() ?? undefined,
-      ...(isOthers ? { unavailableReason } : {}),
     };
     store.setVisits([v, ...store.getVisits()]);
     toast.success("Visit logged");
@@ -752,11 +819,16 @@ function VisitDialog({
           </>
         )}
 
-        <Field label="Salesman">
-          <div className="h-9 flex items-center px-3 rounded-md border bg-muted/40 text-sm">
-            {salesman || "Select a retailer first"}
-          </div>
-        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Salesman">
+            <div className="h-9 flex items-center px-3 rounded-md border bg-muted/40 text-sm truncate">
+              {salesman || "Select a retailer first"}
+            </div>
+          </Field>
+          <Field label="Area">
+            <Input value={area} onChange={(e) => setArea(e.target.value)} placeholder="e.g. Gulberg" />
+          </Field>
+        </div>
 
         <Field label="Purpose">
           <Select value={purpose} onValueChange={setPurpose}>
@@ -769,24 +841,6 @@ function VisitDialog({
         {purpose === "Other" && (
           <Field label="Specify purpose">
             <Input value={otherPurpose} onChange={(e) => setOtherPurpose(e.target.value)} placeholder="Enter purpose" />
-          </Field>
-        )}
-        <Field label="Visit record">
-          <Select value={activity} onValueChange={(v) => setActivity(v as VisitActivity)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {VISIT_ACTIVITIES.map((a, i) => <SelectItem key={a} value={a}>{i + 1}. {a}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        {isOthers && (
-          <Field label="Non available reason">
-            <Select value={unavailableReason} onValueChange={(v) => setUnavailableReason(v as UnavailableReason)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {UNAVAILABLE_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
           </Field>
         )}
         <Field label="Outcome">
@@ -909,9 +963,9 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
       if (r) {
         shops.add(r.id);
         if ((r.city || "").trim()) cities.add(normalizeCity(r.city));
-        const area = (r.area || (r.address || "").split(",")[0] || "").trim();
-        if (area) areas.add(area.toLowerCase());
       }
+      const area = (v.area || r?.area || (r?.address || "").split(",")[0] || "").trim();
+      if (area) areas.add(area.toLowerCase());
       const p = `${v.purpose || ""} ${v.activity || ""}`.toLowerCase();
       if (p.includes("recovery")) recovery++;
       if (p.includes("complaint")) complaints++;

@@ -47,6 +47,8 @@ export type Visit = {
   retailerId: string;
   salesman: string;
   purpose: string;
+  /** Area for this specific visit — defaults from the retailer's area but can be overridden. */
+  area?: string;
   visitStatus: VisitStatus;
   outcome: Outcome;
   notes: string;
