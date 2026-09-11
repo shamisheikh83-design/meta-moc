@@ -7,23 +7,24 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, type Visit, type Retailer, type Salesman, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity } from "@/lib/optivisit-store";
+import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, LENS_MAIN_CATEGORIES, LENS_MATERIALS, LENS_COATINGS, type Visit, type Retailer, type Salesman, type Product, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type LensMainCategory, type LensMaterial, type LensCoating } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Award, Clock, AlertCircle, RotateCcw } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
 
 
-type Tab = "dashboard" | "visits" | "reports" | "retailers" | "settings";
+type Tab = "dashboard" | "visits" | "retailers" | "products" | "settings";
 
 export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [visits, setVisits] = useState<Visit[]>([]);
   const [retailers, setRetailers] = useState<Retailer[]>([]);
   const [salesmen, setSalesmen] = useState<Salesman[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [accessVersion, setAccessVersion] = useState(0);
 
@@ -37,13 +38,14 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
     setVisits(store.getVisits());
     setRetailers(store.getRetailers());
     setSalesmen(store.getSalesmen());
+    setProducts(store.getProducts());
     applyTheme(getTheme());
     loadUser();
   }, []);
 
   const allowed = (p: string) => can(currentUser, p);
   const hasUsers = typeof window !== "undefined" && accessStore.getUsers().length > 0;
-  const visibleTabs: Tab[] = (["dashboard", "reports", "visits", "retailers", "settings"] as Tab[]).filter(
+  const visibleTabs: Tab[] = (["dashboard", "visits", "retailers", "products", "settings"] as Tab[]).filter(
     (t) => t === "settings" || allowed(`tab.${t}`)
   );
 
@@ -74,9 +76,15 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
     [salesmen, scopeIds?.join(",")]
   );
 
+  const visibleProducts = useMemo(
+    () => (scopeIds ? products.filter((p) => p.addedByUserId === currentUser?.id) : products),
+    [products, !!scopeIds, currentUser?.id]
+  );
+
   const refreshVisits = () => setVisits(store.getVisits());
   const refreshRetailers = () => setRetailers(store.getRetailers());
   const refreshSalesmen = () => setSalesmen(store.getSalesmen());
+  const refreshProducts = () => setProducts(store.getProducts());
 
 
   return (
@@ -97,9 +105,9 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             {/* Desktop navigation lives in the toolbar */}
             <TabsList className="hidden md:flex bg-white/10 rounded-full p-1 h-10 gap-1">
               {visibleTabs.includes("dashboard") && <TopTab value="dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label="Home" />}
-              {visibleTabs.includes("reports") && <TopTab value="reports" icon={<BarChart3 className="w-4 h-4" />} label="Reports" />}
               {visibleTabs.includes("visits") && <TopTab value="visits" icon={<ClipboardList className="w-4 h-4" />} label="Visits" />}
               {visibleTabs.includes("retailers") && <TopTab value="retailers" icon={<Store className="w-4 h-4" />} label="Retailers" />}
+              {visibleTabs.includes("products") && <TopTab value="products" icon={<Package className="w-4 h-4" />} label="Products" />}
               <TopTab value="settings" icon={<SettingsIcon className="w-4 h-4" />} label="Settings" />
             </TabsList>
 
@@ -115,8 +123,11 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
         </header>
 
         <main className="max-w-6xl mx-auto px-3 sm:px-4 pt-3 sm:pt-4">
-          {visibleTabs.includes("dashboard") && <TabsContent value="dashboard"><Dashboard visits={visibleVisits} retailers={visibleRetailers} currentUser={currentUser} /></TabsContent>}
-          {visibleTabs.includes("reports") && <TabsContent value="reports"><Reports visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} /></TabsContent>}
+          {visibleTabs.includes("dashboard") && (
+            <TabsContent value="dashboard">
+              <Dashboard visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} currentUser={currentUser} allowed={allowed} />
+            </TabsContent>
+          )}
           {visibleTabs.includes("visits") && (
             <TabsContent value="visits" className="space-y-6">
               {allowed("module.visitLog") && <VisitLog visits={visibleVisits} retailers={visibleRetailers} refresh={refreshVisits} />}
@@ -124,6 +135,11 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             </TabsContent>
           )}
           {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshRetailers} currentUser={currentUser} /></TabsContent>}
+          {visibleTabs.includes("products") && (
+            <TabsContent value="products">
+              <Products products={visibleProducts} currentUser={currentUser} allowed={allowed} refresh={refreshProducts} />
+            </TabsContent>
+          )}
           <TabsContent value="settings">
             <SettingsPanel
               onLock={onLock}
@@ -145,9 +161,9 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             style={{ gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))` }}
           >
             {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
-            {visibleTabs.includes("reports") && <NavTab value="reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />}
             {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
             {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
+            {visibleTabs.includes("products") && <NavTab value="products" icon={<Package className="w-5 h-5" />} label="Products" />}
             <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
           </TabsList>
         </nav>
@@ -192,7 +208,19 @@ function greetingFor(d: Date) {
   return "Hello Night Rider";
 }
 
-function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retailers: Retailer[]; currentUser?: AppUser | null }) {
+function Dashboard({
+  visits,
+  retailers,
+  salesmen,
+  currentUser,
+  allowed,
+}: {
+  visits: Visit[];
+  retailers: Retailer[];
+  salesmen: Salesman[];
+  currentUser?: AppUser | null;
+  allowed: (p: string) => boolean;
+}) {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const thisMonth = now.toISOString().slice(0, 7);
@@ -246,8 +274,7 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
 
   const [drill, setDrill] = useState<null | { title: string; kind: "visits" | "retailers"; visits?: Visit[]; retailers?: Retailer[] }>(null);
 
-  const recent = [...visits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
-  const settings = typeof window !== "undefined" ? store.getSettings() : { salesmanName: "" };
+  const settings = store.getSettings();
 
   return (
     <div className="space-y-4 pt-2">
@@ -255,7 +282,6 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
         <h2 className="text-lg font-semibold">
           {greetingFor(new Date())}{currentUser?.name ? `, ${currentUser.name}` : settings.salesmanName ? `, ${settings.salesmanName}` : ""} 👋
         </h2>
-        <p className="text-sm text-muted-foreground">Here's your activity snapshot · tap a card for details</p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         <StatCard
@@ -323,32 +349,15 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
           onClick={() => setDrill({ title: "Not visited in 30+ days", kind: "retailers", retailers: staleRetailers })}
         />
       </div>
-      <div className="bg-card rounded-2xl border p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-sm">Recent visits</h3>
-          <Badge variant="secondary">{visits.length} total</Badge>
-        </div>
-        {recent.length === 0 ? (
-          <EmptyHint text="No visits logged yet. Add your first visit from the Visits tab." />
-        ) : (
-          <ul className="divide-y">
-            {recent.map((v) => {
-              const r = retailers.find((x) => x.id === v.retailerId);
-              return (
-                <li key={v.id} className="py-3 flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-medium">{r?.name ?? "Unknown retailer"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(v.date).toLocaleDateString()} · {v.purpose || "Visit"}
-                    </div>
-                  </div>
-                  <OutcomeBadge outcome={v.outcome} />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+
+      {allowed("module.reports") && <ReportsPanels visits={visits} retailers={retailers} salesmen={salesmen} />}
+
+      <RecentVisitsSection
+        visits={visits}
+        retailers={retailers}
+        days={settings.recentVisitsDays ?? 3}
+        limit={settings.recentVisitsLimit ?? 30}
+      />
 
       <Dialog open={!!drill} onOpenChange={(o) => !o && setDrill(null)}>
         <DialogContent className="max-w-md">
@@ -397,6 +406,86 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function RecentVisitsSection({
+  visits,
+  retailers,
+  days,
+  limit,
+}: {
+  visits: Visit[];
+  retailers: Retailer[];
+  days: number;
+  limit: number;
+}) {
+  const [open, setOpen] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  const windowed = useMemo(() => {
+    const cutoff = Date.now() - days * 86400000;
+    return [...visits]
+      .filter((v) => new Date(v.date).getTime() >= cutoff)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, limit);
+  }, [visits, days, limit]);
+
+  const shown = windowed.slice(0, visibleCount);
+  const canLoadMore = visibleCount < windowed.length;
+
+  return (
+    <div className="bg-card rounded-2xl border overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 p-4 text-left transition-colors hover:bg-muted/40"
+      >
+        <div>
+          <h3 className="font-semibold text-sm">Recent visits</h3>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            Last {days} day{days === 1 ? "" : "s"} · up to {limit}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{windowed.length}</Badge>
+          <ChevronsUpDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+        </div>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 -mt-1">
+          {shown.length === 0 ? (
+            <EmptyHint text="No visits logged in this window yet." />
+          ) : (
+            <>
+              <ul className="divide-y">
+                {shown.map((v) => {
+                  const r = retailers.find((x) => x.id === v.retailerId);
+                  return (
+                    <li key={v.id} className="py-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(v.date).toLocaleDateString()} · {v.purpose || "Visit"}
+                        </div>
+                      </div>
+                      <OutcomeBadge outcome={v.outcome} />
+                    </li>
+                  );
+                })}
+              </ul>
+              {canLoadMore && (
+                <div className="pt-3 text-center">
+                  <Button variant="outline" size="sm" onClick={() => setVisibleCount((c) => Math.min(c + 10, windowed.length))}>
+                    Show more ({windowed.length - visibleCount} left)
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -885,7 +974,43 @@ function normalizeCity(city: string) {
   return match ?? c.replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: Retailer[]; salesmen: Salesman[] }) {
+function CollapsibleSection({
+  title,
+  badge,
+  subtitle,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  badge?: React.ReactNode;
+  subtitle?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="bg-card border rounded-2xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 p-4 text-left transition-colors hover:bg-muted/40"
+      >
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">{title}</h3>
+            {badge !== undefined && <Badge variant="secondary" className="text-[10px]">{badge}</Badge>}
+          </div>
+          {subtitle && <p className="text-[10px] text-muted-foreground mt-0.5">{subtitle}</p>}
+        </div>
+        <ChevronsUpDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+      </button>
+      {open && <div className="px-4 pb-4 -mt-1">{children}</div>}
+    </div>
+  );
+}
+
+/* ---------------- Reports (embedded in Dashboard) ---------------- */
+function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retailers: Retailer[]; salesmen: Salesman[] }) {
 
   const today = new Date();
   const [preset, setPreset] = useState<RangePreset>("monthly");
@@ -1064,10 +1189,10 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
         : `${selectedSalesmen.length} salesmen combined`;
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-3">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-        <h2 className="text-lg font-semibold">Visit Reports</h2>
-        <Button size="sm" className="min-h-10" variant="outline" onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
+        <h3 className="text-sm font-semibold flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-muted-foreground" /> Reports &amp; Analysis</h3>
+        <Button size="sm" variant="outline" onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
       </div>
 
       <div className="bg-card border rounded-2xl p-4 space-y-3">
@@ -1139,27 +1264,21 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
         </p>
       </div>
 
-      <SegmentCard
-        title="Visit Status"
-        subtitle={selectionSummary}
-        entries={VISIT_ACTIVITIES.map((a) => ({ key: a, count: activityCounts[a], color: ACTIVITY_BAR[a] }))}
-        total={filtered.length}
-      />
+      <CollapsibleSection title="Visit Status" badge={filtered.length} subtitle={selectionSummary}>
+        <SegmentBars
+          entries={VISIT_ACTIVITIES.map((a) => ({ key: a, count: activityCounts[a], color: ACTIVITY_BAR[a] }))}
+          total={filtered.length}
+        />
+      </CollapsibleSection>
 
+      <CollapsibleSection title="Outcome" badge={filtered.length} subtitle={selectionSummary}>
+        <SegmentBars
+          entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
+          total={filtered.length}
+        />
+      </CollapsibleSection>
 
-      <SegmentCard
-        title="Outcome"
-        subtitle={selectionSummary}
-        entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
-        total={filtered.length}
-      />
-
-      <div className="bg-card border rounded-2xl p-4">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-sm font-semibold">City wise Analysis</h3>
-          <Badge variant="secondary">{filtered.length}</Badge>
-        </div>
-        <p className="text-[10px] text-muted-foreground mb-3">{selectionSummary}</p>
+      <CollapsibleSection title="City wise Analysis" badge={filtered.length} subtitle={selectionSummary}>
         <div className="space-y-2">
           {cityRows.map((row) => (
             <div key={row.city}>
@@ -1185,9 +1304,9 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
                 <span className="text-red-600 dark:text-red-400">({row.notVisited})</span>
               </div>
               <div className="h-2 rounded-full bg-muted overflow-hidden flex">
-                <div className="h-full bg-yellow-500" style={{ width: `${(row.single / (row.retailers || 1)) * 100}%` }} />
-                <div className="h-full bg-green-500" style={{ width: `${(row.multiple / (row.retailers || 1)) * 100}%` }} />
-                <div className="h-full bg-red-500" style={{ width: `${(row.notVisited / (row.retailers || 1)) * 100}%` }} />
+                <div className="h-full bg-yellow-400" style={{ width: `${(row.single / (row.retailers || 1)) * 100}%` }} />
+                <div className="h-full bg-green-400" style={{ width: `${(row.multiple / (row.retailers || 1)) * 100}%` }} />
+                <div className="h-full bg-red-300" style={{ width: `${(row.notVisited / (row.retailers || 1)) * 100}%` }} />
               </div>
               <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px]">
                 <span className="text-blue-600 dark:text-blue-400">Retailers</span>
@@ -1215,7 +1334,7 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
             </Select>
           </Field>
         </div>
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }
@@ -1223,7 +1342,7 @@ function Reports({ visits, retailers, salesmen }: { visits: Visit[]; retailers: 
 
 const STATUS_BAR: Record<VisitStatus, string> = {
   Visited: "bg-emerald-500",
-  "Not Visited": "bg-rose-500",
+  "Not Visited": "bg-rose-300",
   "No Update": "bg-slate-400",
   Holiday: "bg-amber-500",
 };
@@ -1234,52 +1353,41 @@ const ACTIVITY_BAR: Record<VisitActivity, string> = {
   "Areas Visited": "bg-teal-500",
   "Shops Visited": "bg-emerald-500",
   "Recovery Visits": "bg-amber-500",
-  "Complaints Visits": "bg-rose-500",
+  "Complaints Visits": "bg-rose-300",
   "Others Reasons": "bg-slate-400",
 };
 
 const OUTCOME_BAR: Record<Outcome, string> = {
   Satisfactory: "bg-teal-500",
   Successful: "bg-emerald-500",
-  "Not Interested": "bg-rose-500",
+  "Not Interested": "bg-rose-300",
   "Meeting unsuccessful": "bg-orange-500",
   "Not Met": "bg-slate-400",
-  Complaints: "bg-red-500",
+  Complaints: "bg-red-300",
   "Linked to Other Company": "bg-violet-500",
 };
 
-function SegmentCard({
-  title,
-  subtitle,
+function SegmentBars({
   entries,
   total,
 }: {
-  title: string;
-  subtitle?: string;
   entries: { key: string; count: number; color: string }[];
   total: number;
 }) {
   const denom = total || 1;
   return (
-    <div className="bg-card border rounded-2xl p-4">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <Badge variant="secondary">{total}</Badge>
-      </div>
-      {subtitle && <p className="text-[10px] text-muted-foreground mb-3">{subtitle}</p>}
-      <div className="space-y-2">
-        {entries.map((e) => (
-          <div key={e.key}>
-            <div className="flex justify-between text-xs mb-1">
-              <span>{e.key}</span>
-              <span className="text-muted-foreground">{e.count}</span>
-            </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div className={`h-full ${e.color}`} style={{ width: `${(e.count / denom) * 100}%` }} />
-            </div>
+    <div className="space-y-2">
+      {entries.map((e) => (
+        <div key={e.key}>
+          <div className="flex justify-between text-xs mb-1">
+            <span>{e.key}</span>
+            <span className="text-muted-foreground">{e.count}</span>
           </div>
-        ))}
-      </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div className={`h-full ${e.color}`} style={{ width: `${(e.count / denom) * 100}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1597,6 +1705,338 @@ function RetailerDialog({
   );
 }
 
+
+/* ---------------- Products ---------------- */
+function Products({
+  products,
+  currentUser,
+  allowed,
+  refresh,
+}: {
+  products: Product[];
+  currentUser?: AppUser | null;
+  allowed: (p: string) => boolean;
+  refresh: () => void;
+}) {
+  const isPrivileged = !currentUser || !isScopedRole(currentUser.role);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const [openGroups, setOpenGroups] = useState<string[]>(LENS_MAIN_CATEGORIES.slice(0, 1));
+
+  const canCreate = allowed("product.create");
+  const canEdit = (p: Product) => allowed("product.edit") || (isPrivileged === false && p.addedByUserId === currentUser?.id);
+  const canDelete = (p: Product) => allowed("product.delete") || (isPrivileged === false && p.addedByUserId === currentUser?.id);
+
+  const filtered = products
+    .filter((p) => (categoryFilter === "all" ? true : p.mainCategory === categoryFilter))
+    .filter((p) =>
+      [p.name, p.brand, p.sku, p.subCategory, p.normalCategory].some((s) => (s || "").toLowerCase().includes(q.toLowerCase()))
+    );
+
+  const groups = useMemo(() => {
+    const out: { key: string; label: string; items: Product[] }[] = [];
+    LENS_MAIN_CATEGORIES.forEach((cat) => {
+      const items = filtered.filter((p) => p.mainCategory === cat).sort((a, b) => a.name.localeCompare(b.name));
+      if (items.length) out.push({ key: cat, label: cat, items });
+    });
+    return out;
+  }, [filtered]);
+
+  const toggleGroup = (k: string) =>
+    setOpenGroups((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+  const toggleExpand = (id: string) =>
+    setExpanded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const remove = (id: string) => {
+    if (!confirm("Delete this product?")) return;
+    store.setProducts(store.getProducts().filter((p) => p.id !== id));
+    refresh();
+  };
+
+  return (
+    <div className="space-y-4 pt-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <h2 className="text-lg font-semibold flex items-center gap-1.5"><Package className="w-4 h-4 text-muted-foreground" /> Products</h2>
+        {canCreate && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
+            <ProductDialog currentUser={currentUser} onSaved={() => { refresh(); setOpen(false); }} />
+          </Dialog>
+        )}
+      </div>
+
+      <Input placeholder="Search by name, brand, SKU, material or coating..." value={q} onChange={(e) => setQ(e.target.value)} />
+
+      <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <SelectTrigger><SelectValue placeholder="Filter by lens type" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All lens types</SelectItem>
+          {LENS_MAIN_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+        </SelectContent>
+      </Select>
+
+      {groups.length === 0 ? (
+        <div className="bg-card rounded-2xl border p-8 text-center">
+          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Package className="w-6 h-6 text-muted-foreground" />
+          </span>
+          <p className="text-sm font-medium">{products.length ? "No matches" : "No products yet"}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {products.length ? "Try a different search or filter." : "Tap \"Add\" above to record your first lens product."}
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {groups.map((g) => {
+            const isOpen = openGroups.includes(g.key);
+            return (
+              <li key={g.key} className="bg-card border rounded-2xl overflow-hidden transition-shadow hover:shadow-md">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-muted/50"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <span className="text-sm font-medium truncate">{g.label}</span>
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] shrink-0">{g.items.length}</Badge>
+                </button>
+
+                {isOpen && (
+                  <ul className="border-t divide-y">
+                    {g.items.map((p) => {
+                      const isExp = expanded.includes(p.id);
+                      return (
+                        <li key={p.id} className="transition-colors hover:bg-muted/30">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(p.id)}
+                            className="w-full px-3 py-3 flex items-start justify-between gap-3 text-left"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="text-sm font-medium truncate">{p.name}</span>
+                                {p.brand && <span className="text-xs text-muted-foreground truncate">{p.brand}</span>}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                <Badge variant="secondary" className="text-[10px]">{p.subCategory}</Badge>
+                                <Badge variant="secondary" className="text-[10px] bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">{p.normalCategory}</Badge>
+                                {p.price !== undefined && <span className="text-xs font-medium">Rs {p.price}</span>}
+                              </div>
+                            </div>
+                            <ChevronDown className={`w-4 h-4 shrink-0 mt-1 text-muted-foreground transition-transform ${isExp ? "rotate-180" : ""}`} />
+                          </button>
+
+                          {isExp && (
+                            <div className="px-3 pb-3 -mt-1">
+                              <div className="rounded-xl border bg-muted/30 p-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                                {p.index && <Detail label="Index" value={p.index} />}
+                                {p.powerRange && <Detail label="Power range" value={p.powerRange} />}
+                                {p.baseCurve && <Detail label="Base curve" value={p.baseCurve} />}
+                                {p.diameter && <Detail label="Diameter" value={p.diameter} />}
+                                {p.color && <Detail label="Color / tint" value={p.color} />}
+                                {p.sku && <Detail label="SKU" value={p.sku} />}
+                                {p.stock !== undefined && <Detail label="Stock" value={String(p.stock)} />}
+                                {p.supplier && <Detail label="Supplier" value={p.supplier} />}
+                                {p.warranty && <Detail label="Warranty" value={p.warranty} />}
+                                {p.addedByName && <Detail label="Added by" value={p.addedByName} />}
+                                {p.notes && (
+                                  <div className="col-span-2">
+                                    <div className="text-muted-foreground">Notes</div>
+                                    <div className="mt-0.5">{p.notes}</div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                {canEdit(p) && (
+                                  <Dialog open={editing?.id === p.id} onOpenChange={(o) => setEditing(o ? p : null)}>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm" className="h-8 text-xs"><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
+                                    </DialogTrigger>
+                                    {editing?.id === p.id && (
+                                      <ProductDialog currentUser={currentUser} initial={p} onSaved={() => { refresh(); setEditing(null); }} />
+                                    )}
+                                  </Dialog>
+                                )}
+                                {canDelete(p) && (
+                                  <Button variant="outline" size="sm" className="h-8 text-xs text-destructive" onClick={() => remove(p.id)}>
+                                    <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-muted-foreground">{label}</div>
+      <div className="font-medium mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+function ProductDialog({
+  onSaved,
+  initial,
+  currentUser,
+}: {
+  onSaved: () => void;
+  initial?: Product;
+  currentUser?: AppUser | null;
+}) {
+  const [f, setF] = useState<Omit<Product, "id" | "createdAt" | "addedByUserId" | "addedByName">>(
+    initial
+      ? {
+          name: initial.name,
+          brand: initial.brand,
+          mainCategory: initial.mainCategory,
+          subCategory: initial.subCategory,
+          normalCategory: initial.normalCategory,
+          index: initial.index ?? "",
+          powerRange: initial.powerRange ?? "",
+          baseCurve: initial.baseCurve ?? "",
+          diameter: initial.diameter ?? "",
+          color: initial.color ?? "",
+          price: initial.price,
+          stock: initial.stock,
+          sku: initial.sku ?? "",
+          supplier: initial.supplier ?? "",
+          warranty: initial.warranty ?? "",
+          notes: initial.notes ?? "",
+        }
+      : {
+          name: "",
+          brand: "",
+          mainCategory: "Single Vision",
+          subCategory: "CR-39",
+          normalCategory: "Regular (No Coating)",
+          index: "",
+          powerRange: "",
+          baseCurve: "",
+          diameter: "",
+          color: "",
+          price: undefined,
+          stock: undefined,
+          sku: "",
+          supplier: "",
+          warranty: "",
+          notes: "",
+        }
+  );
+
+  const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setF({ ...f, [k]: e.target.value });
+
+  const save = () => {
+    if (!f.name.trim()) return toast.error("Product name is required");
+    if (initial) {
+      store.setProducts(store.getProducts().map((p) => (p.id === initial.id ? { ...p, ...f } : p)));
+      toast.success("Product updated");
+    } else {
+      store.setProducts([
+        {
+          id: uid(),
+          ...f,
+          createdAt: new Date().toISOString(),
+          addedByUserId: currentUser?.id,
+          addedByName: currentUser?.name,
+        },
+        ...store.getProducts(),
+      ]);
+      toast.success("Product added");
+    }
+    onSaved();
+  };
+
+  return (
+    <DialogContent className="w-[calc(100%-1rem)] max-w-md max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-xl p-4 sm:p-6">
+      <DialogHeader>
+        <DialogTitle>{initial ? "Edit product" : "Add lens product"}</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-3">
+        <Field label="Product name"><Input value={f.name} onChange={upd("name")} placeholder="e.g. Varilux Comfort" /></Field>
+        <Field label="Brand"><Input value={f.brand} onChange={upd("brand")} placeholder="e.g. Essilor" /></Field>
+
+        <Field label="Main category · lens type">
+          <Select value={f.mainCategory} onValueChange={(v) => setF({ ...f, mainCategory: v as LensMainCategory })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {LENS_MAIN_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Sub category · material">
+          <Select value={f.subCategory} onValueChange={(v) => setF({ ...f, subCategory: v as LensMaterial })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {LENS_MATERIALS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Normal category · coating">
+          <Select value={f.normalCategory} onValueChange={(v) => setF({ ...f, normalCategory: v as LensCoating })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {LENS_COATINGS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Refractive index"><Input value={f.index} onChange={upd("index")} placeholder="1.56" /></Field>
+          <Field label="Base curve"><Input value={f.baseCurve} onChange={upd("baseCurve")} placeholder="e.g. 6" /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Power range"><Input value={f.powerRange} onChange={upd("powerRange")} placeholder="-6.00 to +4.00" /></Field>
+          <Field label="Diameter (mm)"><Input value={f.diameter} onChange={upd("diameter")} placeholder="70" /></Field>
+        </div>
+        <Field label="Color / tint"><Input value={f.color} onChange={upd("color")} placeholder="Clear, Brown, Grey..." /></Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Price (Rs)">
+            <Input
+              type="number"
+              value={f.price ?? ""}
+              onChange={(e) => setF({ ...f, price: e.target.value === "" ? undefined : Number(e.target.value) })}
+            />
+          </Field>
+          <Field label="Stock quantity">
+            <Input
+              type="number"
+              value={f.stock ?? ""}
+              onChange={(e) => setF({ ...f, stock: e.target.value === "" ? undefined : Number(e.target.value) })}
+            />
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="SKU / code"><Input value={f.sku} onChange={upd("sku")} /></Field>
+          <Field label="Warranty"><Input value={f.warranty} onChange={upd("warranty")} placeholder="e.g. 1 year" /></Field>
+        </div>
+        <Field label="Supplier"><Input value={f.supplier} onChange={upd("supplier")} /></Field>
+        <Field label="Notes"><Textarea value={f.notes} onChange={upd("notes")} rows={2} /></Field>
+      </div>
+      <DialogFooter><Button className="w-full" onClick={save}>{initial ? "Save changes" : "Save product"}</Button></DialogFooter>
+    </DialogContent>
+  );
+}
 
 /* ---------------- Salesmen ---------------- */
 function Salesmen({
@@ -1956,6 +2396,17 @@ function SettingsPanel({
   const [newPin, setNewPin] = useState("");
   const [wipePin, setWipePin] = useState("");
   const [wipeOpen, setWipeOpen] = useState(false);
+  const [recentDays, setRecentDays] = useState(String(store.getSettings().recentVisitsDays ?? 3));
+  const [recentLimit, setRecentLimit] = useState(String(store.getSettings().recentVisitsLimit ?? 30));
+
+  const saveRecentVisitsConfig = () => {
+    const days = Math.max(1, Math.min(90, Number(recentDays) || 3));
+    const limit = Math.max(1, Math.min(200, Number(recentLimit) || 30));
+    store.setSettings({ ...store.getSettings(), recentVisitsDays: days, recentVisitsLimit: limit });
+    setRecentDays(String(days));
+    setRecentLimit(String(limit));
+    toast.success("Recent visits window updated");
+  };
 
   const changePin = async () => {
     if (!/^\d{4}$/.test(newPin)) return toast.error("Enter a 4-digit PIN");
@@ -1995,6 +2446,25 @@ function SettingsPanel({
       </section>
 
       {allow("setting.theme") && <ThemePanel />}
+
+      {allow("setting.recentVisits") && (
+        <section className="bg-card border rounded-2xl p-4 space-y-3">
+          <h3 className="text-sm font-semibold flex items-center gap-1.5"><Clock className="w-4 h-4 text-muted-foreground" /> Recent visits window</h3>
+          <p className="text-xs text-muted-foreground">
+            Controls the Dashboard's Recent Visits list for every user: shows visits from the last N days, capped at a
+            maximum quantity — whichever limit is hit first.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Days">
+              <Input inputMode="numeric" type="number" min={1} max={90} value={recentDays} onChange={(e) => setRecentDays(e.target.value)} />
+            </Field>
+            <Field label="Max quantity">
+              <Input inputMode="numeric" type="number" min={1} max={200} value={recentLimit} onChange={(e) => setRecentLimit(e.target.value)} />
+            </Field>
+          </div>
+          <Button size="sm" onClick={saveRecentVisitsConfig}>Save</Button>
+        </section>
+      )}
 
       {allow("setting.salesmen") && (
         <section className="bg-card border rounded-2xl p-4">

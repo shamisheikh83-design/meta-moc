@@ -86,6 +86,67 @@ export type Salesman = {
   mobile: string;
 };
 
+// ---- Lens product catalog ----
+export const LENS_MAIN_CATEGORIES = [
+  "Single Vision",
+  "Bifocal",
+  "Progressive",
+  "Office / Computer",
+  "Sunglass Lens",
+  "Contact Lens",
+] as const;
+export type LensMainCategory = (typeof LENS_MAIN_CATEGORIES)[number];
+
+export const LENS_MATERIALS = [
+  "CR-39",
+  "Polycarbonate",
+  "Trivex",
+  "High-Index 1.60",
+  "High-Index 1.67",
+  "High-Index 1.74",
+  "Glass",
+] as const;
+export type LensMaterial = (typeof LENS_MATERIALS)[number];
+
+export const LENS_COATINGS = [
+  "Regular (No Coating)",
+  "Anti-Reflective",
+  "Blue-Cut",
+  "Photochromic",
+  "UV Protection",
+  "Anti-Scratch",
+  "Polarized",
+  "Mirror Coated",
+] as const;
+export type LensCoating = (typeof LENS_COATINGS)[number];
+
+export type Product = {
+  id: string;
+  name: string;
+  brand: string;
+  /** Main category: lens type. */
+  mainCategory: LensMainCategory;
+  /** Sub category: lens material / index family. */
+  subCategory: LensMaterial;
+  /** Normal category: coating / finish. */
+  normalCategory: LensCoating;
+  index?: string;
+  powerRange?: string;
+  baseCurve?: string;
+  diameter?: string;
+  color?: string;
+  price?: number;
+  stock?: number;
+  sku?: string;
+  supplier?: string;
+  warranty?: string;
+  notes?: string;
+  createdAt: string;
+  /** Access-control user id of whoever recorded this product. */
+  addedByUserId?: string;
+  addedByName?: string;
+};
+
 export type Settings = {
   salesmanName: string;
   pinHash: string | null;
@@ -95,12 +156,17 @@ export type Settings = {
   recoveryExpiresAt?: number | null;
   /** Which app user requested the recovery (empty for device-level PIN). */
   recoveryUserId?: string | null;
+  /** Recent Visits window on the Dashboard: show visits from the last N days... */
+  recentVisitsDays?: number;
+  /** ...capped at this many entries, whichever limit is hit first. */
+  recentVisitsLimit?: number;
 };
 
 
 const K_VISITS = "ov_visits";
 const K_RETAILERS = "ov_retailers";
 const K_SALESMEN = "ov_salesmen";
+const K_PRODUCTS = "ov_products";
 const K_SETTINGS = "ov_settings";
 const K_SESSION = "ov_session";
 
@@ -125,6 +191,8 @@ export const store = {
   setRetailers: (v: Retailer[]) => write(K_RETAILERS, v),
   getSalesmen: () => read<Salesman[]>(K_SALESMEN, []),
   setSalesmen: (v: Salesman[]) => write(K_SALESMEN, v),
+  getProducts: () => read<Product[]>(K_PRODUCTS, []),
+  setProducts: (v: Product[]) => write(K_PRODUCTS, v),
   getSettings: () => read<Settings>(K_SETTINGS, { salesmanName: "", pinHash: null, email: null, recoveryHash: null }),
   setSettings: (v: Settings) => write(K_SETTINGS, v),
   getSession: () => getSessionInfo() !== null,

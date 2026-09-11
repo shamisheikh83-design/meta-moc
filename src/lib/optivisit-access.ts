@@ -17,9 +17,9 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
     label: "Tabs",
     items: [
       { id: "tab.dashboard", label: "Home (Dashboard)" },
-      { id: "tab.reports", label: "Reports" },
       { id: "tab.visits", label: "Visits" },
       { id: "tab.retailers", label: "Retailers" },
+      { id: "tab.products", label: "Products" },
       { id: "tab.settings", label: "Settings" },
     ],
   },
@@ -31,6 +31,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { id: "module.salesmanVisitLog", label: "Salesman visit record" },
       { id: "module.retailers", label: "Retailer data" },
       { id: "module.salesmen", label: "Salesmen data" },
+      { id: "module.products", label: "Product data" },
       { id: "module.reports", label: "Visit reports" },
       { id: "module.access", label: "Access level control" },
     ],
@@ -48,6 +49,9 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { id: "retailer.import", label: "Import retailers (Excel / CSV)" },
       { id: "salesman.create", label: "Add salesman" },
       { id: "salesman.delete", label: "Delete salesman" },
+      { id: "product.create", label: "Add product" },
+      { id: "product.edit", label: "Edit product" },
+      { id: "product.delete", label: "Delete product" },
       { id: "dashboard.drilldown", label: "Dashboard token drill-down" },
     ],
   },
@@ -82,6 +86,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { id: "setting.recovery", label: "Recovery email" },
       { id: "setting.users", label: "Create / manage users" },
       { id: "setting.roles", label: "Change access levels" },
+      { id: "setting.recentVisits", label: "Recent visits window (days / quantity)" },
       { id: "setting.erase", label: "Erase all data" },
     ],
   },
@@ -103,24 +108,25 @@ export function permissionLabel(id: string): string {
 export const ROLE_DEFAULTS: Record<Role, string[]> = {
   "Super Admin": allPermissionIds(),
   Admin: allPermissionIds().filter(
-    (p) => !["setting.erase", "setting.users", "setting.roles", "module.access"].includes(p)
+    (p) => !["setting.erase", "setting.users", "setting.roles", "module.access", "setting.recentVisits"].includes(p)
   ),
   Agent: [
-    "tab.dashboard", "tab.reports", "tab.visits", "tab.retailers",
-    "module.visitLog", "module.salesmanVisitLog", "module.retailers", "module.reports",
+    "tab.dashboard", "tab.visits", "tab.retailers", "tab.products",
+    "module.visitLog", "module.salesmanVisitLog", "module.retailers", "module.products", "module.reports",
     "visit.create", "retailer.create", "retailer.edit", "retailer.assignSalesman",
+    "product.create", "product.edit",
     "dashboard.drilldown",
     "status.visit", "status.outcome", "status.activity", "status.unavailable",
     "report.visitStatus", "report.outcome", "report.city", "report.filters",
   ],
   Member: [
-    "tab.dashboard", "tab.reports", "tab.visits",
-    "module.visitLog", "module.salesmanVisitLog", "module.reports",
-    "visit.create",
+    "tab.dashboard", "tab.visits", "tab.products",
+    "module.visitLog", "module.salesmanVisitLog", "module.products", "module.reports",
+    "visit.create", "product.create",
     "status.visit", "status.outcome", "status.activity", "status.unavailable",
     "report.visitStatus", "report.outcome", "report.city", "report.filters",
   ],
-  Guest: ["tab.dashboard", "tab.reports", "module.reports", "report.visitStatus", "report.outcome", "report.city"],
+  Guest: ["tab.dashboard", "module.reports", "module.products", "report.visitStatus", "report.outcome", "report.city"],
 };
 
 export type AppUser = {
