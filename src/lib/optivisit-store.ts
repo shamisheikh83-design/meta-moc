@@ -204,14 +204,28 @@ export const store = {
 /** Session record. Short-lived sessions live in sessionStorage, "keep me logged in" in localStorage. */
 export type SessionInfo = { userId: string | null; expiresAt: number; persistent: boolean };
 
-export const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours (normal)
-export const PERSISTENT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days (keep me logged in)
+export const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours (normal, not "kept")
+export const REMEMBER_DAY_MS = 24 * 60 * 60 * 1000;
+/** "Always" is implemented as a very long, practically-never-expiring window. */
+export const REMEMBER_ALWAYS_MS = 100 * 365 * REMEMBER_DAY_MS;
 
-export function startSession(userId: string | null, persistent: boolean): SessionInfo {
+export const REMEMBER_DURATIONS = [1, 3, 7, 30, "always"] as const;
+export type RememberDuration = (typeof REMEMBER_DURATIONS)[number];
+
+/**
+ * Start a session. When `persistent` is true, `rememberDays` picks how long it's kept
+ * (a number of days, or "always"); ignored when `persistent` is false.
+ */
+export function startSession(userId: string | null, persistent: boolean, rememberDays: RememberDuration = 30): SessionInfo {
+  const ttl = !persistent
+    ? SESSION_TTL_MS
+    : rememberDays === "always"
+      ? REMEMBER_ALWAYS_MS
+      : rememberDays * REMEMBER_DAY_MS;
   const info: SessionInfo = {
     userId,
     persistent,
-    expiresAt: Date.now() + (persistent ? PERSISTENT_TTL_MS : SESSION_TTL_MS),
+    expiresAt: Date.now() + ttl,
   };
   if (typeof window === "undefined") return info;
   endSession();

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { store, hashPin, startSession } from "@/lib/optivisit-store";
+import { store, hashPin, startSession, REMEMBER_DURATIONS, type RememberDuration } from "@/lib/optivisit-store";
 import {
   Mail,
   ArrowLeft,
@@ -98,6 +98,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
   const [resetting, setResetting] = useState(false);
   const [userId, setUserId] = useState("");
   const [remember, setRemember] = useState(false);
+  const [rememberDays, setRememberDays] = useState<RememberDuration>(30);
   const [hasUsers, setHasUsers] = useState(false);
   const [recoveryTarget, setRecoveryTarget] = useState("");
   const [resetIdentifier, setResetIdentifier] = useState("");
@@ -130,7 +131,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
           const hash = await hashPin(pin);
           const s = store.getSettings();
           store.setSettings({ ...s, pinHash: hash, recoveryHash: null, recoveryExpiresAt: null, recoveryUserId: null });
-          startSession(null, remember);
+          startSession(null, remember, rememberDays);
           onUnlock();
         } else if (mode === "enter") {
           if (hasUsers) {
@@ -141,7 +142,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
             }
             const user = await signIn(userId.trim(), pin);
             if (user) {
-              startSession(user.id, remember);
+              startSession(user.id, remember, rememberDays);
               onUnlock();
             } else {
               setError("That User ID or PIN is not correct.");
@@ -151,7 +152,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
           }
           const hash = await hashPin(pin);
           if (hash === store.getSettings().pinHash) {
-            startSession(null, remember);
+            startSession(null, remember, rememberDays);
             onUnlock();
           } else {
             setError("That PIN is not correct. Please try again.");
@@ -163,7 +164,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin, mode, firstPin, hasUsers, userId, remember]);
+  }, [pin, mode, firstPin, hasUsers, userId, remember, rememberDays]);
 
   const clearMessages = () => { setError(""); setNotice(""); };
 
@@ -436,10 +437,33 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                 </div>
 
                 {mode === "enter" && (
-                  <label className="flex items-center gap-2 justify-center text-sm text-muted-foreground cursor-pointer select-none">
-                    <Checkbox checked={remember} onCheckedChange={(v) => setRemember(v === true)} />
-                    Keep me logged in for 30 days
-                  </label>
+                  <div className="space-y-2.5">
+                    <label className="flex items-center gap-2 justify-center text-sm text-muted-foreground cursor-pointer select-none">
+                      <Checkbox checked={remember} onCheckedChange={(v) => setRemember(v === true)} />
+                      Keep me logged in
+                    </label>
+                    {remember && (
+                      <div className="animate-in fade-in-0 slide-in-from-top-1 duration-200">
+                        <p className="text-center text-[11px] text-muted-foreground mb-1.5">For how long?</p>
+                        <div className="flex flex-wrap justify-center gap-1.5">
+                          {REMEMBER_DURATIONS.map((d) => (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => setRememberDays(d)}
+                              className={`text-xs px-2.5 py-1 rounded-full border transition ${
+                                rememberDays === d
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-background text-foreground border-border hover:bg-muted"
+                              }`}
+                            >
+                              {d === "always" ? "Always" : `${d} day${d === 1 ? "" : "s"}`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {busy && (
