@@ -11,7 +11,7 @@ import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CAT
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
@@ -191,12 +191,25 @@ function greetingFor(d: Date) {
 }
 
 function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retailers: Retailer[]; currentUser?: AppUser | null }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const thisMonth = new Date().toISOString().slice(0, 7);
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const thisMonth = now.toISOString().slice(0, 7);
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+
   const visitsTodayList = visits.filter((v) => v.date.startsWith(today));
+  const visitsYesterdayList = visits.filter((v) => v.date.startsWith(yesterdayStr));
   const visitsMonth = visits.filter((v) => v.date.startsWith(thisMonth));
+  const visitsLastMonth = visits.filter((v) => v.date.startsWith(lastMonth));
+
   const successList = visitsMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory");
   const successRate = visitsMonth.length ? Math.round((successList.length / visitsMonth.length) * 100) : 0;
+  const successListLastMonth = visitsLastMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory");
+  const successRateLastMonth = visitsLastMonth.length ? Math.round((successListLastMonth.length / visitsLastMonth.length) * 100) : 0;
+
+  const activeRetailersThisMonth = new Set(visitsMonth.map((v) => v.retailerId)).size;
 
   const [drill, setDrill] = useState<null | { title: string; kind: "visits" | "retailers"; visits?: Visit[]; retailers?: Retailer[] }>(null);
 
@@ -215,22 +228,33 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
         <StatCard
           label="Visits today"
           value={visitsTodayList.length}
+          icon={<ClipboardList className="w-4 h-4" />}
           tone="primary"
+          trend={trendOf(visitsTodayList.length, visitsYesterdayList.length)}
+          trendCaption="vs yesterday"
           onClick={() => setDrill({ title: "Visits today", kind: "visits", visits: visitsTodayList })}
         />
         <StatCard
           label="This month"
           value={visitsMonth.length}
+          icon={<CalendarIcon className="w-4 h-4" />}
+          trend={trendOf(visitsMonth.length, visitsLastMonth.length)}
+          trendCaption="vs last month"
           onClick={() => setDrill({ title: "Visits this month", kind: "visits", visits: visitsMonth })}
         />
         <StatCard
           label="Success rate"
           value={`${successRate}%`}
+          icon={<Target className="w-4 h-4" />}
+          trend={trendOf(successRate, successRateLastMonth, { suffix: "pt" })}
+          trendCaption="vs last month"
           onClick={() => setDrill({ title: "Successful / satisfactory visits", kind: "visits", visits: successList })}
         />
         <StatCard
           label="Retailers"
           value={retailers.length}
+          icon={<Store className="w-4 h-4" />}
+          caption={`${activeRetailersThisMonth} active this month`}
           onClick={() => setDrill({ title: "Retailers", kind: "retailers", retailers })}
         />
       </div>
@@ -312,15 +336,85 @@ function Dashboard({ visits, retailers, currentUser }: { visits: Visit[]; retail
   );
 }
 
-function StatCard({ label, value, tone, onClick }: { label: string; value: React.ReactNode; tone?: "primary"; onClick?: () => void }) {
+type Trend = { direction: "up" | "down" | "flat"; label: string };
+
+function trendOf(current: number, previous: number, opts?: { suffix?: string }): Trend {
+  const diff = current - previous;
+  const suffix = opts?.suffix ? opts.suffix : "";
+  if (diff === 0) return { direction: "flat", label: `0${suffix}` };
+  const sign = diff > 0 ? "+" : "";
+  return { direction: diff > 0 ? "up" : "down", label: `${sign}${diff}${suffix}` };
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+  tone,
+  trend,
+  trendCaption,
+  caption,
+  onClick,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon?: React.ReactNode;
+  tone?: "primary";
+  trend?: Trend;
+  trendCaption?: string;
+  caption?: string;
+  onClick?: () => void;
+}) {
+  const primary = tone === "primary";
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`text-left rounded-2xl border p-4 transition active:scale-[0.98] ${tone === "primary" ? "bg-primary text-primary-foreground" : "bg-card"}`}
+      className={`text-left rounded-2xl border p-4 transition active:scale-[0.98] hover:shadow-md ${primary ? "bg-primary text-primary-foreground" : "bg-card"}`}
     >
-      <div className={`text-xs ${tone === "primary" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{label}</div>
-      <div className="text-2xl font-bold mt-1">{value}</div>
+      <div className="flex items-center justify-between">
+        {icon && (
+          <span
+            className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+              primary ? "bg-white/15" : "bg-primary/10 text-primary"
+            }`}
+          >
+            {icon}
+          </span>
+        )}
+        {trend && (
+          <span
+            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+              trend.direction === "flat"
+                ? primary
+                  ? "bg-white/15 text-primary-foreground/80"
+                  : "bg-muted text-muted-foreground"
+                : trend.direction === "up"
+                  ? primary
+                    ? "bg-white/20 text-primary-foreground"
+                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                  : primary
+                    ? "bg-white/20 text-primary-foreground"
+                    : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+            }`}
+            title={trendCaption}
+          >
+            {trend.direction === "up" ? (
+              <TrendingUp className="w-3 h-3" />
+            ) : trend.direction === "down" ? (
+              <TrendingDown className="w-3 h-3" />
+            ) : (
+              <Minus className="w-3 h-3" />
+            )}
+            {trend.label}
+          </span>
+        )}
+      </div>
+      <div className="text-2xl font-bold tabular-nums mt-3">{value}</div>
+      <div className={`text-xs mt-0.5 ${primary ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{label}</div>
+      {caption && (
+        <div className={`text-[10px] mt-1 ${primary ? "text-primary-foreground/70" : "text-muted-foreground/80"}`}>{caption}</div>
+      )}
     </button>
   );
 }
