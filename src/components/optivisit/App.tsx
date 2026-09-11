@@ -449,6 +449,37 @@ function EmptyHint({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground py-6 text-center">{text}</p>;
 }
 
+const AVATAR_TONES = [
+  "bg-primary/10 text-primary",
+  "bg-aqua/15 text-aqua",
+  "bg-maroon/10 text-maroon",
+  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+];
+
+function toneFor(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
+
+function initialsOf(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function InitialAvatar({ name, className }: { name: string; className?: string }) {
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold ${toneFor(name)} ${className ?? "h-10 w-10 text-sm"}`}
+    >
+      {initialsOf(name)}
+    </span>
+  );
+}
+
 /* ---------------- Visit Log ---------------- */
 function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: Retailer[]; refresh: () => void }) {
   const [open, setOpen] = useState(false);
@@ -526,16 +557,23 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
 
       {sorted.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
-          <ClipboardList className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">No visits found. Tap "New visit" to log one.</p>
+          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <ClipboardList className="w-6 h-6 text-muted-foreground" />
+          </span>
+          <p className="text-sm font-medium">No visits found</p>
+          <p className="text-xs text-muted-foreground mt-1">Tap "New visit" above to log your first one.</p>
         </div>
       ) : (
         <ul className="space-y-2">
           {sorted.map((v) => {
             const r = retailers.find((x) => x.id === v.retailerId);
             return (
-              <li key={v.id} className="bg-card border rounded-2xl p-3 sm:p-4">
-                <div className="flex items-start justify-between gap-2">
+              <li
+                key={v.id}
+                className="bg-card border rounded-2xl p-3 sm:p-4 transition-shadow hover:shadow-md hover:border-primary/20"
+              >
+                <div className="flex items-start gap-3">
+                  <InitialAvatar name={r?.name ?? "?"} className="h-10 w-10 text-sm mt-0.5" />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="font-medium text-sm truncate">{r?.name ?? "Unknown"}</div>
@@ -1324,22 +1362,28 @@ function Retailers({
 
       {filtered.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
-          <Store className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-          <p className="text-sm text-muted-foreground">{retailers.length ? "No matches." : "No retailers yet. Add your first."}</p>
+          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Store className="w-6 h-6 text-muted-foreground" />
+          </span>
+          <p className="text-sm font-medium">{retailers.length ? "No matches" : "No retailers yet"}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {retailers.length ? "Try a different search or filter." : "Tap \"Add\" above to add your first retailer."}
+          </p>
         </div>
       ) : (
         <ul className="space-y-2">
           {groups.map((g) => {
             const isOpen = openGroups.includes(g.key);
             return (
-              <li key={g.key} className="bg-card border rounded-2xl overflow-hidden">
+              <li key={g.key} className="bg-card border rounded-2xl overflow-hidden transition-shadow hover:shadow-md">
                 <button
                   type="button"
                   onClick={() => toggleGroup(g.key)}
-                  className="w-full flex items-center justify-between gap-2 p-3 text-left"
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-muted/50"
                 >
-                  <span className="flex items-center gap-2 min-w-0">
+                  <span className="flex items-center gap-2.5 min-w-0">
                     <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <InitialAvatar name={g.label} className="h-7 w-7 text-[11px]" />
                     <span className="text-sm font-medium truncate">{g.label}</span>
                   </span>
                   <Badge variant="secondary" className="text-[10px] shrink-0">{g.items.length}</Badge>
@@ -1348,17 +1392,20 @@ function Retailers({
                 {isOpen && (
                   <ul className="border-t divide-y">
                     {g.items.map((r) => (
-                      <li key={r.id} className="px-3 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 lg:flex lg:items-center lg:py-2">
-                        <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-                          <span className="w-full text-sm font-medium text-foreground truncate sm:w-auto sm:max-w-[45%]">{r.name}</span>
-                          {r.category && <Badge variant="secondary" className="text-[10px]">{r.category}</Badge>}
-                          {r.owner && <span className="truncate">{r.owner}</span>}
-                          {r.phone && <span className="truncate">{r.phone}</span>}
-                          {[r.address, r.area, r.city].filter(Boolean).length > 0 && (
-                            <span className="truncate">{[r.address, r.area, r.city].filter(Boolean).join(", ")}</span>
-                          )}
-                          {r.notes && <span className="truncate">{r.notes}</span>}
-                          {r.addedByName && canSeeAddedBy(r) && <span className="truncate">Added by: {r.addedByName}</span>}
+                      <li key={r.id} className="px-3 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 transition-colors hover:bg-muted/30 lg:flex lg:items-center lg:py-2">
+                        <div className="min-w-0 flex-1 flex items-start gap-2.5">
+                          <InitialAvatar name={r.name} className="h-8 w-8 text-xs mt-0.5 sm:mt-0" />
+                          <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                            <span className="w-full text-sm font-medium text-foreground truncate sm:w-auto sm:max-w-[40%]">{r.name}</span>
+                            {r.category && <Badge variant="secondary" className="text-[10px]">{r.category}</Badge>}
+                            {r.owner && <span className="truncate">{r.owner}</span>}
+                            {r.phone && <span className="truncate">{r.phone}</span>}
+                            {[r.address, r.area, r.city].filter(Boolean).length > 0 && (
+                              <span className="truncate">{[r.address, r.area, r.city].filter(Boolean).join(", ")}</span>
+                            )}
+                            {r.notes && <span className="truncate">{r.notes}</span>}
+                            {r.addedByName && canSeeAddedBy(r) && <span className="truncate">Added by: {r.addedByName}</span>}
+                          </div>
                         </div>
 
                         <div className="col-span-2 flex w-full items-center justify-end gap-2 lg:col-span-1 lg:w-auto">
