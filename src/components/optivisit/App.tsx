@@ -7,17 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, LENS_MAIN_CATEGORIES, LENS_MATERIALS, LENS_COATINGS, type Visit, type Retailer, type Salesman, type Product, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type LensMainCategory, type LensMaterial, type LensCoating } from "@/lib/optivisit-store";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, LENS_MAIN_CATEGORIES, LENS_MATERIALS, LENS_COATINGS, type Visit, type Retailer, type Salesman, type Product, type VisitPlan, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type LensMainCategory, type LensMaterial, type LensCoating } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
 
 
-type Tab = "dashboard" | "visits" | "retailers" | "products" | "settings";
+type Tab = "dashboard" | "visits" | "planner" | "retailers" | "products" | "settings";
 
 export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [tab, setTab] = useState<Tab>("dashboard");
@@ -45,7 +47,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
 
   const allowed = (p: string) => can(currentUser, p);
   const hasUsers = typeof window !== "undefined" && accessStore.getUsers().length > 0;
-  const visibleTabs: Tab[] = (["dashboard", "visits", "retailers", "products", "settings"] as Tab[]).filter(
+  const visibleTabs: Tab[] = (["dashboard", "visits", "planner", "retailers", "products", "settings"] as Tab[]).filter(
     (t) => t === "settings" || allowed(`tab.${t}`)
   );
 
@@ -106,6 +108,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             <TabsList className="hidden md:flex bg-white/10 rounded-full p-1 h-10 gap-1">
               {visibleTabs.includes("dashboard") && <TopTab value="dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label="Home" />}
               {visibleTabs.includes("visits") && <TopTab value="visits" icon={<ClipboardList className="w-4 h-4" />} label="Visits" />}
+              {visibleTabs.includes("planner") && <TopTab value="planner" icon={<CalendarDays className="w-4 h-4" />} label="Planner" />}
               {visibleTabs.includes("retailers") && <TopTab value="retailers" icon={<Store className="w-4 h-4" />} label="Retailers" />}
               {visibleTabs.includes("products") && <TopTab value="products" icon={<Package className="w-4 h-4" />} label="Products" />}
               <TopTab value="settings" icon={<SettingsIcon className="w-4 h-4" />} label="Settings" />
@@ -132,6 +135,11 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             <TabsContent value="visits" className="space-y-6">
               {allowed("module.visitLog") && <VisitLog visits={visibleVisits} retailers={visibleRetailers} refresh={refreshVisits} />}
               {allowed("module.salesmanVisitLog") && <SalesmanVisitLog visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshVisits} />}
+            </TabsContent>
+          )}
+          {visibleTabs.includes("planner") && (
+            <TabsContent value="planner">
+              <Planner retailers={visibleRetailers} salesmen={visibleSalesmen} currentUser={currentUser} allowed={allowed} />
             </TabsContent>
           )}
           {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshRetailers} currentUser={currentUser} /></TabsContent>}
@@ -162,6 +170,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
           >
             {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
             {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
+            {visibleTabs.includes("planner") && <NavTab value="planner" icon={<CalendarDays className="w-5 h-5" />} label="Planner" />}
             {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
             {visibleTabs.includes("products") && <NavTab value="products" icon={<Package className="w-5 h-5" />} label="Products" />}
             <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
@@ -272,23 +281,50 @@ function Dashboard({
     return !last || now.getTime() - last > THIRTY_DAYS;
   });
 
+  const retailerById = new Map(retailers.map((r) => [r.id, r]));
+  const citiesFor = (list: Visit[]) => {
+    const set = new Set<string>();
+    list.forEach((v) => {
+      const r = retailerById.get(v.retailerId);
+      if (r?.city?.trim()) set.add(normalizeCity(r.city));
+    });
+    return set.size;
+  };
+  const areasFor = (list: Visit[]) => {
+    const set = new Set<string>();
+    list.forEach((v) => {
+      const r = retailerById.get(v.retailerId);
+      const area = (v.area || r?.area || (r?.address || "").split(",")[0] || "").trim();
+      if (area) set.add(area.toLowerCase());
+    });
+    return set.size;
+  };
+  const citiesMonth = citiesFor(visitsMonth);
+  const citiesLastMonth = citiesFor(visitsLastMonth);
+  const areasMonth = areasFor(visitsMonth);
+  const areasLastMonth = areasFor(visitsLastMonth);
+
+  const satisfactoryMonth = visitsMonth.filter((v) => v.outcome === "Satisfactory");
+  const satisfactoryLastMonth = visitsLastMonth.filter((v) => v.outcome === "Satisfactory");
+  const notMetMonth = visitsMonth.filter((v) => v.outcome === "Not Met");
+  const notMetLastMonth = visitsLastMonth.filter((v) => v.outcome === "Not Met");
+
   const [drill, setDrill] = useState<null | { title: string; kind: "visits" | "retailers"; visits?: Visit[]; retailers?: Retailer[] }>(null);
 
   const settings = store.getSettings();
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-3 sm:space-y-4 pt-1.5 sm:pt-2">
       <div>
-        <h2 className="text-lg font-semibold">
+        <h2 className="text-base sm:text-lg font-semibold">
           {greetingFor(new Date())}{currentUser?.name ? `, ${currentUser.name}` : settings.salesmanName ? `, ${settings.salesmanName}` : ""} 👋
         </h2>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <StatCard
           label="Visits today"
           value={visitsTodayList.length}
-          icon={<ClipboardList className="w-4 h-4" />}
-          tone="primary"
+          icon={<ClipboardList />}
           trend={trendOf(visitsTodayList.length, visitsYesterdayList.length)}
           trendCaption="vs yesterday"
           onClick={() => setDrill({ title: "Visits today", kind: "visits", visits: visitsTodayList })}
@@ -296,7 +332,7 @@ function Dashboard({
         <StatCard
           label="This week"
           value={visitsThisWeek.length}
-          icon={<Clock className="w-4 h-4" />}
+          icon={<Clock />}
           trend={trendOf(visitsThisWeek.length, visitsLastWeek.length)}
           trendCaption="vs last week"
           onClick={() => setDrill({ title: "Visits this week", kind: "visits", visits: visitsThisWeek })}
@@ -304,30 +340,38 @@ function Dashboard({
         <StatCard
           label="This month"
           value={visitsMonth.length}
-          icon={<CalendarIcon className="w-4 h-4" />}
+          icon={<CalendarIcon />}
           trend={trendOf(visitsMonth.length, visitsLastMonth.length)}
           trendCaption="vs last month"
           onClick={() => setDrill({ title: "Visits this month", kind: "visits", visits: visitsMonth })}
         />
+
         <StatCard
-          label="Success rate"
-          value={`${successRate}%`}
-          icon={<Target className="w-4 h-4" />}
-          trend={trendOf(successRate, successRateLastMonth, { suffix: "pt" })}
+          label="Cities"
+          value={citiesMonth}
+          icon={<Building2 />}
+          trend={trendOf(citiesMonth, citiesLastMonth)}
           trendCaption="vs last month"
-          onClick={() => setDrill({ title: "Successful / satisfactory visits", kind: "visits", visits: successList })}
+        />
+        <StatCard
+          label="Areas"
+          value={areasMonth}
+          icon={<MapIcon />}
+          trend={trendOf(areasMonth, areasLastMonth)}
+          trendCaption="vs last month"
         />
         <StatCard
           label="Retailers"
           value={retailers.length}
-          icon={<Store className="w-4 h-4" />}
+          icon={<Store />}
           caption={`${activeRetailersThisMonth} active this month`}
           onClick={() => setDrill({ title: "Retailers", kind: "retailers", retailers })}
         />
+
         <StatCard
           label="Recovery visits"
           value={recoveryMonth.length}
-          icon={<RotateCcw className="w-4 h-4" />}
+          icon={<RotateCcw />}
           trend={trendOf(recoveryMonth.length, recoveryLastMonth.length)}
           trendCaption="vs last month"
           onClick={() => setDrill({ title: "Recovery visits this month", kind: "visits", visits: recoveryMonth })}
@@ -335,7 +379,7 @@ function Dashboard({
         <StatCard
           label="Complaints"
           value={complaintsMonth.length}
-          icon={<AlertCircle className="w-4 h-4" />}
+          icon={<AlertCircle />}
           trend={trendOf(complaintsMonth.length, complaintsLastMonth.length)}
           trendCaption="vs last month"
           goodDirection="down"
@@ -344,9 +388,36 @@ function Dashboard({
         <StatCard
           label="Needs attention"
           value={staleRetailers.length}
-          icon={<AlertTriangle className="w-4 h-4" />}
+          icon={<AlertTriangle />}
+          accent="orange"
           caption="not visited in 30+ days"
           onClick={() => setDrill({ title: "Not visited in 30+ days", kind: "retailers", retailers: staleRetailers })}
+        />
+
+        <StatCard
+          label="Success rate"
+          value={`${successRate}%`}
+          icon={<Target />}
+          trend={trendOf(successRate, successRateLastMonth, { suffix: "pt" })}
+          trendCaption="vs last month"
+          onClick={() => setDrill({ title: "Successful / satisfactory visits", kind: "visits", visits: successList })}
+        />
+        <StatCard
+          label="Satisfactory"
+          value={satisfactoryMonth.length}
+          icon={<ThumbsUp />}
+          trend={trendOf(satisfactoryMonth.length, satisfactoryLastMonth.length)}
+          trendCaption="vs last month"
+          onClick={() => setDrill({ title: "Satisfactory visits this month", kind: "visits", visits: satisfactoryMonth })}
+        />
+        <StatCard
+          label="Not Met / Visit Again"
+          value={notMetMonth.length}
+          icon={<Repeat2 />}
+          trend={trendOf(notMetMonth.length, notMetLastMonth.length)}
+          trendCaption="vs last month"
+          goodDirection="down"
+          onClick={() => setDrill({ title: "Not Met / Visit Again this month", kind: "visits", visits: notMetMonth })}
         />
       </div>
 
@@ -440,7 +511,7 @@ function RecentVisitsSection({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 p-4 text-left transition-colors hover:bg-muted/40"
+        className="w-full flex items-center justify-between gap-2 p-3 sm:p-4 text-left transition-colors hover:bg-muted/40"
       >
         <div>
           <h3 className="font-semibold text-sm">Recent visits</h3>
@@ -454,7 +525,7 @@ function RecentVisitsSection({
         </div>
       </button>
       {open && (
-        <div className="px-4 pb-4 -mt-1">
+        <div className="px-3 sm:px-4 pb-3 sm:pb-4 -mt-1">
           {shown.length === 0 ? (
             <EmptyHint text="No visits logged in this window yet." />
           ) : (
@@ -504,7 +575,7 @@ function StatCard({
   label,
   value,
   icon,
-  tone,
+  accent,
   trend,
   trendCaption,
   /** Which trend direction should read as "good" (green). Defaults to "up" — pass "down" for metrics like complaints where fewer is better. */
@@ -515,64 +586,65 @@ function StatCard({
   label: string;
   value: React.ReactNode;
   icon?: React.ReactNode;
-  tone?: "primary";
+  /** Optional accent tint for the icon + value (e.g. "orange" for attention-needed metrics). */
+  accent?: "orange";
   trend?: Trend;
   trendCaption?: string;
   goodDirection?: "up" | "down";
   caption?: string;
   onClick?: () => void;
 }) {
-  const primary = tone === "primary";
   const isGood = trend && trend.direction !== "flat" && trend.direction === goodDirection;
   const isBad = trend && trend.direction !== "flat" && trend.direction !== goodDirection;
+  const isOrange = accent === "orange";
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col items-center text-center rounded-2xl border p-4 transition active:scale-[0.98] hover:shadow-md ${primary ? "bg-primary text-primary-foreground" : "bg-card"}`}
+      className="flex flex-col items-center text-center rounded-xl border bg-card p-2 sm:p-3 transition active:scale-[0.98] hover:shadow-sm"
     >
       {icon && (
         <span
-          className={`flex h-9 w-9 items-center justify-center rounded-lg ${
-            primary ? "bg-white/15" : "bg-primary/10 text-primary"
+          className={`flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-md sm:rounded-lg [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4 ${
+            isOrange ? "bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" : "bg-primary/10 text-primary"
           }`}
         >
           {icon}
         </span>
       )}
-      <div className="text-3xl font-bold tabular-nums mt-3 leading-none">{value}</div>
-      <div className={`text-xs mt-1.5 ${primary ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{label}</div>
+      <div
+        className={`text-base sm:text-xl md:text-2xl font-bold tabular-nums mt-1 sm:mt-2 leading-none ${
+          isOrange ? "text-orange-600 dark:text-orange-400" : ""
+        }`}
+      >
+        {value}
+      </div>
+      <div className="text-[9px] sm:text-[11px] leading-tight mt-1 text-muted-foreground line-clamp-2">{label}</div>
       {trend && (
         <span
-          className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium mt-2 ${
+          className={`inline-flex items-center gap-0.5 rounded-full px-1 sm:px-1.5 py-0.5 text-[8px] sm:text-[10px] font-medium mt-1 sm:mt-1.5 ${
             trend.direction === "flat"
-              ? primary
-                ? "bg-white/15 text-primary-foreground/80"
-                : "bg-muted text-muted-foreground"
+              ? "bg-muted text-muted-foreground"
               : isGood
-                ? primary
-                  ? "bg-white/20 text-primary-foreground"
-                  : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
                 : isBad
-                  ? primary
-                    ? "bg-white/20 text-primary-foreground"
-                    : "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
+                  ? "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300"
                   : ""
           }`}
           title={trendCaption}
         >
           {trend.direction === "up" ? (
-            <TrendingUp className="w-3 h-3" />
+            <TrendingUp className="w-2 h-2 sm:w-3 sm:h-3" />
           ) : trend.direction === "down" ? (
-            <TrendingDown className="w-3 h-3" />
+            <TrendingDown className="w-2 h-2 sm:w-3 sm:h-3" />
           ) : (
-            <Minus className="w-3 h-3" />
+            <Minus className="w-2 h-2 sm:w-3 sm:h-3" />
           )}
           {trend.label}
         </span>
       )}
       {caption && (
-        <div className={`text-[10px] mt-1.5 ${primary ? "text-primary-foreground/70" : "text-muted-foreground/80"}`}>{caption}</div>
+        <div className="text-[8px] sm:text-[10px] leading-tight mt-1 text-muted-foreground/80 line-clamp-2">{caption}</div>
       )}
     </button>
   );
@@ -993,7 +1065,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 p-4 text-left transition-colors hover:bg-muted/40"
+        className="w-full flex items-center justify-between gap-2 p-3 sm:p-4 text-left transition-colors hover:bg-muted/40"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -1004,7 +1076,7 @@ function CollapsibleSection({
         </div>
         <ChevronsUpDown className="w-4 h-4 shrink-0 text-muted-foreground" />
       </button>
-      {open && <div className="px-4 pb-4 -mt-1">{children}</div>}
+      {open && <div className="px-3 sm:px-4 pb-3 sm:pb-4 -mt-1">{children}</div>}
     </div>
   );
 }
@@ -1388,6 +1460,226 @@ function SegmentBars({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ---------------- Planner ---------------- */
+function toISODateStr(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function Planner({
+  retailers,
+  salesmen,
+  currentUser,
+  allowed,
+}: {
+  retailers: Retailer[];
+  salesmen: Salesman[];
+  currentUser?: AppUser | null;
+  allowed: (p: string) => boolean;
+}) {
+  const isScoped = !!currentUser && isScopedRole(currentUser.role);
+  const linkedSalesmen = isScoped
+    ? salesmen.filter((s) => (currentUser?.salesmanIds ?? []).includes(s.id))
+    : salesmen;
+
+  const [salesmanId, setSalesmanId] = useState<string>(linkedSalesmen[0]?.id ?? "");
+  const [plans, setPlans] = useState<VisitPlan[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [mode, setMode] = useState<"edit" | "readonly">("edit");
+  const [draftIds, setDraftIds] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    setPlans(store.getPlans());
+  }, []);
+
+  useEffect(() => {
+    if (!salesmanId && linkedSalesmen[0]) setSalesmanId(linkedSalesmen[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedSalesmen.map((s) => s.id).join(",")]);
+
+  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+  const selectedDateStr = toISODateStr(selectedDate);
+  const isPast = selectedDate < todayStart;
+
+  const salesmanRetailers = useMemo(
+    () => retailers.filter((r) => r.salesmanId === salesmanId).sort((a, b) => a.name.localeCompare(b.name)),
+    [retailers, salesmanId]
+  );
+
+  const filteredRetailers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return salesmanRetailers;
+    return salesmanRetailers.filter((r) => [r.name, r.city, r.area].some((s) => (s || "").toLowerCase().includes(q)));
+  }, [salesmanRetailers, search]);
+
+  const planFor = (date: string, sId: string) => plans.find((p) => p.date === date && p.salesmanId === sId);
+
+  const applyDateSelection = (d: Date | undefined, sId: string) => {
+    if (!d) return;
+    const dateStr = toISODateStr(d);
+    if (dateStr === toISODateStr(selectedDate) && sId === salesmanId) return;
+    setSelectedDate(d);
+    const existing = planFor(dateStr, sId);
+    if (existing) {
+      setMode("readonly");
+      setDraftIds(existing.retailerIds);
+    } else {
+      setMode("edit");
+      setDraftIds([]);
+    }
+  };
+
+  const handleSelectDate = (d: Date | undefined) => applyDateSelection(d, salesmanId);
+
+  const handleSelectSalesman = (id: string) => {
+    setSalesmanId(id);
+    setMode("edit");
+    setDraftIds([]);
+    const existing = planFor(selectedDateStr, id);
+    if (existing) {
+      setMode("readonly");
+      setDraftIds(existing.retailerIds);
+    }
+  };
+
+  const toggleRetailer = (retailerId: string) => {
+    if (mode !== "edit" || isPast || !salesmanId) return;
+    const next = draftIds.includes(retailerId) ? draftIds.filter((id) => id !== retailerId) : [...draftIds, retailerId];
+    setDraftIds(next);
+
+    const all = store.getPlans();
+    const existingIdx = all.findIndex((p) => p.date === selectedDateStr && p.salesmanId === salesmanId);
+    let nextAll: VisitPlan[];
+    if (next.length === 0) {
+      nextAll = existingIdx === -1 ? all : all.filter((_, i) => i !== existingIdx);
+    } else if (existingIdx === -1) {
+      nextAll = [
+        { id: uid(), date: selectedDateStr, salesmanId, retailerIds: next, createdAt: new Date().toISOString(), createdByUserId: currentUser?.id },
+        ...all,
+      ];
+    } else {
+      nextAll = all.map((p, i) => (i === existingIdx ? { ...p, retailerIds: next } : p));
+    }
+    store.setPlans(nextAll);
+    setPlans(nextAll);
+  };
+
+  const plannedDates = useMemo(
+    () => new Set(plans.filter((p) => p.salesmanId === salesmanId).map((p) => p.date)),
+    [plans, salesmanId]
+  );
+
+  if (!allowed("module.planner")) return null;
+
+  return (
+    <div className="space-y-4 pt-2">
+      <h2 className="text-lg font-semibold flex items-center gap-1.5">
+        <CalendarDays className="w-4 h-4 text-muted-foreground" /> Visit Planner
+      </h2>
+
+      {linkedSalesmen.length === 0 ? (
+        <div className="bg-card rounded-2xl border p-8 text-center">
+          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <CalendarDays className="w-6 h-6 text-muted-foreground" />
+          </span>
+          <p className="text-sm font-medium">No salesman linked</p>
+          <p className="text-xs text-muted-foreground mt-1">Ask an administrator to link a salesman to your account.</p>
+        </div>
+      ) : (
+        <>
+          {linkedSalesmen.length > 1 && (
+            <Field label="Salesman">
+              <Select value={salesmanId} onValueChange={handleSelectSalesman}>
+                <SelectTrigger><SelectValue placeholder="Select salesman" /></SelectTrigger>
+                <SelectContent>
+                  {linkedSalesmen.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+
+          <div className="bg-card border rounded-2xl p-3 sm:p-4 flex justify-center">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={handleSelectDate}
+              disabled={{ before: todayStart }}
+              modifiers={{ planned: (d) => plannedDates.has(toISODateStr(d)) }}
+              modifiersClassNames={{ planned: "after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1 after:w-1 after:rounded-full after:bg-primary" }}
+            />
+          </div>
+
+          <div className="bg-card border rounded-2xl p-4">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h3 className="text-sm font-semibold">
+                {selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+              </h3>
+              {mode === "readonly" && <Badge variant="secondary" className="text-[10px]">Saved</Badge>}
+            </div>
+
+            {isPast ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">This date has passed — no changes can be made.</p>
+            ) : mode === "readonly" ? (
+              <>
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  {draftIds.length} retailer{draftIds.length === 1 ? "" : "s"} planned · view only for now.
+                </p>
+                <ul className="divide-y">
+                  {draftIds.map((id) => {
+                    const r = retailers.find((x) => x.id === id);
+                    return (
+                      <li key={id} className="py-2.5 flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
+                          <div className="text-[11px] text-muted-foreground truncate">{[r?.area, r?.city].filter(Boolean).join(" · ")}</div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            ) : salesmanRetailers.length === 0 ? (
+              <EmptyHint text="No retailers assigned to this salesman yet." />
+            ) : (
+              <>
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  Check the retailers to visit on this date — saved automatically as you go.
+                </p>
+                <div className="relative mb-3">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search retailers..." className="pl-9 h-9" />
+                </div>
+                <ul className="divide-y max-h-96 overflow-y-auto">
+                  {filteredRetailers.map((r) => (
+                    <li key={r.id}>
+                      <label className="py-2.5 flex items-center gap-3 cursor-pointer select-none">
+                        <Checkbox checked={draftIds.includes(r.id)} onCheckedChange={() => toggleRetailer(r.id)} />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">{r.name}</div>
+                          <div className="text-[11px] text-muted-foreground truncate">{[r.area, r.city].filter(Boolean).join(" · ")}</div>
+                        </div>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+                {draftIds.length > 0 && (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-3 flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" /> {draftIds.length} selected · plan saved
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

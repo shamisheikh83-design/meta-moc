@@ -147,6 +147,17 @@ export type Product = {
   addedByName?: string;
 };
 
+/** A salesman's planned retailer visits for one calendar date. */
+export type VisitPlan = {
+  id: string;
+  /** ISO date, YYYY-MM-DD (no time component). */
+  date: string;
+  salesmanId: string;
+  retailerIds: string[];
+  createdAt: string;
+  createdByUserId?: string;
+};
+
 export type Settings = {
   salesmanName: string;
   pinHash: string | null;
@@ -167,6 +178,7 @@ const K_VISITS = "ov_visits";
 const K_RETAILERS = "ov_retailers";
 const K_SALESMEN = "ov_salesmen";
 const K_PRODUCTS = "ov_products";
+const K_PLANS = "ov_plans";
 const K_SETTINGS = "ov_settings";
 const K_SESSION = "ov_session";
 
@@ -193,6 +205,8 @@ export const store = {
   setSalesmen: (v: Salesman[]) => write(K_SALESMEN, v),
   getProducts: () => read<Product[]>(K_PRODUCTS, []),
   setProducts: (v: Product[]) => write(K_PRODUCTS, v),
+  getPlans: () => read<VisitPlan[]>(K_PLANS, []),
+  setPlans: (v: VisitPlan[]) => write(K_PLANS, v),
   getSettings: () => read<Settings>(K_SETTINGS, { salesmanName: "", pinHash: null, email: null, recoveryHash: null }),
   setSettings: (v: Settings) => write(K_SETTINGS, v),
   getSession: () => getSessionInfo() !== null,

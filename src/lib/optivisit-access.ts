@@ -18,6 +18,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
     items: [
       { id: "tab.dashboard", label: "Home (Dashboard)" },
       { id: "tab.visits", label: "Visits" },
+      { id: "tab.planner", label: "Planner" },
       { id: "tab.retailers", label: "Retailers" },
       { id: "tab.products", label: "Products" },
       { id: "tab.settings", label: "Settings" },
@@ -32,6 +33,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { id: "module.retailers", label: "Retailer data" },
       { id: "module.salesmen", label: "Salesmen data" },
       { id: "module.products", label: "Product data" },
+      { id: "module.planner", label: "Visit planner" },
       { id: "module.reports", label: "Visit reports" },
       { id: "module.access", label: "Access level control" },
     ],
@@ -111,8 +113,8 @@ export const ROLE_DEFAULTS: Record<Role, string[]> = {
     (p) => !["setting.erase", "setting.users", "setting.roles", "module.access", "setting.recentVisits"].includes(p)
   ),
   Agent: [
-    "tab.dashboard", "tab.visits", "tab.retailers", "tab.products",
-    "module.visitLog", "module.salesmanVisitLog", "module.retailers", "module.products", "module.reports",
+    "tab.dashboard", "tab.visits", "tab.planner", "tab.retailers", "tab.products",
+    "module.visitLog", "module.salesmanVisitLog", "module.retailers", "module.products", "module.planner", "module.reports",
     "visit.create", "retailer.create", "retailer.edit", "retailer.assignSalesman",
     "product.create", "product.edit",
     "dashboard.drilldown",
@@ -120,8 +122,8 @@ export const ROLE_DEFAULTS: Record<Role, string[]> = {
     "report.visitStatus", "report.outcome", "report.city", "report.filters",
   ],
   Member: [
-    "tab.dashboard", "tab.visits", "tab.products",
-    "module.visitLog", "module.salesmanVisitLog", "module.products", "module.reports",
+    "tab.dashboard", "tab.visits", "tab.planner", "tab.products",
+    "module.visitLog", "module.salesmanVisitLog", "module.products", "module.planner", "module.reports",
     "visit.create", "product.create",
     "status.visit", "status.outcome", "status.activity", "status.unavailable",
     "report.visitStatus", "report.outcome", "report.city", "report.filters",
