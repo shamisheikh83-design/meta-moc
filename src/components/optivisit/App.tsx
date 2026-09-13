@@ -1789,7 +1789,15 @@ function Planner({
               onSelect={handleSelectDate}
               disabled={(d) => d < todayStart && !plannedDates.has(toISODateStr(d))}
               className="w-full"
-              classNames={{ root: "w-full", months: "w-full", month: "w-full", table: "w-full" }}
+              classNames={{
+                root: "w-full",
+                months: "w-full",
+                month: "w-full",
+                table: "w-full",
+                month_grid: "w-full border-collapse",
+                weekdays: "flex w-full",
+                week: "flex w-full mt-2",
+              }}
               style={{ ["--cell-size" as string]: "clamp(2.25rem, 8vw, 3rem)" }}
               modifiers={{ planned: (d) => plannedDates.has(toISODateStr(d)) }}
               modifiersClassNames={{ planned: "after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1 after:w-1 after:rounded-full after:bg-primary" }}
