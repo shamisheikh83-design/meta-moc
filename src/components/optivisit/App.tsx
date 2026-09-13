@@ -11,9 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, LENS_MAIN_CATEGORIES, LENS_MATERIALS, LENS_COATINGS, type Visit, type Retailer, type Salesman, type Product, type VisitPlan, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type LensMainCategory, type LensMaterial, type LensCoating } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
+import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme, ICON_PACKS, DEFAULT_ICON_PACK, getIconPack, type IconPack } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
@@ -185,7 +185,7 @@ function TopTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
   return (
     <TabsTrigger
       value={value}
-      className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium text-[color:var(--ov-toolbar-foreground)] opacity-75 data-[state=active]:opacity-100 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+      className="flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-bold text-[color:var(--ov-toolbar-foreground)] opacity-75 data-[state=active]:opacity-100 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm"
     >
       {icon}
       <span>{label}</span>
@@ -200,7 +200,7 @@ function NavTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
       className="relative flex min-w-0 flex-col items-center justify-center gap-1 h-full rounded-none data-[state=active]:bg-accent/60 data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground after:absolute after:top-0 after:h-0.5 after:w-8 after:rounded-full after:bg-transparent data-[state=active]:after:bg-primary"
     >
       {icon}
-      <span className="max-w-full truncate px-0.5 text-[10px] font-medium">{label}</span>
+      <span className="max-w-full truncate px-0.5 text-[10px] font-bold">{label}</span>
     </TabsTrigger>
   );
 }
@@ -597,6 +597,7 @@ function StatCard({
   const isGood = trend && trend.direction !== "flat" && trend.direction === goodDirection;
   const isBad = trend && trend.direction !== "flat" && trend.direction !== goodDirection;
   const isOrange = accent === "orange";
+  const iconPack = getIconPack(getTheme().iconPack);
   return (
     <button
       type="button"
@@ -605,8 +606,8 @@ function StatCard({
     >
       {icon && (
         <span
-          className={`flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-md sm:rounded-lg [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4 ${
-            isOrange ? "bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" : "bg-primary/10 text-primary"
+          className={`flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4 ${
+            isOrange ? "rounded-md sm:rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" : iconPack.chipClass
           }`}
         >
           {icon}
@@ -1788,17 +1789,17 @@ function Planner({
               selected={selectedDate}
               onSelect={handleSelectDate}
               disabled={(d) => d < todayStart && !plannedDates.has(toISODateStr(d))}
-              className="w-full"
+              className="w-full max-w-sm mx-auto"
               classNames={{
-                root: "w-full",
+                root: "w-full max-w-sm mx-auto",
                 months: "w-full",
                 month: "w-full",
                 table: "w-full",
                 month_grid: "w-full border-collapse",
                 weekdays: "flex w-full",
-                week: "flex w-full mt-2",
+                week: "flex w-full mt-0.5",
               }}
-              style={{ ["--cell-size" as string]: "clamp(2.25rem, 8vw, 3rem)" }}
+              style={{ ["--cell-size" as string]: "clamp(2.25rem, 11vw, 2.75rem)" }}
               modifiers={{ planned: (d) => plannedDates.has(toISODateStr(d)) }}
               modifiersClassNames={{ planned: "after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1 after:w-1 after:rounded-full after:bg-primary" }}
             />
@@ -2756,8 +2757,15 @@ function ColorPicker({
   );
 }
 
+const THEME_GROUPS = [
+  { id: "all", label: "All themes" },
+  { id: "light", label: "Light themes" },
+  { id: "dark", label: "Dark themes" },
+] as const;
+
 function ThemePanel() {
   const [theme, setLocalTheme] = useState<AppTheme>(defaultTheme);
+  const [themeGroup, setThemeGroup] = useState<string>("all");
 
   useEffect(() => {
     setLocalTheme(getTheme());
@@ -2768,6 +2776,8 @@ function ThemePanel() {
     setLocalTheme(next);
     setTheme(next);
   };
+
+  const visiblePresets = THEME_PRESETS.filter((p) => themeGroup === "all" || p.mode === themeGroup);
 
   return (
     <section className="bg-card border rounded-2xl overflow-hidden">
@@ -2780,7 +2790,7 @@ function ThemePanel() {
           size="sm"
           variant="ghost"
           className="h-7 text-xs text-current hover:bg-white/15"
-          onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "" })}
+          onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "", iconPack: DEFAULT_ICON_PACK })}
         >
           Reset
         </Button>
@@ -2788,16 +2798,26 @@ function ThemePanel() {
 
       <div className="p-4 space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs font-medium">Theme</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs font-medium">Theme</Label>
+            <Select value={themeGroup} onValueChange={setThemeGroup}>
+              <SelectTrigger className="h-7 w-36 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {THEME_GROUPS.map((g) => <SelectItem key={g.id} value={g.id} className="text-xs">{g.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <ThemeCard
-              name="Classic"
-              mood="App default"
-              swatches={["linear-gradient(100deg, oklch(0.34 0.11 258), oklch(0.46 0.13 226))", "oklch(0.975 0.004 220)", "oklch(0.33 0.10 255)", "oklch(1 0 0)"]}
-              active={!theme.preset}
-              onClick={() => update({ preset: "" })}
-            />
-            {THEME_PRESETS.map((p) => (
+            {(themeGroup === "all" || themeGroup === "light") && (
+              <ThemeCard
+                name="Classic"
+                mood="App default"
+                swatches={["linear-gradient(100deg, oklch(0.34 0.11 258), oklch(0.46 0.13 226))", "oklch(0.975 0.004 220)", "oklch(0.33 0.10 255)", "oklch(1 0 0)"]}
+                active={!theme.preset}
+                onClick={() => update({ preset: "" })}
+              />
+            )}
+            {visiblePresets.map((p) => (
               <ThemeCard
                 key={p.id}
                 name={p.name}
@@ -2805,6 +2825,21 @@ function ThemePanel() {
                 swatches={p.swatches}
                 active={theme.preset === p.id}
                 onClick={() => update({ preset: p.id })}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs font-medium">Icon pack</Label>
+          <p className="text-[11px] text-muted-foreground -mt-1">Icon color and style, independent of the theme above</p>
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+            {ICON_PACKS.map((pack) => (
+              <IconPackCard
+                key={pack.id}
+                pack={pack}
+                active={(theme.iconPack || DEFAULT_ICON_PACK) === pack.id}
+                onClick={() => update({ iconPack: pack.id })}
               />
             ))}
           </div>
@@ -2877,6 +2912,30 @@ function ThemeCard({
           <div className="text-[10px] opacity-70" style={{ color: swatches[2] }}>{mood}</div>
         </div>
       </div>
+    </button>
+  );
+}
+
+function IconPackCard({
+  pack,
+  active,
+  onClick,
+}: {
+  pack: IconPack;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={pack.mood}
+      className={`flex flex-col items-center gap-1 rounded-xl border p-2 transition hover:shadow-md ${active ? "ring-2 ring-ring border-transparent" : ""}`}
+    >
+      <span className={`flex h-7 w-7 items-center justify-center ${pack.chipClass}`}>
+        <Sparkles className="w-3.5 h-3.5" />
+      </span>
+      <span className="text-[10px] font-medium leading-tight text-center truncate w-full">{pack.name}</span>
     </button>
   );
 }

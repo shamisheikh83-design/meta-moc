@@ -76,6 +76,8 @@ export type ThemePreset = {
   id: string;
   name: string;
   mood: string;
+  /** Light or dark base, used to group/filter presets in the picker. */
+  mode: "light" | "dark";
   /** Preview swatches, in order: toolbar, surface, accent, token */
   swatches: [string, string, string, string];
   vars: Record<string, string>;
@@ -85,6 +87,7 @@ const preset = (
   id: string,
   name: string,
   mood: string,
+  mode: "light" | "dark",
   v: {
     background: string;
     card: string;
@@ -106,6 +109,7 @@ const preset = (
   id,
   name,
   mood,
+  mode,
   swatches: [v.toolbar, v.background, v.primary, v.card],
   vars: {
     "--background": v.background,
@@ -140,7 +144,7 @@ const preset = (
 });
 
 export const THEME_PRESETS: ThemePreset[] = [
-  preset("harbour", "Harbour", "Navy · aqua · ash", {
+  preset("harbour", "Harbour", "Navy · aqua · ash", "light", {
     background: "oklch(0.975 0.006 220)",
     card: "oklch(1 0 0)",
     foreground: "oklch(0.30 0.06 255)",
@@ -157,7 +161,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.98 0.01 220)",
     ring: "oklch(0.55 0.12 210)",
   }),
-  preset("saffron", "Saffron", "Warm amber · plum", {
+  preset("saffron", "Saffron", "Warm amber · plum", "light", {
     background: "oklch(0.98 0.014 85)",
     card: "oklch(1 0 0)",
     foreground: "oklch(0.32 0.05 45)",
@@ -174,7 +178,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.99 0.01 90)",
     ring: "oklch(0.68 0.15 60)",
   }),
-  preset("emerald", "Emerald", "Fresh green · teal", {
+  preset("emerald", "Emerald", "Fresh green · teal", "light", {
     background: "oklch(0.975 0.012 165)",
     card: "oklch(1 0 0)",
     foreground: "oklch(0.30 0.05 175)",
@@ -191,7 +195,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.99 0.01 160)",
     ring: "oklch(0.58 0.12 165)",
   }),
-  preset("orchid", "Orchid", "Violet · rose", {
+  preset("orchid", "Orchid", "Violet · rose", "light", {
     background: "oklch(0.975 0.012 310)",
     card: "oklch(1 0 0)",
     foreground: "oklch(0.31 0.06 305)",
@@ -208,7 +212,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.99 0.01 310)",
     ring: "oklch(0.60 0.14 310)",
   }),
-  preset("graphite", "Graphite", "Quiet neutral", {
+  preset("graphite", "Graphite", "Quiet neutral", "light", {
     background: "oklch(0.97 0.003 250)",
     card: "oklch(1 0 0)",
     foreground: "oklch(0.28 0.01 250)",
@@ -225,7 +229,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.98 0 0)",
     ring: "oklch(0.55 0.02 250)",
   }),
-  preset("midnight", "Midnight", "Dark mode · cyan", {
+  preset("midnight", "Midnight", "Dark mode · cyan", "dark", {
     background: "oklch(0.19 0.03 255)",
     card: "oklch(0.24 0.035 250)",
     foreground: "oklch(0.96 0.01 230)",
@@ -242,7 +246,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.97 0.01 205)",
     ring: "oklch(0.72 0.13 205)",
   }),
-  preset("ocean", "Ocean", "Deep teal · blue", {
+  preset("ocean", "Ocean", "Deep teal · blue", "light", {
     background: "oklch(0.975 0.01 210)",
     card: "oklch(1 0 0)",
     foreground: "oklch(0.28 0.06 220)",
@@ -259,7 +263,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.98 0.01 210)",
     ring: "oklch(0.55 0.11 205)",
   }),
-  preset("ruby", "Ruby", "Bold crimson · ink", {
+  preset("ruby", "Ruby", "Bold crimson · ink", "light", {
     background: "oklch(0.975 0.008 20)",
     card: "oklch(1 0 0)",
     foreground: "oklch(0.30 0.03 20)",
@@ -276,7 +280,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.99 0.01 20)",
     ring: "oklch(0.55 0.18 25)",
   }),
-  preset("sandstone", "Sandstone", "Warm neutral · latte", {
+  preset("sandstone", "Sandstone", "Warm neutral · latte", "light", {
     background: "oklch(0.975 0.01 75)",
     card: "oklch(0.995 0.006 75)",
     foreground: "oklch(0.33 0.03 60)",
@@ -293,7 +297,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.99 0.01 80)",
     ring: "oklch(0.58 0.06 65)",
   }),
-  preset("slate-night", "Slate Night", "Dark mode · cool graphite", {
+  preset("slate-night", "Slate Night", "Dark mode · cool graphite", "dark", {
     background: "oklch(0.20 0.006 255)",
     card: "oklch(0.25 0.008 255)",
     foreground: "oklch(0.95 0.004 250)",
@@ -310,7 +314,101 @@ export const THEME_PRESETS: ThemePreset[] = [
     toolbarFg: "oklch(0.96 0.004 250)",
     ring: "oklch(0.70 0.02 250)",
   }),
+  preset("forest", "Forest", "Deep olive · woodland", "light", {
+    background: "oklch(0.975 0.012 130)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.30 0.04 135)",
+    muted: "oklch(0.94 0.025 130)",
+    mutedFg: "oklch(0.50 0.035 130)",
+    border: "oklch(0.88 0.025 130)",
+    primary: "oklch(0.42 0.09 140)",
+    primaryFg: "oklch(0.99 0.01 130)",
+    accent: "oklch(0.91 0.045 110)",
+    accentFg: "oklch(0.36 0.08 130)",
+    heading: "oklch(0.30 0.06 135)",
+    subheading: "oklch(0.48 0.11 70)",
+    toolbar: "linear-gradient(100deg, oklch(0.30 0.07 140), oklch(0.46 0.10 120))",
+    toolbarFg: "oklch(0.98 0.01 130)",
+    ring: "oklch(0.55 0.09 135)",
+  }),
+  preset("berry", "Berry", "Deep magenta · plum", "light", {
+    background: "oklch(0.975 0.012 350)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.30 0.05 345)",
+    muted: "oklch(0.95 0.03 350)",
+    mutedFg: "oklch(0.50 0.05 350)",
+    border: "oklch(0.89 0.025 350)",
+    primary: "oklch(0.46 0.18 350)",
+    primaryFg: "oklch(0.99 0.01 350)",
+    accent: "oklch(0.93 0.05 345)",
+    accentFg: "oklch(0.38 0.14 350)",
+    heading: "oklch(0.32 0.09 350)",
+    subheading: "oklch(0.48 0.14 20)",
+    toolbar: "linear-gradient(100deg, oklch(0.34 0.15 340), oklch(0.50 0.19 355))",
+    toolbarFg: "oklch(0.99 0.01 350)",
+    ring: "oklch(0.58 0.16 350)",
+  }),
+  preset("steel", "Steel", "Cool blue-gray · industrial", "light", {
+    background: "oklch(0.97 0.006 240)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.29 0.02 240)",
+    muted: "oklch(0.94 0.012 240)",
+    mutedFg: "oklch(0.50 0.02 240)",
+    border: "oklch(0.88 0.012 240)",
+    primary: "oklch(0.44 0.05 240)",
+    primaryFg: "oklch(0.98 0.005 240)",
+    accent: "oklch(0.91 0.02 210)",
+    accentFg: "oklch(0.36 0.04 235)",
+    heading: "oklch(0.28 0.03 240)",
+    subheading: "oklch(0.50 0.10 230)",
+    toolbar: "linear-gradient(100deg, oklch(0.32 0.03 240), oklch(0.46 0.05 220))",
+    toolbarFg: "oklch(0.97 0.005 240)",
+    ring: "oklch(0.55 0.04 235)",
+  }),
+  preset("sunrise", "Sunrise", "Coral · gold gradient", "light", {
+    background: "oklch(0.98 0.014 60)",
+    card: "oklch(1 0 0)",
+    foreground: "oklch(0.33 0.05 35)",
+    muted: "oklch(0.95 0.035 60)",
+    mutedFg: "oklch(0.52 0.05 45)",
+    border: "oklch(0.90 0.03 55)",
+    primary: "oklch(0.64 0.19 35)",
+    primaryFg: "oklch(0.99 0.01 70)",
+    accent: "oklch(0.93 0.06 60)",
+    accentFg: "oklch(0.42 0.14 30)",
+    heading: "oklch(0.35 0.08 30)",
+    subheading: "oklch(0.55 0.16 15)",
+    toolbar: "linear-gradient(100deg, oklch(0.55 0.19 20), oklch(0.72 0.16 65))",
+    toolbarFg: "oklch(0.99 0.01 70)",
+    ring: "oklch(0.66 0.17 45)",
+  }),
 ];
+
+/**
+ * Icon "packs" style the small icon chips used across stat cards — shape, background and
+ * color — independently of the color theme. Each pack has its own fixed identity so it reads
+ * consistently no matter which color theme is active.
+ */
+export type IconPack = { id: string; name: string; mood: string; chipClass: string; iconClass?: string };
+
+export const DEFAULT_ICON_PACK = "soft-sky";
+
+export const ICON_PACKS: IconPack[] = [
+  { id: "soft-sky", name: "Soft Sky", mood: "Gentle tinted circles", chipClass: "rounded-lg bg-sky-100 text-sky-600 dark:bg-sky-950 dark:text-sky-300" },
+  { id: "slate-minimal", name: "Slate Minimal", mood: "Quiet neutral squares", chipClass: "rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" },
+  { id: "emerald-bold", name: "Emerald Bold", mood: "Solid saturated blocks", chipClass: "rounded-lg bg-emerald-500 text-white dark:bg-emerald-600" },
+  { id: "sunset-gradient", name: "Sunset Gradient", mood: "Warm gradient glow", chipClass: "rounded-xl bg-gradient-to-br from-orange-400 to-pink-500 text-white shadow-sm" },
+  { id: "violet-duotone", name: "Violet Duotone", mood: "Two-tone rounded bubbles", chipClass: "rounded-full bg-violet-200 text-violet-700 dark:bg-violet-900 dark:text-violet-300" },
+  { id: "amber-outline", name: "Amber Outline", mood: "Transparent ring badges", chipClass: "rounded-full bg-transparent ring-2 ring-amber-400 text-amber-600 dark:text-amber-400" },
+  { id: "midnight-neon", name: "Midnight Neon", mood: "Dark chip, glowing icon", chipClass: "rounded-lg bg-slate-900 text-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.55)]" },
+  { id: "rose-pastel", name: "Rose Pastel", mood: "Airy pastel circles", chipClass: "rounded-full bg-rose-50 text-rose-500 dark:bg-rose-950 dark:text-rose-300" },
+  { id: "charcoal-block", name: "Charcoal Block", mood: "Sharp solid blocks", chipClass: "rounded-md bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900" },
+  { id: "teal-ring", name: "Teal Ring Badge", mood: "Bordered badge on white", chipClass: "rounded-full bg-white ring-2 ring-teal-500 text-teal-600 shadow-sm dark:bg-neutral-900" },
+];
+
+export function getIconPack(id: string): IconPack {
+  return ICON_PACKS.find((p) => p.id === id) ?? ICON_PACKS[0];
+}
 
 export type AppTheme = {
   /** Preset id, or "" for the app default look. */
@@ -320,11 +418,13 @@ export type AppTheme = {
   font: string; // color value
   /** Accent / primary override. */
   accent: string;
+  /** Icon pack id — styles icon chips independently of the color theme. */
+  iconPack: string;
 };
 
 const K_THEME = "ov_theme";
 
-export const defaultTheme: AppTheme = { preset: "", background: "", card: "", font: "", accent: "" };
+export const defaultTheme: AppTheme = { preset: "", background: "", card: "", font: "", accent: "", iconPack: DEFAULT_ICON_PACK };
 
 export function getTheme(): AppTheme {
   if (typeof window === "undefined") return defaultTheme;
