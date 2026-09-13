@@ -147,6 +147,9 @@ export type Product = {
   addedByName?: string;
 };
 
+/** Per-retailer completion status within a VisitPlan. Absent entry = still pending. */
+export type VisitPlanItemStatus = { doneAt?: string; missed?: boolean };
+
 /** A salesman's planned retailer visits for one calendar date. */
 export type VisitPlan = {
   id: string;
@@ -154,6 +157,8 @@ export type VisitPlan = {
   date: string;
   salesmanId: string;
   retailerIds: string[];
+  /** Per-retailer completion status, keyed by retailer id. */
+  status?: Record<string, VisitPlanItemStatus>;
   createdAt: string;
   createdByUserId?: string;
 };

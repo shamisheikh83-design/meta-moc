@@ -13,7 +13,7 @@ import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CAT
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme } from "@/lib/optivisit-theme";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
@@ -695,6 +695,91 @@ function EmptyHint({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground py-6 text-center">{text}</p>;
 }
 
+/* ---------------- Shared CSV export (column picker) ---------------- */
+const VISIT_EXPORT_COLUMNS: { key: string; label: string; get: (v: Visit, r?: Retailer) => string }[] = [
+  { key: "date", label: "Date", get: (v) => new Date(v.date).toLocaleString() },
+  { key: "retailer", label: "Retailer", get: (_v, r) => r?.name ?? "" },
+  { key: "city", label: "City", get: (_v, r) => r?.city ?? "" },
+  { key: "area", label: "Area", get: (v, r) => v.area || r?.area || "" },
+  { key: "salesman", label: "Salesman", get: (v) => v.salesman ?? "" },
+  { key: "purpose", label: "Purpose", get: (v) => v.purpose ?? "" },
+  { key: "visitStatus", label: "Visit Status", get: (v) => v.visitStatus ?? "" },
+  { key: "outcome", label: "Outcome", get: (v) => v.outcome ?? "" },
+  { key: "activity", label: "Activity", get: (v) => v.activity ?? "" },
+  { key: "notes", label: "Notes", get: (v) => v.notes ?? "" },
+];
+
+function ExportCsvDialog({
+  visits,
+  retailers,
+  filenameHint,
+}: {
+  visits: Visit[];
+  retailers: Retailer[];
+  filenameHint?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [cols, setCols] = useState<string[]>(VISIT_EXPORT_COLUMNS.map((c) => c.key));
+  const allSelected = cols.length === VISIT_EXPORT_COLUMNS.length;
+
+  const toggle = (key: string) =>
+    setCols((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+
+  const doExport = () => {
+    const active = VISIT_EXPORT_COLUMNS.filter((c) => cols.includes(c.key));
+    const esc = (s: string) => `"${(s || "").replace(/"/g, '""')}"`;
+    const header = active.map((c) => esc(c.label)).join(",");
+    const rows = visits.map((v) => {
+      const r = retailers.find((x) => x.id === v.retailerId);
+      return active.map((c) => esc(c.get(v, r))).join(",");
+    });
+    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `visits-export${filenameHint ? `-${filenameHint}` : ""}.csv`;
+    a.click();
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" disabled={!visits.length}>
+          <Download className="w-4 h-4 mr-1" /> Export CSV
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Export visits to CSV</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">{visits.length} visit{visits.length === 1 ? "" : "s"} will be exported</p>
+            <button
+              type="button"
+              className="text-[10px] underline text-muted-foreground shrink-0"
+              onClick={() => setCols(allSelected ? [] : VISIT_EXPORT_COLUMNS.map((c) => c.key))}
+            >
+              {allSelected ? "Deselect all" : "Select all"}
+            </button>
+          </div>
+          <div className="rounded-lg border p-2 space-y-0.5 max-h-64 overflow-y-auto">
+            {VISIT_EXPORT_COLUMNS.map((c) => (
+              <label key={c.key} className="flex items-center gap-2 text-sm py-1.5 px-1 rounded cursor-pointer hover:bg-muted/50">
+                <Checkbox checked={cols.includes(c.key)} onCheckedChange={() => toggle(c.key)} />
+                {c.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button size="sm" className="w-full" onClick={doExport} disabled={cols.length === 0 || visits.length === 0}>
+            <Download className="w-4 h-4 mr-1" /> Export {visits.length} visit{visits.length === 1 ? "" : "s"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const AVATAR_TONES = [
   "bg-primary/10 text-primary",
   "bg-aqua/15 text-aqua",
@@ -727,11 +812,15 @@ function InitialAvatar({ name, className }: { name: string; className?: string }
 }
 
 /* ---------------- Visit Log ---------------- */
+type VisitGroupBy = "none" | "city" | "date" | "salesman" | "outcome";
+
 function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: Retailer[]; refresh: () => void }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest" | "retailer" | "salesman">("newest");
   const [salesmanFilter, setSalesmanFilter] = useState<string>("all");
+  const [groupBy, setGroupBy] = useState<VisitGroupBy>("none");
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
 
   const salesmanNames = useMemo(
     () => Array.from(new Set(visits.map((v) => v.salesman).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
@@ -758,6 +847,36 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
     return list;
   }, [visits, retailers, query, sort, salesmanFilter]);
 
+  const groups = useMemo(() => {
+    if (groupBy === "none") return null;
+    const keyOf = (v: Visit): string => {
+      if (groupBy === "date") return v.date.slice(0, 10);
+      if (groupBy === "salesman") return v.salesman || "Unassigned";
+      if (groupBy === "outcome") return v.outcome;
+      const r = retailers.find((x) => x.id === v.retailerId);
+      return r?.city?.trim() ? normalizeCity(r.city) : "Unknown city";
+    };
+    const map = new Map<string, Visit[]>();
+    sorted.forEach((v) => {
+      const k = keyOf(v);
+      const list = map.get(k) || [];
+      list.push(v);
+      map.set(k, list);
+    });
+    const entries = Array.from(map.entries());
+    if (groupBy === "date") entries.sort((a, b) => b[0].localeCompare(a[0]));
+    else if (groupBy === "outcome") entries.sort((a, b) => OUTCOMES.indexOf(a[0] as Outcome) - OUTCOMES.indexOf(b[0] as Outcome));
+    else entries.sort((a, b) => a[0].localeCompare(b[0]));
+    return entries.map(([key, items]) => ({
+      key,
+      label: groupBy === "date" ? new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : key,
+      items,
+    }));
+  }, [sorted, groupBy, retailers]);
+
+  const toggleGroup = (k: string) =>
+    setOpenGroups((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+
   const remove = (id: string) => {
     if (!confirm("Delete this visit?")) return;
     store.setVisits(visits.filter((v) => v.id !== id));
@@ -766,14 +885,17 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
 
   return (
     <div className="space-y-4 pt-2">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
         <h2 className="text-lg font-semibold">Visit log</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> New visit</Button>
-          </DialogTrigger>
-          {open && <VisitDialog retailers={retailers} onSaved={() => { refresh(); setOpen(false); }} />}
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <ExportCsvDialog visits={sorted} retailers={retailers} filenameHint="log" />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> New visit</Button>
+            </DialogTrigger>
+            {open && <VisitDialog retailers={retailers} onSaved={() => { refresh(); setOpen(false); }} />}
+          </Dialog>
+        </div>
       </div>
 
       <div className="bg-card border rounded-2xl p-3 space-y-2">
@@ -799,6 +921,16 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
             </SelectContent>
           </Select>
         </div>
+        <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as VisitGroupBy); setOpenGroups([]); }}>
+          <SelectTrigger className="h-9 text-xs"><Building2 className="w-3.5 h-3.5 mr-1" /><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">No grouping</SelectItem>
+            <SelectItem value="city">Group by city</SelectItem>
+            <SelectItem value="date">Group by date</SelectItem>
+            <SelectItem value="salesman">Group by salesman</SelectItem>
+            <SelectItem value="outcome">Group by outcome</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {sorted.length === 0 ? (
@@ -809,39 +941,72 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
           <p className="text-sm font-medium">No visits found</p>
           <p className="text-xs text-muted-foreground mt-1">Tap "New visit" above to log your first one.</p>
         </div>
-      ) : (
+      ) : groups ? (
         <ul className="space-y-2">
-          {sorted.map((v) => {
-            const r = retailers.find((x) => x.id === v.retailerId);
+          {groups.map((g) => {
+            const isOpen = openGroups.includes(g.key);
             return (
-              <li
-                key={v.id}
-                className="bg-card border rounded-2xl p-3 sm:p-4 transition-shadow hover:shadow-md hover:border-primary/20"
-              >
-                <div className="flex items-start gap-3">
-                  <InitialAvatar name={r?.name ?? "?"} className="h-10 w-10 text-sm mt-0.5" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="font-medium text-sm truncate">{r?.name ?? "Unknown"}</div>
-                      <StatusBadge status={v.visitStatus} />
-                      <OutcomeBadge outcome={v.outcome} />
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-x-1.5">
-                      <span>{new Date(v.date).toLocaleString()} · {v.salesman || "—"}</span>
-                      {v.area && <span className="inline-flex items-center gap-0.5"><MapPin className="w-3 h-3" />{v.area}</span>}
-                    </div>
-                    {v.purpose && <div className="text-xs mt-2"><span className="text-muted-foreground">Purpose:</span> {v.purpose}</div>}
-                    {v.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-2">{v.notes}</div>}
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => remove(v.id)} aria-label="Delete visit">
-                    <Trash2 className="w-4 h-4 text-muted-foreground" />
-                  </Button>
-                </div>
+              <li key={g.key} className="bg-card border rounded-2xl overflow-hidden transition-shadow hover:shadow-md">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.key)}
+                  className="w-full flex items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-muted/50"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    <span className="text-sm font-medium truncate">{g.label}</span>
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] shrink-0">{g.items.length}</Badge>
+                </button>
+                {isOpen && (
+                  <ul className="border-t divide-y">
+                    {g.items.map((v) => (
+                      <li key={v.id} className="px-3 sm:px-4 py-3">
+                        <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             );
           })}
         </ul>
+      ) : (
+        <ul className="space-y-2">
+          {sorted.map((v) => (
+            <li
+              key={v.id}
+              className="bg-card border rounded-2xl p-3 sm:p-4 transition-shadow hover:shadow-md hover:border-primary/20"
+            >
+              <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} />
+            </li>
+          ))}
+        </ul>
       )}
+    </div>
+  );
+}
+
+function VisitRowContent({ v, r, onDelete }: { v: Visit; r?: Retailer; onDelete: () => void }) {
+  return (
+    <div className="flex items-start gap-3">
+      <InitialAvatar name={r?.name ?? "?"} className="h-10 w-10 text-sm mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="font-medium text-sm truncate">{r?.name ?? "Unknown"}</div>
+          <StatusBadge status={v.visitStatus} />
+          <OutcomeBadge outcome={v.outcome} />
+        </div>
+        <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-x-1.5">
+          <span>{new Date(v.date).toLocaleString()} · {v.salesman || "—"}</span>
+          {v.area && <span className="inline-flex items-center gap-0.5"><MapPin className="w-3 h-3" />{v.area}</span>}
+        </div>
+        {v.purpose && <div className="text-xs mt-2"><span className="text-muted-foreground">Purpose:</span> {v.purpose}</div>}
+        {v.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-2">{v.notes}</div>}
+      </div>
+      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={onDelete} aria-label="Delete visit">
+        <Trash2 className="w-4 h-4 text-muted-foreground" />
+      </Button>
     </div>
   );
 }
@@ -1239,20 +1404,6 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
 
 
 
-  const exportCsv = () => {
-    const header = "date,retailer,salesman,purpose,visitStatus,outcome,notes";
-    const rows = filtered.map((v) => {
-      const r = retailers.find((x) => x.id === v.retailerId)?.name ?? "";
-      const esc = (s: string) => `"${(s || "").replace(/"/g, '""')}"`;
-      return [v.date, r, v.salesman, v.purpose, v.visitStatus, v.outcome, v.notes].map((x) => esc(String(x))).join(",");
-    });
-    const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `visits-${from}_to_${to}.csv`;
-    a.click();
-  };
-
   const selectionSummary =
     selectedSalesmen.length === 0
       ? `All salesmen (${sortedSalesmen.length || 0})`
@@ -1264,7 +1415,7 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
     <div className="space-y-3">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <h3 className="text-sm font-semibold flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-muted-foreground" /> Reports &amp; Analysis</h3>
-        <Button size="sm" variant="outline" onClick={exportCsv} disabled={!filtered.length}>Export CSV</Button>
+        <ExportCsvDialog visits={filtered} retailers={retailers} filenameHint={`${from}_to_${to}`} />
       </div>
 
       <div className="bg-card border rounded-2xl p-4 space-y-3">
@@ -1491,7 +1642,7 @@ function Planner({
   const [salesmanId, setSalesmanId] = useState<string>(linkedSalesmen[0]?.id ?? "");
   const [plans, setPlans] = useState<VisitPlan[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [mode, setMode] = useState<"edit" | "readonly">("edit");
+  const [mode, setMode] = useState<"create" | "view" | "past-empty">("create");
   const [draftIds, setDraftIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
 
@@ -1519,38 +1670,35 @@ function Planner({
     return salesmanRetailers.filter((r) => [r.name, r.city, r.area].some((s) => (s || "").toLowerCase().includes(q)));
   }, [salesmanRetailers, search]);
 
-  const planFor = (date: string, sId: string) => plans.find((p) => p.date === date && p.salesmanId === sId);
+  const planFor = (date: string, sId: string, list: VisitPlan[] = plans) => list.find((p) => p.date === date && p.salesmanId === sId);
+
+  const modeFor = (dateStr: string, sId: string, past: boolean, list: VisitPlan[] = plans): typeof mode => {
+    const existing = planFor(dateStr, sId, list);
+    if (existing) return "view";
+    return past ? "past-empty" : "create";
+  };
 
   const applyDateSelection = (d: Date | undefined, sId: string) => {
     if (!d) return;
     const dateStr = toISODateStr(d);
     if (dateStr === toISODateStr(selectedDate) && sId === salesmanId) return;
     setSelectedDate(d);
-    const existing = planFor(dateStr, sId);
-    if (existing) {
-      setMode("readonly");
-      setDraftIds(existing.retailerIds);
-    } else {
-      setMode("edit");
-      setDraftIds([]);
-    }
+    setDraftIds([]);
+    setSearch("");
+    const past = d < todayStart;
+    setMode(modeFor(dateStr, sId, past));
   };
 
   const handleSelectDate = (d: Date | undefined) => applyDateSelection(d, salesmanId);
 
   const handleSelectSalesman = (id: string) => {
     setSalesmanId(id);
-    setMode("edit");
     setDraftIds([]);
-    const existing = planFor(selectedDateStr, id);
-    if (existing) {
-      setMode("readonly");
-      setDraftIds(existing.retailerIds);
-    }
+    setMode(modeFor(selectedDateStr, id, isPast));
   };
 
   const toggleRetailer = (retailerId: string) => {
-    if (mode !== "edit" || isPast || !salesmanId) return;
+    if (mode !== "create" || isPast || !salesmanId) return;
     const next = draftIds.includes(retailerId) ? draftIds.filter((id) => id !== retailerId) : [...draftIds, retailerId];
     setDraftIds(next);
 
@@ -1561,7 +1709,7 @@ function Planner({
       nextAll = existingIdx === -1 ? all : all.filter((_, i) => i !== existingIdx);
     } else if (existingIdx === -1) {
       nextAll = [
-        { id: uid(), date: selectedDateStr, salesmanId, retailerIds: next, createdAt: new Date().toISOString(), createdByUserId: currentUser?.id },
+        { id: uid(), date: selectedDateStr, salesmanId, retailerIds: next, status: {}, createdAt: new Date().toISOString(), createdByUserId: currentUser?.id },
         ...all,
       ];
     } else {
@@ -1570,6 +1718,35 @@ function Planner({
     store.setPlans(nextAll);
     setPlans(nextAll);
   };
+
+  /** Mutates the currently-selected plan (date + salesman). Removes the plan entirely if it ends up with no retailers. */
+  const updateCurrentPlan = (updater: (p: VisitPlan) => VisitPlan | null) => {
+    const all = store.getPlans();
+    const idx = all.findIndex((p) => p.date === selectedDateStr && p.salesmanId === salesmanId);
+    if (idx === -1) return;
+    const updated = updater(all[idx]);
+    const nextAll = updated ? all.map((p, i) => (i === idx ? updated : p)) : all.filter((_, i) => i !== idx);
+    store.setPlans(nextAll);
+    setPlans(nextAll);
+    if (!updated) setMode(isPast ? "past-empty" : "create");
+  };
+
+  const markDone = (retailerId: string) =>
+    updateCurrentPlan((p) => ({ ...p, status: { ...p.status, [retailerId]: { doneAt: new Date().toISOString() } } }));
+
+  const markMissed = (retailerId: string) =>
+    updateCurrentPlan((p) => ({ ...p, status: { ...p.status, [retailerId]: { missed: true } } }));
+
+  const deleteFromPlan = (retailerId: string) =>
+    updateCurrentPlan((p) => {
+      const nextIds = p.retailerIds.filter((id) => id !== retailerId);
+      if (nextIds.length === 0) return null;
+      const nextStatus = { ...p.status };
+      delete nextStatus[retailerId];
+      return { ...p, retailerIds: nextIds, status: nextStatus };
+    });
+
+  const currentPlan = mode === "view" ? planFor(selectedDateStr, salesmanId) : undefined;
 
   const plannedDates = useMemo(
     () => new Set(plans.filter((p) => p.salesmanId === salesmanId).map((p) => p.date)),
@@ -1605,12 +1782,15 @@ function Planner({
             </Field>
           )}
 
-          <div className="bg-card border rounded-2xl p-3 sm:p-4 flex justify-center">
+          <div className="bg-card border rounded-2xl p-2 sm:p-4">
             <Calendar
               mode="single"
               selected={selectedDate}
               onSelect={handleSelectDate}
-              disabled={{ before: todayStart }}
+              disabled={(d) => d < todayStart && !plannedDates.has(toISODateStr(d))}
+              className="w-full"
+              classNames={{ root: "w-full", months: "w-full", month: "w-full", table: "w-full" }}
+              style={{ ["--cell-size" as string]: "clamp(2.25rem, 8vw, 3rem)" }}
               modifiers={{ planned: (d) => plannedDates.has(toISODateStr(d)) }}
               modifiersClassNames={{ planned: "after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1 after:w-1 after:rounded-full after:bg-primary" }}
             />
@@ -1621,26 +1801,56 @@ function Planner({
               <h3 className="text-sm font-semibold">
                 {selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
               </h3>
-              {mode === "readonly" && <Badge variant="secondary" className="text-[10px]">Saved</Badge>}
+              {mode === "view" && <Badge variant="secondary" className="text-[10px]">Saved</Badge>}
             </div>
 
-            {isPast ? (
-              <p className="text-xs text-muted-foreground py-6 text-center">This date has passed — no changes can be made.</p>
-            ) : mode === "readonly" ? (
+            {mode === "past-empty" ? (
+              <p className="text-xs text-muted-foreground py-6 text-center">This date has passed — no plan was set.</p>
+            ) : mode === "view" && currentPlan ? (
               <>
                 <p className="text-[11px] text-muted-foreground mb-3">
-                  {draftIds.length} retailer{draftIds.length === 1 ? "" : "s"} planned · view only for now.
+                  {currentPlan.retailerIds.length} retailer{currentPlan.retailerIds.length === 1 ? "" : "s"} planned
+                  {isPast ? " · this date has passed" : " · check off as you complete each visit"}
                 </p>
                 <ul className="divide-y">
-                  {draftIds.map((id) => {
+                  {currentPlan.retailerIds.map((id) => {
                     const r = retailers.find((x) => x.id === id);
+                    const st = currentPlan.status?.[id];
+                    const overduePending = isPast && !st?.doneAt && !st?.missed;
                     return (
-                      <li key={id} className="py-2.5 flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
-                          <div className="text-[11px] text-muted-foreground truncate">{[r?.area, r?.city].filter(Boolean).join(" · ")}</div>
+                      <li key={id} className="py-2.5">
+                        <div className="flex items-center gap-3">
+                          {st?.doneAt ? (
+                            <Checkbox checked disabled />
+                          ) : st?.missed ? (
+                            <span className="flex h-4 w-4 items-center justify-center shrink-0">
+                              <X className="w-4 h-4 text-rose-500" />
+                            </span>
+                          ) : overduePending ? (
+                            <span className="w-4 shrink-0" />
+                          ) : (
+                            <Checkbox checked={false} onCheckedChange={() => markDone(id)} />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
+                            <div className="text-[11px] text-muted-foreground truncate">{[r?.area, r?.city].filter(Boolean).join(" · ")}</div>
+                          </div>
+                          {st?.doneAt && (
+                            <div className="text-[10px] text-muted-foreground text-right shrink-0 leading-tight">
+                              {new Date(st.doneAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}<br />{new Date(st.doneAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                            </div>
+                          )}
+                          {st?.missed && (
+                            <div className="text-[10px] text-rose-500 text-right shrink-0">Missed</div>
+                          )}
                         </div>
+                        {overduePending && (
+                          <div className="flex items-center gap-1.5 mt-2 pl-7 flex-wrap">
+                            <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => markDone(id)}>Check now</Button>
+                            <Button size="sm" variant="ghost" className="h-7 px-2.5 text-[11px] text-rose-600 hover:text-rose-600" onClick={() => markMissed(id)}>Missed</Button>
+                            <Button size="sm" variant="ghost" className="h-7 px-2.5 text-[11px] text-destructive hover:text-destructive" onClick={() => deleteFromPlan(id)}>Delete</Button>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
