@@ -32,10 +32,20 @@ function GlassesMark({ className }: { className?: string }) {
   );
 }
 
-/** Decorative line-art sketch of an opticians' shopfront, with spectacles in the window. */
+/** Decorative line-art sketch of an opticians' shopfront, with a hanging sign and lens/glasses displays in the windows. */
 function OpticalShopSketch({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 240 150" fill="none" className={className} aria-hidden="true">
+    <svg viewBox="-6 -30 252 180" fill="none" className={className} aria-hidden="true">
+      {/* hanging shop sign: glasses on a bracket above the awning */}
+      <path d="M120 55V24" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M120 24c0-3 2.5-5.5 6-5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <rect x="94" y="2" width="52" height="21" rx="3.5" stroke="currentColor" strokeWidth="1.4" />
+      <g transform="translate(103,6.5)">
+        <circle cx="8" cy="6" r="5.4" stroke="currentColor" strokeWidth="1.3" />
+        <circle cx="26" cy="6" r="5.4" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M13.4 6h5.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </g>
+
       <path
         d="M10 145h220M18 55l14-15 14 15-14 15zM46 55l14-15 14 15-14 15zM74 55l14-15 14 15-14 15zM102 55l14-15 14 15-14 15zM130 55l14-15 14 15-14 15zM158 55l14-15 14 15-14 15zM186 55l14-15 14 15-14 15z"
         stroke="currentColor"
@@ -43,16 +53,31 @@ function OpticalShopSketch({ className }: { className?: string }) {
         strokeLinejoin="round"
       />
       <rect x="24" y="55" width="192" height="90" rx="2" stroke="currentColor" strokeWidth="1.4" />
+
+      {/* left window: spectacles on display */}
       <rect x="40" y="70" width="58" height="46" rx="2" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="142" y="70" width="58" height="46" rx="2" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M169 82h34M186 70v46" stroke="currentColor" strokeWidth="1" opacity="0.6" />
-      <g transform="translate(50,84)">
+      <path d="M46 108h46" stroke="currentColor" strokeWidth="1" opacity="0.6" />
+      <g transform="translate(50,80)">
         <circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="1.4" />
         <circle cx="29" cy="9" r="8" stroke="currentColor" strokeWidth="1.4" />
         <path d="M17 9h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         <path d="M1 7.5C1 4.5 3 2 5.5 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         <path d="M37 7.5c0-3-2-5.5-4.5-6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M5 8c1-2 2.5-3 4-3.3M25 8c1-2 2.5-3 4-3.3" stroke="currentColor" strokeWidth="0.8" opacity="0.5" strokeLinecap="round" />
       </g>
+
+      {/* right window: lens display rack */}
+      <rect x="142" y="70" width="58" height="46" rx="2" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M148 108h46" stroke="currentColor" strokeWidth="1" opacity="0.6" />
+      <g transform="translate(151,78)" stroke="currentColor">
+        <circle cx="7" cy="22" r="7" strokeWidth="1.2" />
+        <circle cx="7" cy="22" r="2.8" strokeWidth="0.8" opacity="0.5" />
+        <circle cx="20" cy="18.5" r="8.5" strokeWidth="1.2" />
+        <circle cx="20" cy="18.5" r="3.4" strokeWidth="0.8" opacity="0.5" />
+        <circle cx="33" cy="22" r="7" strokeWidth="1.2" />
+        <circle cx="33" cy="22" r="2.8" strokeWidth="0.8" opacity="0.5" />
+      </g>
+
       <rect x="106" y="96" width="28" height="49" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
       <circle cx="128" cy="121" r="1.6" fill="currentColor" />
     </svg>
@@ -321,7 +346,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                   </div>
                   <div>
                     <h1 className="text-2xl font-bold tracking-tight leading-none text-[color:var(--ov-toolbar-foreground)]">Meta Opti Connect</h1>
-                    <p className="text-sm opacity-80 mt-1">Field visit management for opticians</p>
+                    <p className="text-sm opacity-80 mt-1">Field Connect Management System With Opticians</p>
                   </div>
                 </div>
 
@@ -352,7 +377,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                 <GlassesMark className="w-7 h-7" />
               </div>
               <h1 className="text-xl font-bold tracking-tight">Meta Opti Connect</h1>
-              <p className="text-xs text-muted-foreground mt-1">Field visit management for opticians</p>
+              <p className="text-xs text-muted-foreground mt-1">Field Connect Management System With Opticians</p>
               <div className="mt-3 h-1 w-12 rounded-full bg-gradient-to-r from-primary via-aqua to-maroon" />
               <OpticalShopSketch className="w-full max-w-[220px] h-auto mt-5 text-primary/70" />
             </div>
