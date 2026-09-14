@@ -19,67 +19,47 @@ import {
 } from "lucide-react";
 import { accessStore, signIn, requestPinReset } from "@/lib/optivisit-access";
 
-/** Brand mark: a pair of spectacles, standing in for opticians/lenses. */
+/** Brand mark: a refined pair of spectacles, standing in for opticians/lenses. */
 function GlassesMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-      <circle cx="6.75" cy="13" r="4.25" stroke="currentColor" strokeWidth="1.7" />
-      <circle cx="17.25" cy="13" r="4.25" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M11 13h2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M2.5 12.2c0-1.9 1.1-3.4 2.6-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-      <path d="M21.5 12.2c0-1.9-1.1-3.4-2.6-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="7" cy="12.5" r="4.15" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="17" cy="12.5" r="4.15" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M11.1 11.9c.65-.85 1.6-1.3 1.9-1.3s1.25.45 1.9 1.3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+      <path d="M2.85 11.6c0-2.1 1.25-3.75 2.9-4.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M21.15 11.6c0-2.1-1.25-3.75-2.9-4.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   );
 }
 
-/** Decorative line-art sketch of an opticians' shopfront, with a hanging sign and lens/glasses displays in the windows. */
-function OpticalShopSketch({ className }: { className?: string }) {
+/** Professional emblem: a seal-style ring with a refined spectacles mark at its center. */
+function OpticalEmblem({ className }: { className?: string }) {
   return (
-    <svg viewBox="-6 -30 252 180" fill="none" className={className} aria-hidden="true">
-      {/* hanging shop sign: glasses on a bracket above the awning */}
-      <path d="M120 55V24" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M120 24c0-3 2.5-5.5 6-5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <rect x="94" y="2" width="52" height="21" rx="3.5" stroke="currentColor" strokeWidth="1.4" />
-      <g transform="translate(103,6.5)">
-        <circle cx="8" cy="6" r="5.4" stroke="currentColor" strokeWidth="1.3" />
-        <circle cx="26" cy="6" r="5.4" stroke="currentColor" strokeWidth="1.3" />
-        <path d="M13.4 6h5.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    <svg viewBox="0 0 200 200" fill="none" className={className} aria-hidden="true">
+      <circle cx="100" cy="100" r="92" stroke="currentColor" strokeWidth="1.3" opacity="0.35" />
+      <circle cx="100" cy="100" r="84" stroke="currentColor" strokeWidth="1" opacity="0.2" />
+      <g stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" opacity="0.45">
+        <path d="M192 100h-8" />
+        <path d="M165 165l-6-6" />
+        <path d="M100 192v-8" />
+        <path d="M35 165l6-6" />
+        <path d="M8 100h8" />
+        <path d="M35 35l6 6" />
+        <path d="M100 8v8" />
+        <path d="M165 35l-6 6" />
       </g>
 
-      <path
-        d="M10 145h220M18 55l14-15 14 15-14 15zM46 55l14-15 14 15-14 15zM74 55l14-15 14 15-14 15zM102 55l14-15 14 15-14 15zM130 55l14-15 14 15-14 15zM158 55l14-15 14 15-14 15zM186 55l14-15 14 15-14 15z"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinejoin="round"
-      />
-      <rect x="24" y="55" width="192" height="90" rx="2" stroke="currentColor" strokeWidth="1.4" />
-
-      {/* left window: spectacles on display */}
-      <rect x="40" y="70" width="58" height="46" rx="2" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M46 108h46" stroke="currentColor" strokeWidth="1" opacity="0.6" />
-      <g transform="translate(50,80)">
-        <circle cx="9" cy="9" r="8" stroke="currentColor" strokeWidth="1.4" />
-        <circle cx="29" cy="9" r="8" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M17 9h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        <path d="M1 7.5C1 4.5 3 2 5.5 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        <path d="M37 7.5c0-3-2-5.5-4.5-6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        <path d="M5 8c1-2 2.5-3 4-3.3M25 8c1-2 2.5-3 4-3.3" stroke="currentColor" strokeWidth="0.8" opacity="0.5" strokeLinecap="round" />
+      <g transform="translate(0,4)">
+        <circle cx="70" cy="100" r="25" stroke="currentColor" strokeWidth="3.2" />
+        <circle cx="130" cy="100" r="25" stroke="currentColor" strokeWidth="3.2" />
+        <path d="M95 97c3.5-4 6.5-4 10 0" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+        <path d="M45.5 97c-7-3-12.5-9-14.5-17" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+        <path d="M154.5 97c7-3 12.5-9 14.5-17" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+        <path d="M59 90l7-7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+        <path d="M119 90l7-7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
       </g>
 
-      {/* right window: lens display rack */}
-      <rect x="142" y="70" width="58" height="46" rx="2" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M148 108h46" stroke="currentColor" strokeWidth="1" opacity="0.6" />
-      <g transform="translate(151,78)" stroke="currentColor">
-        <circle cx="7" cy="22" r="7" strokeWidth="1.2" />
-        <circle cx="7" cy="22" r="2.8" strokeWidth="0.8" opacity="0.5" />
-        <circle cx="20" cy="18.5" r="8.5" strokeWidth="1.2" />
-        <circle cx="20" cy="18.5" r="3.4" strokeWidth="0.8" opacity="0.5" />
-        <circle cx="33" cy="22" r="7" strokeWidth="1.2" />
-        <circle cx="33" cy="22" r="2.8" strokeWidth="0.8" opacity="0.5" />
-      </g>
-
-      <rect x="106" y="96" width="28" height="49" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
-      <circle cx="128" cy="121" r="1.6" fill="currentColor" />
+      <path d="M62 146h76" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.25" />
     </svg>
   );
 }
@@ -360,7 +340,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                   <FeatureRow icon={<BarChart3 className="w-4 h-4" />} text="Review performance with real-time reports" />
                 </ul>
 
-                <OpticalShopSketch className="w-full max-w-[280px] h-auto mt-8 opacity-80" />
+                <OpticalEmblem className="w-full max-w-[168px] h-auto mx-auto mt-8 opacity-85" />
               </div>
 
               <div className="relative mt-10 flex items-center gap-2 text-xs opacity-80 border-t border-white/15 pt-5">
@@ -379,7 +359,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
               <h1 className="text-xl font-bold tracking-tight">Meta Opti Connect</h1>
               <p className="text-xs text-muted-foreground mt-1">Field Connect Management System With Opticians</p>
               <div className="mt-3 h-1 w-12 rounded-full bg-gradient-to-r from-primary via-aqua to-maroon" />
-              <OpticalShopSketch className="w-full max-w-[220px] h-auto mt-5 text-primary/70" />
+              <OpticalEmblem className="w-full max-w-[148px] h-auto mt-5 text-primary/70" />
             </div>
 
             <div className="bg-card/95 backdrop-blur rounded-3xl border shadow-2xl shadow-primary/5 ring-1 ring-black/[0.02] p-6 sm:p-7">
