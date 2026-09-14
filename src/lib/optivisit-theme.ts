@@ -420,25 +420,62 @@ export type AppTheme = {
   accent: string;
   /** Icon pack id — styles icon chips independently of the color theme. */
   iconPack: string;
+  /** Whether the icon pack's colors/shapes are applied at all. When false, icon chips fall back to a plain theme-tinted look. */
+  iconPackEnabled: boolean;
 };
 
 const K_THEME = "ov_theme";
+/** Storage key used for the theme when there's no signed-in user (single-device / no-accounts mode). */
+const DEVICE_KEY = "__device__";
 
-export const defaultTheme: AppTheme = { preset: "", background: "", card: "", font: "", accent: "", iconPack: DEFAULT_ICON_PACK };
+export const defaultTheme: AppTheme = {
+  preset: "",
+  background: "",
+  card: "",
+  font: "",
+  accent: "",
+  iconPack: DEFAULT_ICON_PACK,
+  iconPackEnabled: true,
+};
 
-export function getTheme(): AppTheme {
-  if (typeof window === "undefined") return defaultTheme;
+/** Per-user theme storage: each user id (or DEVICE_KEY) maps to its own AppTheme. */
+type ThemeMap = Record<string, AppTheme>;
+
+function readThemeMap(): ThemeMap {
+  if (typeof window === "undefined") return {};
   try {
     const raw = localStorage.getItem(K_THEME);
-    return raw ? { ...defaultTheme, ...(JSON.parse(raw) as AppTheme) } : defaultTheme;
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    // Legacy shape: a single flat AppTheme shared by everyone, from before themes were per-user.
+    if (parsed && typeof parsed === "object" && typeof parsed.preset === "string") {
+      return { [DEVICE_KEY]: parsed as AppTheme };
+    }
+    return parsed as ThemeMap;
   } catch {
-    return defaultTheme;
+    return {};
   }
 }
 
-export function setTheme(t: AppTheme) {
+function writeThemeMap(map: ThemeMap) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(K_THEME, JSON.stringify(t));
+  localStorage.setItem(K_THEME, JSON.stringify(map));
+}
+
+/** Reads the theme for a given user id (or the shared device theme when no user is signed in). */
+export function getTheme(userId?: string | null): AppTheme {
+  if (typeof window === "undefined") return defaultTheme;
+  const map = readThemeMap();
+  const stored = map[userId || DEVICE_KEY] ?? map[DEVICE_KEY];
+  return stored ? { ...defaultTheme, ...stored } : defaultTheme;
+}
+
+/** Saves and applies the theme for a given user id (or the shared device theme when no user is signed in). */
+export function setTheme(userId: string | null | undefined, t: AppTheme) {
+  if (typeof window === "undefined") return;
+  const map = readThemeMap();
+  map[userId || DEVICE_KEY] = t;
+  writeThemeMap(map);
   applyTheme(t);
 }
 

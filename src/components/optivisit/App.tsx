@@ -12,6 +12,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, LENS_MAIN_CATEGORIES, LENS_MATERIALS, LENS_COATINGS, type Visit, type Retailer, type Salesman, type Product, type VisitPlan, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type LensMainCategory, type LensMaterial, type LensCoating } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme, ICON_PACKS, DEFAULT_ICON_PACK, getIconPack, type IconPack } from "@/lib/optivisit-theme";
+import { Switch } from "@/components/ui/switch";
+import { startPresence, getPresenceCount, PRESENCE_EVENT } from "@/lib/optivisit-presence";
 
 import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -29,10 +31,13 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [accessVersion, setAccessVersion] = useState(0);
+  const [presenceCount, setPresenceCount] = useState(1);
 
   const loadUser = () => {
     const id = accessStore.getCurrentUserId();
-    setCurrentUser(id ? (accessStore.getUsers().find((u) => u.id === id) ?? null) : null);
+    const user = id ? (accessStore.getUsers().find((u) => u.id === id) ?? null) : null;
+    setCurrentUser(user);
+    applyTheme(getTheme(id));
     setAccessVersion((v) => v + 1);
   };
 
@@ -41,9 +46,20 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
     setRetailers(store.getRetailers());
     setSalesmen(store.getSalesmen());
     setProducts(store.getProducts());
-    applyTheme(getTheme());
     loadUser();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) { setPresenceCount(1); return; }
+    const stop = startPresence(currentUser.id, currentUser.name);
+    const onPresence = () => setPresenceCount(Math.max(1, getPresenceCount()));
+    window.addEventListener(PRESENCE_EVENT, onPresence);
+    onPresence();
+    return () => {
+      window.removeEventListener(PRESENCE_EVENT, onPresence);
+      stop();
+    };
+  }, [currentUser?.id, currentUser?.name]);
 
   const allowed = (p: string) => can(currentUser, p);
   const hasUsers = typeof window !== "undefined" && accessStore.getUsers().length > 0;
@@ -114,14 +130,29 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               <TopTab value="settings" icon={<SettingsIcon className="w-4 h-4" />} label="Settings" />
             </TabsList>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-current hover:bg-white/15"
-              onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {currentUser?.name && (
+                <div className="hidden sm:flex items-center gap-1.5 max-w-[140px] text-xs font-medium text-current/90">
+                  <User className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                  <span className="truncate">{currentUser.name}</span>
+                </div>
+              )}
+              <div
+                className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[11px] font-medium text-current"
+                title={`${presenceCount} user${presenceCount === 1 ? "" : "s"} currently signed in`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                {presenceCount}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-current hover:bg-white/15"
+                onClick={() => { store.setSession(false); accessStore.setCurrentUserId(null); onLock(); }}
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -597,7 +628,9 @@ function StatCard({
   const isGood = trend && trend.direction !== "flat" && trend.direction === goodDirection;
   const isBad = trend && trend.direction !== "flat" && trend.direction !== goodDirection;
   const isOrange = accent === "orange";
-  const iconPack = getIconPack(getTheme().iconPack);
+  const theme = getTheme(accessStore.getCurrentUserId());
+  const iconPack = getIconPack(theme.iconPack);
+  const iconChipClass = theme.iconPackEnabled ? iconPack.chipClass : "rounded-lg bg-primary/10 text-primary";
   return (
     <button
       type="button"
@@ -607,20 +640,20 @@ function StatCard({
       {icon && (
         <span
           className={`flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4 ${
-            isOrange ? "rounded-md sm:rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" : iconPack.chipClass
+            isOrange ? "rounded-md sm:rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-950 dark:text-orange-400" : iconChipClass
           }`}
         >
           {icon}
         </span>
       )}
       <div
-        className={`text-base sm:text-xl md:text-2xl font-bold tabular-nums mt-1 sm:mt-2 leading-none ${
+        className={`text-lg sm:text-2xl md:text-3xl font-bold tabular-nums mt-1 sm:mt-2 leading-none ${
           isOrange ? "text-orange-600 dark:text-orange-400" : ""
         }`}
       >
         {value}
       </div>
-      <div className="text-[9px] sm:text-[11px] leading-tight mt-1 text-muted-foreground line-clamp-2">{label}</div>
+      <div className="text-[10px] sm:text-xs leading-tight mt-1 text-muted-foreground line-clamp-2">{label}</div>
       {trend && (
         <span
           className={`inline-flex items-center gap-0.5 rounded-full px-1 sm:px-1.5 py-0.5 text-[8px] sm:text-[10px] font-medium mt-1 sm:mt-1.5 ${
@@ -2763,18 +2796,22 @@ const THEME_GROUPS = [
   { id: "dark", label: "Dark themes" },
 ] as const;
 
+const CLASSIC_VALUE = "classic";
+
 function ThemePanel() {
+  const userId = accessStore.getCurrentUserId();
   const [theme, setLocalTheme] = useState<AppTheme>(defaultTheme);
   const [themeGroup, setThemeGroup] = useState<string>("all");
 
   useEffect(() => {
-    setLocalTheme(getTheme());
-  }, []);
+    setLocalTheme(getTheme(userId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const update = (patch: Partial<AppTheme>) => {
     const next = { ...theme, ...patch };
     setLocalTheme(next);
-    setTheme(next);
+    setTheme(userId, next);
   };
 
   const visiblePresets = THEME_PRESETS.filter((p) => themeGroup === "all" || p.mode === themeGroup);
@@ -2784,13 +2821,13 @@ function ThemePanel() {
       <div className="ov-toolbar px-4 py-3 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-current">Appearance</h3>
-          <p className="text-[11px] opacity-85">Toolbar, tickets, tokens, fonts and background</p>
+          <p className="text-[11px] opacity-85">Your own theme &amp; icon pack — independent of other users</p>
         </div>
         <Button
           size="sm"
           variant="ghost"
           className="h-7 text-xs text-current hover:bg-white/15"
-          onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "", iconPack: DEFAULT_ICON_PACK })}
+          onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "", iconPack: DEFAULT_ICON_PACK, iconPackEnabled: true })}
         >
           Reset
         </Button>
@@ -2807,6 +2844,18 @@ function ThemePanel() {
               </SelectContent>
             </Select>
           </div>
+          <Select
+            value={theme.preset || CLASSIC_VALUE}
+            onValueChange={(v) => update({ preset: v === CLASSIC_VALUE ? "" : v })}
+          >
+            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select a theme" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={CLASSIC_VALUE} className="text-xs">Classic · App default</SelectItem>
+              {THEME_PRESETS.map((p) => (
+                <SelectItem key={p.id} value={p.id} className="text-xs">{p.name} · {p.mood}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {(themeGroup === "all" || themeGroup === "light") && (
               <ThemeCard
@@ -2831,18 +2880,38 @@ function ThemePanel() {
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs font-medium">Icon pack</Label>
-          <p className="text-[11px] text-muted-foreground -mt-1">Icon color and style, independent of the theme above</p>
-          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-            {ICON_PACKS.map((pack) => (
-              <IconPackCard
-                key={pack.id}
-                pack={pack}
-                active={(theme.iconPack || DEFAULT_ICON_PACK) === pack.id}
-                onClick={() => update({ iconPack: pack.id })}
-              />
-            ))}
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <Label className="text-xs font-medium">Icon pack</Label>
+              <p className="text-[11px] text-muted-foreground">Icon color and style, independent of the theme above</p>
+            </div>
+            <label className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none">
+              <span className="text-[11px] text-muted-foreground">{theme.iconPackEnabled ? "On" : "Off"}</span>
+              <Switch checked={theme.iconPackEnabled} onCheckedChange={(v) => update({ iconPackEnabled: v })} />
+            </label>
           </div>
+          {theme.iconPackEnabled && (
+            <>
+              <Select value={theme.iconPack || DEFAULT_ICON_PACK} onValueChange={(v) => update({ iconPack: v })}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select an icon pack" /></SelectTrigger>
+                <SelectContent>
+                  {ICON_PACKS.map((pack) => (
+                    <SelectItem key={pack.id} value={pack.id} className="text-xs">{pack.name} · {pack.mood}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                {ICON_PACKS.map((pack) => (
+                  <IconPackCard
+                    key={pack.id}
+                    pack={pack}
+                    active={(theme.iconPack || DEFAULT_ICON_PACK) === pack.id}
+                    onClick={() => update({ iconPack: pack.id })}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="rounded-xl border p-3 space-y-3">

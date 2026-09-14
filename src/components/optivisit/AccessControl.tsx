@@ -78,15 +78,15 @@ export function AccessControl({
       </div>
 
       {!isSuper ? (
-        <div className="rounded-xl border p-3 space-y-2">
-          <p className="text-xs text-muted-foreground">Your authorised access:</p>
-          <div className="flex flex-wrap gap-1">
-            {effectivePermissions(currentUser).map((p) => (
-              <Badge key={p} variant="secondary" className="text-[10px]">
-                {p}
-              </Badge>
-            ))}
+        <div className="space-y-2">
+          <div className="rounded-xl border p-3 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs font-medium">{currentUser.role}</p>
+              <p className="text-[11px] text-muted-foreground">{effectivePermissions(currentUser).length} permissions</p>
+            </div>
+            <Badge variant="secondary" className="text-[10px]">View only</Badge>
           </div>
+          <PermissionChecklist value={effectivePermissions(currentUser)} onChange={() => {}} readOnly />
           <p className="text-[10px] text-muted-foreground">Only a Super User can change access levels.</p>
         </div>
       ) : (
@@ -548,7 +548,15 @@ function SalesmenChecklist({
   );
 }
 
-function PermissionChecklist({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+function PermissionChecklist({
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+  readOnly?: boolean;
+}) {
   const toggle = (id: string) =>
     onChange(value.includes(id) ? value.filter((p) => p !== id) : [...value, id]);
 
@@ -558,22 +566,33 @@ function PermissionChecklist({ value, onChange }: { value: string[]; onChange: (
         <div key={group.id} className="rounded-lg border p-2">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-semibold">{group.label}</span>
-            <button
-              type="button"
-              className="text-[10px] underline text-muted-foreground"
-              onClick={() => {
-                const ids = group.items.map((i) => i.id);
-                const allOn = ids.every((i) => value.includes(i));
-                onChange(allOn ? value.filter((p) => !ids.includes(p)) : [...new Set([...value, ...ids])]);
-              }}
-            >
-              toggle all
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                className="text-[10px] underline text-muted-foreground"
+                onClick={() => {
+                  const ids = group.items.map((i) => i.id);
+                  const allOn = ids.every((i) => value.includes(i));
+                  onChange(allOn ? value.filter((p) => !ids.includes(p)) : [...new Set([...value, ...ids])]);
+                }}
+              >
+                toggle all
+              </button>
+            )}
           </div>
           <div className="space-y-1">
             {group.items.map((item) => (
-              <label key={item.id} className="flex items-center gap-2 text-xs">
-                <Checkbox checked={value.includes(item.id)} onCheckedChange={() => toggle(item.id)} />
+              <label
+                key={item.id}
+                className={`flex items-center gap-2 text-xs ${readOnly ? "" : "cursor-pointer"} ${
+                  readOnly && !value.includes(item.id) ? "opacity-50" : ""
+                }`}
+              >
+                <Checkbox
+                  checked={value.includes(item.id)}
+                  disabled={readOnly}
+                  onCheckedChange={readOnly ? undefined : () => toggle(item.id)}
+                />
                 <span>{item.label}</span>
               </label>
             ))}
