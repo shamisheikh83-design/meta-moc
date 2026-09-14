@@ -86,7 +86,7 @@ export function AccessControl({
             </div>
             <Badge variant="secondary" className="text-[10px]">View only</Badge>
           </div>
-          <PermissionChecklist value={effectivePermissions(currentUser)} onChange={() => {}} readOnly />
+          <PermissionChecklistByGroup value={effectivePermissions(currentUser)} />
           <p className="text-[10px] text-muted-foreground">Only a Super User can change access levels.</p>
         </div>
       ) : (
@@ -548,15 +548,7 @@ function SalesmenChecklist({
   );
 }
 
-function PermissionChecklist({
-  value,
-  onChange,
-  readOnly = false,
-}: {
-  value: string[];
-  onChange: (v: string[]) => void;
-  readOnly?: boolean;
-}) {
+function PermissionChecklist({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   const toggle = (id: string) =>
     onChange(value.includes(id) ? value.filter((p) => p !== id) : [...value, id]);
 
@@ -566,39 +558,60 @@ function PermissionChecklist({
         <div key={group.id} className="rounded-lg border p-2">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-semibold">{group.label}</span>
-            {!readOnly && (
-              <button
-                type="button"
-                className="text-[10px] underline text-muted-foreground"
-                onClick={() => {
-                  const ids = group.items.map((i) => i.id);
-                  const allOn = ids.every((i) => value.includes(i));
-                  onChange(allOn ? value.filter((p) => !ids.includes(p)) : [...new Set([...value, ...ids])]);
-                }}
-              >
-                toggle all
-              </button>
-            )}
+            <button
+              type="button"
+              className="text-[10px] underline text-muted-foreground"
+              onClick={() => {
+                const ids = group.items.map((i) => i.id);
+                const allOn = ids.every((i) => value.includes(i));
+                onChange(allOn ? value.filter((p) => !ids.includes(p)) : [...new Set([...value, ...ids])]);
+              }}
+            >
+              toggle all
+            </button>
           </div>
           <div className="space-y-1">
             {group.items.map((item) => (
-              <label
-                key={item.id}
-                className={`flex items-center gap-2 text-xs ${readOnly ? "" : "cursor-pointer"} ${
-                  readOnly && !value.includes(item.id) ? "opacity-50" : ""
-                }`}
-              >
-                <Checkbox
-                  checked={value.includes(item.id)}
-                  disabled={readOnly}
-                  onCheckedChange={readOnly ? undefined : () => toggle(item.id)}
-                />
+              <label key={item.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                <Checkbox checked={value.includes(item.id)} onCheckedChange={() => toggle(item.id)} />
                 <span>{item.label}</span>
               </label>
             ))}
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Read-only, dropdown-driven view of one user's permissions — shown to Admin and below for their own access. */
+function PermissionChecklistByGroup({ value }: { value: string[] }) {
+  const [groupId, setGroupId] = useState(PERMISSION_CATALOG[0].id);
+  const group = PERMISSION_CATALOG.find((g) => g.id === groupId) ?? PERMISSION_CATALOG[0];
+  const onCount = group.items.filter((i) => value.includes(i.id)).length;
+
+  return (
+    <div className="rounded-lg border p-2 space-y-2">
+      <div className="flex items-center gap-2">
+        <Select value={groupId} onValueChange={setGroupId}>
+          <SelectTrigger className="h-8 text-xs flex-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {PERMISSION_CATALOG.map((g) => <SelectItem key={g.id} value={g.id} className="text-xs">{g.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Badge variant="secondary" className="text-[10px] shrink-0">{onCount}/{group.items.length}</Badge>
+      </div>
+      <div className="space-y-1">
+        {group.items.map((item) => (
+          <label
+            key={item.id}
+            className={`flex items-center gap-2 text-xs ${value.includes(item.id) ? "" : "opacity-50"}`}
+          >
+            <Checkbox checked={value.includes(item.id)} disabled />
+            <span>{item.label}</span>
+          </label>
+        ))}
+      </div>
     </div>
   );
 }
