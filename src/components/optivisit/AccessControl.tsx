@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download, ArrowLeft, AlertTriangle, Mail } from "lucide-react";
+import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download, ArrowLeft, AlertTriangle, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 import {
   ROLES,
@@ -56,42 +56,120 @@ export function AccessControl({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-semibold flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4" /> Access level control
-          </h3>
-          <p className="text-xs text-muted-foreground mt-1">
-            Signed in as <span className="font-medium">{currentUser.name}</span> · {currentUser.role}
-          </p>
+      {isSuper && (
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4" /> Access level control
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1">
+              Signed in as <span className="font-medium">{currentUser.name}</span> · {currentUser.role}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              accessStore.setCurrentUserId(null);
+              onChanged();
+            }}
+          >
+            <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
+          </Button>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            accessStore.setCurrentUserId(null);
-            onChanged();
-          }}
-        >
-          <LogOut className="w-3.5 h-3.5 mr-1" /> Sign out
-        </Button>
-      </div>
+      )}
 
       {!isSuper ? (
-        <div className="space-y-2">
-          <div className="rounded-xl border p-3 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-xs font-medium">{currentUser.role}</p>
-              <p className="text-[11px] text-muted-foreground">{effectivePermissions(currentUser).length} permissions</p>
-            </div>
-            <Badge variant="secondary" className="text-[10px]">View only</Badge>
-          </div>
-          <PermissionChecklistByGroup value={effectivePermissions(currentUser)} />
-          <p className="text-[10px] text-muted-foreground">Only a Super User can change access levels.</p>
-        </div>
+        <OwnAccessView currentUser={currentUser} />
       ) : (
         <SuperUserPanel users={users} currentUser={currentUser} onChanged={onChanged} />
       )}
+    </div>
+  );
+}
+
+/**
+ * Admin-and-below view of their own access. Signed out (hidden) by default each time this
+ * section is opened — re-entering their PIN reveals a read-only, dropdown-driven permission
+ * browser. This PIN check is local to this panel only; it never touches the app-wide session.
+ */
+function OwnAccessView({ currentUser }: { currentUser: AppUser }) {
+  const [unlocked, setUnlocked] = useState(false);
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+
+  const tryUnlock = async () => {
+    if (pin.length !== 4 || checking) return;
+    setChecking(true);
+    const ok = await verifyPin(currentUser, pin);
+    setChecking(false);
+    if (!ok) {
+      setError("That PIN is not correct.");
+      setPin("");
+      return;
+    }
+    setError("");
+    setPin("");
+    setUnlocked(true);
+  };
+
+  if (!unlocked) {
+    return (
+      <div className="rounded-xl border p-4 space-y-3">
+        <h3 className="text-sm font-semibold flex items-center gap-1.5">
+          <ShieldCheck className="w-4 h-4" /> Access level control
+        </h3>
+        <div className="flex flex-col items-center text-center gap-2 py-2">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Lock className="w-4 h-4 text-muted-foreground" />
+          </span>
+          <div>
+            <p className="text-sm font-medium">Signed out</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Re-enter your PIN to view your own access level details.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <Input
+              inputMode="numeric"
+              maxLength={4}
+              autoFocus
+              className="w-24 text-center tracking-widest"
+              placeholder="••••"
+              value={pin}
+              onChange={(e) => { setPin(e.target.value.replace(/\D/g, "")); setError(""); }}
+              onKeyDown={(e) => e.key === "Enter" && tryUnlock()}
+            />
+            <Button size="sm" onClick={tryUnlock} disabled={pin.length !== 4 || checking}>
+              <KeyRound className="w-3.5 h-3.5 mr-1" /> View access
+            </Button>
+          </div>
+          {error && <p className="text-[11px] text-destructive">{error}</p>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold flex items-center gap-1.5">
+          <ShieldCheck className="w-4 h-4" /> Access level control
+        </h3>
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setUnlocked(false)}>
+          <Lock className="w-3.5 h-3.5 mr-1" /> Sign out
+        </Button>
+      </div>
+      <div className="rounded-xl border p-3 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium">{currentUser.role}</p>
+          <p className="text-[11px] text-muted-foreground">{effectivePermissions(currentUser).length} permissions</p>
+        </div>
+        <Badge variant="secondary" className="text-[10px]">View only</Badge>
+      </div>
+      <PermissionChecklistByGroup value={effectivePermissions(currentUser)} />
+      <p className="text-[10px] text-muted-foreground">Only a Super User can change access levels.</p>
     </div>
   );
 }
