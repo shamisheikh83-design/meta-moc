@@ -1382,11 +1382,12 @@ function CollapsibleSection({
   );
 }
 
-type ChartKey = "status" | "outcome";
-const CHART_KEYS: ChartKey[] = ["status", "outcome"];
+type ChartKey = "status" | "outcome" | "city";
+const CHART_KEYS: ChartKey[] = ["status", "outcome", "city"];
 const DEFAULT_VIEWS: Record<ChartKey, ChartView> = {
   status: { tiles: true, bars: true, opacity: 100 },
   outcome: { tiles: true, bars: true, opacity: 100 },
+  city: { tiles: true, bars: true, opacity: 100 },
 };
 const REPORT_VIEWS_KEY = "ov_report_chart_views";
 
@@ -1738,39 +1739,18 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
           <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-300" />Not Visited</span>
           <span className="text-muted-foreground">· Numbers: Retailers / Single / Multiple / Not Visited</span>
         </div>
-        <div className="space-y-1">
-          {cityRows.map((row) => (
-            <div key={row.city} className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
-              <span className="flex items-center gap-1 min-w-0">
-                <span className="truncate">{row.city}</span>
-                {!row.permanent && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCities((prev) => prev.filter((c) => c !== row.city))}
-                    className="shrink-0 text-muted-foreground hover:text-destructive"
-                    aria-label={`Remove ${row.city}`}
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </span>
-              <div
-                className="h-2.5 rounded-full bg-muted overflow-hidden flex"
-                title={`${row.single} single · ${row.multiple} multiple · ${row.notVisited} not visited`}
-              >
-                <div className="h-full bg-yellow-400" style={{ width: `${(row.single / (row.retailers || 1)) * 100}%` }} />
-                <div className="h-full bg-green-400" style={{ width: `${(row.multiple / (row.retailers || 1)) * 100}%` }} />
-                <div className="h-full bg-red-300" style={{ width: `${(row.notVisited / (row.retailers || 1)) * 100}%` }} />
-              </div>
-              <span className="flex items-center gap-1 text-[10px] tabular-nums">
-                <b className="w-5 text-right text-blue-600 dark:text-blue-400">{row.retailers}</b>
-                <span className="text-yellow-600 dark:text-yellow-400">{row.single}</span>/
-                <span className="text-green-600 dark:text-green-400">{row.multiple}</span>/
-                <span className="text-red-600 dark:text-red-400">{row.notVisited}</span>
-              </span>
-            </div>
-          ))}
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 mb-1.5">
+          <OpacitySlider value={views.city.opacity} onChange={(v) => setOpacity("city", v)} />
+          <span className="flex items-center gap-1.5">
+            <ViewChip label="Tiles" on={views.city.tiles} onClick={() => toggleView("city", "tiles")} />
+            <ViewChip label="Bars" on={views.city.bars} onClick={() => toggleView("city", "bars")} />
+          </span>
         </div>
+        <CityViews
+          rows={cityRows}
+          view={views.city}
+          onRemove={(city) => setSelectedCities((prev) => prev.filter((c) => c !== city))}
+        />
         <div className="mt-2">
           <Field label="Add city">
             <Select
@@ -1923,6 +1903,101 @@ function SegmentViews({
         {view.bars && bars}
       </div>
       {footer}
+    </div>
+  );
+}
+
+type CityRow = { city: string; permanent: boolean; retailers: number; single: number; multiple: number; notVisited: number };
+
+/**
+ * City wise tiles (sized by retailer count) and ranked bars (longest = most retailers), each split into
+ * single / multiple / not-visited retailers. Same 50:50 layout, toggles and opacity as the other report cards.
+ */
+function CityViews({ rows, view, onRemove }: { rows: CityRow[]; view: ChartView; onRemove: (city: string) => void }) {
+  const [active, setActive] = useState<string | null>(null);
+  const ranked = [...rows].sort((a, b) => b.retailers - a.retailers);
+  const max = Math.max(1, ...rows.map((r) => r.retailers));
+  const hover = (key: string) => ({ onPointerEnter: () => setActive(key), onPointerLeave: () => setActive(null) });
+  const dim = (key: string) => (active !== null && active !== key ? "opacity-40" : "");
+  const detail = (r: CityRow) => `${r.city}: ${r.retailers} retailers · ${r.single} single · ${r.multiple} multiple · ${r.notVisited} not visited`;
+  const share = (n: number, r: CityRow) => `${(n / (r.retailers || 1)) * 100}%`;
+
+  const split = (r: CityRow) => (
+    <>
+      <div className="h-full bg-yellow-400" style={{ width: share(r.single, r) }} />
+      <div className="h-full bg-green-400" style={{ width: share(r.multiple, r) }} />
+      <div className="h-full bg-red-300" style={{ width: share(r.notVisited, r) }} />
+    </>
+  );
+  const removeBtn = (r: CityRow) =>
+    !r.permanent && (
+      <button
+        type="button"
+        onClick={() => onRemove(r.city)}
+        className="shrink-0 opacity-70 hover:opacity-100"
+        aria-label={`Remove ${r.city}`}
+      >
+        <X className="w-3 h-3" />
+      </button>
+    );
+
+  const tiles = (
+    <div className="flex flex-wrap content-start gap-1">
+      {ranked.map((r) => (
+        <div
+          key={r.city}
+          {...hover(r.city)}
+          onClick={() => setActive((k) => (k === r.city ? null : r.city))}
+          title={detail(r)}
+          style={{ flex: `${Math.max(r.retailers, 0.5)} 1 76px` }}
+          className={`relative isolate flex min-h-[58px] cursor-pointer flex-col justify-between overflow-hidden rounded-lg px-2 py-1.5 transition ${
+            view.opacity >= 75 ? "text-white" : "text-foreground"
+          } ${dim(r.city)} ${active === r.city ? "ring-2 ring-foreground/40" : ""}`}
+        >
+          <span aria-hidden className={`absolute inset-0 -z-10 ${r.retailers ? "bg-sky-600" : "bg-slate-400"}`} style={{ opacity: view.opacity / 100 }} />
+          <div className="flex items-start justify-between gap-1">
+            <span className="text-[10px] leading-tight">{r.city}</span>
+            {removeBtn(r)}
+          </div>
+          <span className="text-sm font-semibold leading-none tabular-nums">
+            {r.retailers} <span className="text-[10px] font-normal opacity-90">retailers</span>
+          </span>
+          <div className="mt-1 flex h-1.5 overflow-hidden rounded-full bg-foreground/10">{split(r)}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const bars = (
+    <ul className="space-y-1.5">
+      {ranked.map((r) => (
+        <li key={r.city} {...hover(r.city)} title={detail(r)} className={`rounded px-1 transition ${dim(r.city)} ${active === r.city ? "bg-muted" : ""}`}>
+          <div className="flex items-baseline justify-between gap-2 text-[11px] leading-4">
+            <span className="flex min-w-0 items-center gap-1">
+              <span className="truncate">{r.city}</span>
+              {removeBtn(r)}
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-[10px] tabular-nums">
+              <b className="text-blue-600 dark:text-blue-400">{r.retailers}</b>
+              <span className="text-yellow-600 dark:text-yellow-400">{r.single}</span>/
+              <span className="text-green-600 dark:text-green-400">{r.multiple}</span>/
+              <span className="text-red-600 dark:text-red-400">{r.notVisited}</span>
+            </span>
+          </div>
+          <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+            <div className="flex h-full overflow-hidden rounded-full" style={{ width: `${(r.retailers / max) * 100}%`, opacity: view.opacity / 100 }}>
+              {split(r)}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+
+  return (
+    <div className={`grid gap-3 ${view.tiles && view.bars ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+      {view.tiles && tiles}
+      {view.bars && bars}
     </div>
   );
 }
