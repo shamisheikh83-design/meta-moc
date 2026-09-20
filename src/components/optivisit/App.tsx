@@ -1385,8 +1385,8 @@ function CollapsibleSection({
 type ChartKey = "status" | "outcome";
 const CHART_KEYS: ChartKey[] = ["status", "outcome"];
 const DEFAULT_VIEWS: Record<ChartKey, ChartView> = {
-  status: { tiles: true, bars: true },
-  outcome: { tiles: true, bars: true },
+  status: { tiles: true, bars: true, opacity: 100 },
+  outcome: { tiles: true, bars: true, opacity: 100 },
 };
 const REPORT_VIEWS_KEY = "ov_report_chart_views";
 
@@ -1553,7 +1553,18 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
   useEffect(() => {
     try {
       const raw = localStorage.getItem(REPORT_VIEWS_KEY);
-      if (raw) setViews({ ...DEFAULT_VIEWS, ...(JSON.parse(raw) as Partial<Record<ChartKey, ChartView>>) });
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<Record<ChartKey, Partial<ChartView>>>;
+        // Merge per card so choices saved before opacity existed still get a default.
+        setViews(
+          Object.fromEntries(
+            CHART_KEYS.map((k) => {
+              const v = { ...DEFAULT_VIEWS[k], ...saved[k] };
+              return [k, { ...v, opacity: Math.min(100, Math.max(MIN_OPACITY, Number(v.opacity) || 100)) }];
+            })
+          ) as Record<ChartKey, ChartView>
+        );
+      }
     } catch {
       /* fall back to both views on */
     }
@@ -1567,14 +1578,19 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
     }
   };
   // A card always keeps at least one view on.
-  const withView = (cur: ChartView, which: keyof ChartView, on: boolean): ChartView => {
+  const withView = (cur: ChartView, which: ChartToggle, on: boolean): ChartView => {
     const next = { ...cur, [which]: on };
     if (!next.tiles && !next.bars) next[which === "tiles" ? "bars" : "tiles"] = true;
     return next;
   };
-  const toggleView = (chart: ChartKey, which: keyof ChartView) =>
+  const toggleView = (chart: ChartKey, which: ChartToggle) =>
     applyViews({ ...views, [chart]: withView(views[chart], which, !views[chart][which]) });
-  const toggleAllViews = (which: keyof ChartView) => {
+  const setOpacity = (chart: ChartKey, opacity: number) =>
+    applyViews({ ...views, [chart]: { ...views[chart], opacity } });
+  const setAllOpacity = (opacity: number) =>
+    applyViews(Object.fromEntries(CHART_KEYS.map((k) => [k, { ...views[k], opacity }])) as Record<ChartKey, ChartView>);
+  const allOpacity = Math.round(CHART_KEYS.reduce((n, k) => n + views[k].opacity, 0) / CHART_KEYS.length);
+  const toggleAllViews = (which: ChartToggle) => {
     const on = !CHART_KEYS.every((k) => views[k][which]);
     applyViews(Object.fromEntries(CHART_KEYS.map((k) => [k, withView(views[k], which, on)])) as Record<ChartKey, ChartView>);
   };
@@ -1604,8 +1620,9 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
         <h3 className="text-sm font-semibold flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-muted-foreground" /> Reports &amp; Analysis</h3>
         <ExportCsvDialog visits={filtered} retailers={retailers} filenameHint={`${from}_to_${to}`} />
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 -mt-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 -mt-1">
         <span className="text-[10px] text-muted-foreground">Charts for all cards:</span>
+        <OpacitySlider value={allOpacity} onChange={setAllOpacity} />
         <ViewChip label="Tiles" on={CHART_KEYS.every((k) => views[k].tiles)} onClick={() => toggleAllViews("tiles")} />
         <ViewChip label="Bars" on={CHART_KEYS.every((k) => views[k].bars)} onClick={() => toggleAllViews("bars")} />
       </div>
@@ -1680,9 +1697,12 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
       </div>
 
       <CollapsibleSection compact title="Visit Status" badge={filtered.length} subtitle={selectionSummary}>
-        <div className="flex items-center justify-end gap-1.5 mb-1.5">
-          <ViewChip label="Tiles" on={views.status.tiles} onClick={() => toggleView("status", "tiles")} />
-          <ViewChip label="Bars" on={views.status.bars} onClick={() => toggleView("status", "bars")} />
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 mb-1.5">
+          <OpacitySlider value={views.status.opacity} onChange={(v) => setOpacity("status", v)} />
+          <span className="flex items-center gap-1.5">
+            <ViewChip label="Tiles" on={views.status.tiles} onClick={() => toggleView("status", "tiles")} />
+            <ViewChip label="Bars" on={views.status.bars} onClick={() => toggleView("status", "bars")} />
+          </span>
         </div>
         <SegmentViews
           segments={visitSegments}
@@ -1698,9 +1718,12 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
       </CollapsibleSection>
 
       <CollapsibleSection compact title="Outcome" badge={filtered.length} subtitle={selectionSummary}>
-        <div className="flex items-center justify-end gap-1.5 mb-1.5">
-          <ViewChip label="Tiles" on={views.outcome.tiles} onClick={() => toggleView("outcome", "tiles")} />
-          <ViewChip label="Bars" on={views.outcome.bars} onClick={() => toggleView("outcome", "bars")} />
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 mb-1.5">
+          <OpacitySlider value={views.outcome.opacity} onChange={(v) => setOpacity("outcome", v)} />
+          <span className="flex items-center gap-1.5">
+            <ViewChip label="Tiles" on={views.outcome.tiles} onClick={() => toggleView("outcome", "tiles")} />
+            <ViewChip label="Bars" on={views.outcome.bars} onClick={() => toggleView("outcome", "bars")} />
+          </span>
         </div>
         <SegmentViews
           segments={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], ...OUTCOME_SEG[o] }))}
@@ -1790,7 +1813,29 @@ const OUTCOME_SEG: Record<Outcome, { bg: string }> = {
 };
 
 type ChartSegment = { key: string; count: number; bg: string };
-type ChartView = { tiles: boolean; bars: boolean };
+/** Which views a report card shows, and how opaque the tile / bar colours are (percent). */
+type ChartView = { tiles: boolean; bars: boolean; opacity: number };
+type ChartToggle = "tiles" | "bars";
+const MIN_OPACITY = 20;
+
+function OpacitySlider({ value, onChange, label = "Opacity" }: { value: number; onChange: (v: number) => void; label?: string }) {
+  return (
+    <label className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      {label}
+      <input
+        type="range"
+        min={MIN_OPACITY}
+        max={100}
+        step={5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label={`${label} of chart colours`}
+        className="h-1 w-20 cursor-pointer accent-primary"
+      />
+      <span className="w-7 tabular-nums text-foreground">{value}%</span>
+    </label>
+  );
+}
 
 function ViewChip({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (
@@ -1838,10 +1883,11 @@ function SegmentViews({
           onClick={() => setActive((k) => (k === s.key ? null : s.key))}
           title={`${s.key}: ${s.count} (${pct(s.count)}%)`}
           style={{ flex: `${s.count} 1 76px` }}
-          className={`flex min-h-[46px] cursor-pointer flex-col justify-between rounded-lg px-2 py-1.5 text-white transition ${s.bg} ${dim(s.key)} ${
-            active === s.key ? "ring-2 ring-foreground/40" : ""
-          }`}
+          className={`relative isolate flex min-h-[46px] cursor-pointer flex-col justify-between overflow-hidden rounded-lg px-2 py-1.5 transition ${
+            view.opacity >= 75 ? "text-white" : "text-foreground"
+          } ${dim(s.key)} ${active === s.key ? "ring-2 ring-foreground/40" : ""}`}
         >
+          <span aria-hidden className={`absolute inset-0 -z-10 ${s.bg}`} style={{ opacity: view.opacity / 100 }} />
           <span className="text-[10px] leading-tight">{s.key}</span>
           <span className="text-sm font-semibold leading-none tabular-nums">
             {s.count} <span className="text-[10px] font-normal opacity-90">{pct(s.count)}%</span>
@@ -1863,7 +1909,7 @@ function SegmentViews({
             </span>
           </div>
           <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className={`h-full rounded-full ${s.bg}`} style={{ width: `${(s.count / max) * 100}%` }} />
+            <div className={`h-full rounded-full ${s.bg}`} style={{ width: `${(s.count / max) * 100}%`, opacity: view.opacity / 100 }} />
           </div>
         </li>
       ))}
