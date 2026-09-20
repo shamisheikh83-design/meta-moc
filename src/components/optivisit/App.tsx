@@ -1382,6 +1382,14 @@ function CollapsibleSection({
   );
 }
 
+type ChartKey = "status" | "outcome";
+const CHART_KEYS: ChartKey[] = ["status", "outcome"];
+const DEFAULT_VIEWS: Record<ChartKey, ChartView> = {
+  status: { tiles: true, bars: true },
+  outcome: { tiles: true, bars: true },
+};
+const REPORT_VIEWS_KEY = "ov_report_chart_views";
+
 /* ---------------- Reports (embedded in Dashboard) ---------------- */
 function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retailers: Retailer[]; salesmen: Salesman[] }) {
 
@@ -1540,17 +1548,47 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
 
 
 
+  // Which chart views (tiles / bars) each report card shows; kept on this device.
+  const [views, setViews] = useState<Record<ChartKey, ChartView>>(DEFAULT_VIEWS);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(REPORT_VIEWS_KEY);
+      if (raw) setViews({ ...DEFAULT_VIEWS, ...(JSON.parse(raw) as Partial<Record<ChartKey, ChartView>>) });
+    } catch {
+      /* fall back to both views on */
+    }
+  }, []);
+  const applyViews = (next: Record<ChartKey, ChartView>) => {
+    setViews(next);
+    try {
+      localStorage.setItem(REPORT_VIEWS_KEY, JSON.stringify(next));
+    } catch {
+      /* preference just won't persist */
+    }
+  };
+  // A card always keeps at least one view on.
+  const withView = (cur: ChartView, which: keyof ChartView, on: boolean): ChartView => {
+    const next = { ...cur, [which]: on };
+    if (!next.tiles && !next.bars) next[which === "tiles" ? "bars" : "tiles"] = true;
+    return next;
+  };
+  const toggleView = (chart: ChartKey, which: keyof ChartView) =>
+    applyViews({ ...views, [chart]: withView(views[chart], which, !views[chart][which]) });
+  const toggleAllViews = (which: keyof ChartView) => {
+    const on = !CHART_KEYS.every((k) => views[k][which]);
+    applyViews(Object.fromEntries(CHART_KEYS.map((k) => [k, withView(views[k], which, on)])) as Record<ChartKey, ChartView>);
+  };
+
   // Recovery and complaint visits are counted inside "Visits", so split them out to make the parts add up.
   const visitSegments = [
     {
       key: "Regular Visits",
       count: Math.max(0, activityCounts["Visits"] - activityCounts["Recovery Visits"] - activityCounts["Complaints Visits"]),
       bg: "bg-indigo-500",
-      stroke: "stroke-indigo-500",
     },
-    { key: "Recovery Visits", count: activityCounts["Recovery Visits"], bg: "bg-amber-500", stroke: "stroke-amber-500" },
-    { key: "Complaint Visits", count: activityCounts["Complaints Visits"], bg: "bg-rose-400", stroke: "stroke-rose-400" },
-    { key: "Others Reasons", count: activityCounts["Others Reasons"], bg: "bg-slate-400", stroke: "stroke-slate-400" },
+    { key: "Recovery Visits", count: activityCounts["Recovery Visits"], bg: "bg-amber-500" },
+    { key: "Complaint Visits", count: activityCounts["Complaints Visits"], bg: "bg-rose-500" },
+    { key: "Others Reasons", count: activityCounts["Others Reasons"], bg: "bg-slate-500" },
   ];
 
   const selectionSummary =
@@ -1565,6 +1603,11 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <h3 className="text-sm font-semibold flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-muted-foreground" /> Reports &amp; Analysis</h3>
         <ExportCsvDialog visits={filtered} retailers={retailers} filenameHint={`${from}_to_${to}`} />
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 -mt-1">
+        <span className="text-[10px] text-muted-foreground">Charts for all cards:</span>
+        <ViewChip label="Tiles" on={CHART_KEYS.every((k) => views[k].tiles)} onClick={() => toggleAllViews("tiles")} />
+        <ViewChip label="Bars" on={CHART_KEYS.every((k) => views[k].bars)} onClick={() => toggleAllViews("bars")} />
       </div>
 
       <div className="bg-card border rounded-2xl p-4 space-y-3">
@@ -1637,11 +1680,15 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
       </div>
 
       <CollapsibleSection compact title="Visit Status" badge={filtered.length} subtitle={selectionSummary}>
-        <DonutWithLegend
+        <div className="flex items-center justify-end gap-1.5 mb-1.5">
+          <ViewChip label="Tiles" on={views.status.tiles} onClick={() => toggleView("status", "tiles")} />
+          <ViewChip label="Bars" on={views.status.bars} onClick={() => toggleView("status", "bars")} />
+        </div>
+        <SegmentViews
           segments={visitSegments}
-          centerLabel="total"
+          view={views.status}
           footer={
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1 mt-0.5 border-t text-[10px] text-muted-foreground">
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1.5 border-t text-[10px] text-muted-foreground">
               <span><b className="text-foreground tabular-nums">{activityCounts["City Visits"]}</b> Cities</span>
               <span><b className="text-foreground tabular-nums">{activityCounts["Areas Visited"]}</b> Areas</span>
               <span><b className="text-foreground tabular-nums">{activityCounts["Shops Visited"]}</b> Shops</span>
@@ -1651,9 +1698,13 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
       </CollapsibleSection>
 
       <CollapsibleSection compact title="Outcome" badge={filtered.length} subtitle={selectionSummary}>
-        <DonutWithLegend
+        <div className="flex items-center justify-end gap-1.5 mb-1.5">
+          <ViewChip label="Tiles" on={views.outcome.tiles} onClick={() => toggleView("outcome", "tiles")} />
+          <ViewChip label="Bars" on={views.outcome.bars} onClick={() => toggleView("outcome", "bars")} />
+        </div>
+        <SegmentViews
           segments={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], ...OUTCOME_SEG[o] }))}
-          centerLabel="outcomes"
+          view={views.outcome}
         />
       </CollapsibleSection>
 
@@ -1728,89 +1779,104 @@ const STATUS_BAR: Record<VisitStatus, string> = {
 };
 
 // Full class names (not built from strings) so Tailwind picks them up.
-const OUTCOME_SEG: Record<Outcome, { bg: string; stroke: string }> = {
-  Satisfactory: { bg: "bg-teal-500", stroke: "stroke-teal-500" },
-  Successful: { bg: "bg-emerald-500", stroke: "stroke-emerald-500" },
-  "Not Interested": { bg: "bg-rose-300", stroke: "stroke-rose-300" },
-  "Meeting unsuccessful": { bg: "bg-orange-500", stroke: "stroke-orange-500" },
-  "Not Met": { bg: "bg-slate-400", stroke: "stroke-slate-400" },
-  Complaints: { bg: "bg-red-400", stroke: "stroke-red-400" },
-  "Linked to Other Company": { bg: "bg-violet-500", stroke: "stroke-violet-500" },
+const OUTCOME_SEG: Record<Outcome, { bg: string }> = {
+  Satisfactory: { bg: "bg-teal-500" },
+  Successful: { bg: "bg-emerald-600" },
+  "Not Interested": { bg: "bg-pink-500" },
+  "Meeting unsuccessful": { bg: "bg-orange-500" },
+  "Not Met": { bg: "bg-slate-500" },
+  Complaints: { bg: "bg-red-500" },
+  "Linked to Other Company": { bg: "bg-violet-500" },
 };
 
-type DonutSegment = { key: string; count: number; bg: string; stroke: string };
+type ChartSegment = { key: string; count: number; bg: string };
+type ChartView = { tiles: boolean; bars: boolean };
 
-/** Ring chart whose slices are parts of one total, with the total in the middle. */
-function Donut({ segments, centerLabel, size = 88 }: { segments: DonutSegment[]; centerLabel: string; size?: number }) {
-  const total = segments.reduce((n, s) => n + s.count, 0);
-  let offset = 0;
+function ViewChip({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (
-    <svg
-      viewBox="0 0 36 36"
-      width={size}
-      height={size}
-      className="shrink-0 -rotate-90"
-      role="img"
-      aria-label={`${total} ${centerLabel}: ${segments.filter((s) => s.count).map((s) => `${s.key} ${s.count}`).join(", ") || "none"}`}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition ${
+        on ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-muted"
+      }`}
     >
-      <circle cx="18" cy="18" r="15.9155" fill="none" strokeWidth="5" className="stroke-muted" />
-      {total > 0 &&
-        segments.map((s) => {
-          if (!s.count) return null;
-          const len = (s.count / total) * 100;
-          const el = (
-            <circle
-              key={s.key}
-              cx="18"
-              cy="18"
-              r="15.9155"
-              fill="none"
-              strokeWidth="5"
-              className={s.stroke}
-              strokeDasharray={`${len} ${100 - len}`}
-              strokeDashoffset={-offset}
-            />
-          );
-          offset += len;
-          return el;
-        })}
-      <g className="rotate-90 origin-center fill-foreground" textAnchor="middle">
-        <text x="18" y="19.5" fontSize="7.5" fontWeight="700">{total}</text>
-        <text x="18" y="24.5" fontSize="3.2" className="fill-muted-foreground">{centerLabel}</text>
-      </g>
-    </svg>
+      {on && <Check className="w-2.5 h-2.5" />}
+      {label}
+    </button>
   );
 }
 
-/** Donut on the left, a compact colour-keyed legend (count + share) on the right. */
-function DonutWithLegend({
+/**
+ * Tiles (sized by share) and ranked bars for the same segments. Each can be switched off; when both
+ * are on they split the width 50:50 (stacked on phones). Hovering either highlights the segment in both.
+ */
+function SegmentViews({
   segments,
-  centerLabel,
+  view,
   footer,
 }: {
-  segments: DonutSegment[];
-  centerLabel: string;
+  segments: ChartSegment[];
+  view: ChartView;
   footer?: React.ReactNode;
 }) {
+  const [active, setActive] = useState<string | null>(null);
   const total = segments.reduce((n, s) => n + s.count, 0);
+  const pct = (n: number) => (total ? Math.round((n / total) * 100) : 0);
+  const max = Math.max(1, ...segments.map((s) => s.count));
+  const hover = (key: string | null) => ({ onPointerEnter: () => setActive(key), onPointerLeave: () => setActive(null) });
+  const dim = (key: string) => (active !== null && active !== key ? "opacity-40" : "");
+
+  const tiles = (
+    <div className="flex flex-wrap content-start gap-1">
+      {total === 0 && <p className="text-xs text-muted-foreground py-2">No visits in this range.</p>}
+      {segments.filter((s) => s.count > 0).map((s) => (
+        <div
+          key={s.key}
+          {...hover(s.key)}
+          onClick={() => setActive((k) => (k === s.key ? null : s.key))}
+          title={`${s.key}: ${s.count} (${pct(s.count)}%)`}
+          style={{ flex: `${s.count} 1 76px` }}
+          className={`flex min-h-[46px] cursor-pointer flex-col justify-between rounded-lg px-2 py-1.5 text-white transition ${s.bg} ${dim(s.key)} ${
+            active === s.key ? "ring-2 ring-foreground/40" : ""
+          }`}
+        >
+          <span className="text-[10px] leading-tight">{s.key}</span>
+          <span className="text-sm font-semibold leading-none tabular-nums">
+            {s.count} <span className="text-[10px] font-normal opacity-90">{pct(s.count)}%</span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const bars = (
+    <ul className="space-y-1.5">
+      {[...segments].sort((x, y) => y.count - x.count).map((s) => (
+        <li key={s.key} {...hover(s.key)} className={`rounded px-1 transition ${dim(s.key)} ${active === s.key ? "bg-muted" : ""}`}>
+          <div className="flex items-baseline justify-between gap-2 text-[11px] leading-4">
+            <span className="min-w-0 truncate">{s.key}</span>
+            <span className="shrink-0">
+              <b className="font-semibold tabular-nums">{s.count}</b>{" "}
+              <span className="text-muted-foreground tabular-nums">{pct(s.count)}%</span>
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+            <div className={`h-full rounded-full ${s.bg}`} style={{ width: `${(s.count / max) * 100}%` }} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
-    <div className="flex items-center gap-3">
-      <Donut segments={segments} centerLabel={centerLabel} />
-      <div className="min-w-0 flex-1">
-        <ul className="space-y-0.5">
-          {segments.map((s) => (
-            <li key={s.key} className="flex items-center gap-1.5 text-[11px] leading-4">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${s.bg}`} />
-              <span className="min-w-0 flex-1 truncate">{s.key}</span>
-              <span className="font-medium tabular-nums">{s.count}</span>
-              <span className="w-8 text-right text-muted-foreground tabular-nums">
-                {total ? `${Math.round((s.count / total) * 100)}%` : "0%"}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {footer}
+    <div className="space-y-1.5">
+      <div className={`grid gap-3 ${view.tiles && view.bars ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
+        {view.tiles && tiles}
+        {view.bars && bars}
       </div>
+      {footer}
     </div>
   );
 }
