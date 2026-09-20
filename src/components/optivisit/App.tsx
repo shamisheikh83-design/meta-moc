@@ -491,6 +491,10 @@ function Dashboard({
     ) },
   ];
 
+  const chartViews = useChartViews();
+  const range = useReportRange();
+  const [adjustOpen, setAdjustOpen] = useState(false);
+
   const allCardIds = dashboardCards.map((c) => c.id);
   const pickedIds = (pickedCards ?? allCardIds).filter((id) => allCardIds.includes(id));
   const shownCards = pickMode ? dashboardCards.filter((c) => pickedIds.includes(c.id)) : dashboardCards;
@@ -503,45 +507,32 @@ function Dashboard({
         <h2 className="text-base sm:text-lg font-semibold">
           {greetingFor(new Date())}{currentUser?.name ? `, ${currentUser.name}` : settings.salesmanName ? `, ${settings.salesmanName}` : ""} 👋
         </h2>
-        <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+        <button
+          type="button"
+          onClick={() => setAdjustOpen((o) => !o)}
+          aria-expanded={adjustOpen}
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border bg-card px-3 text-xs font-medium transition hover:bg-muted"
+        >
           <SlidersHorizontal className="w-3.5 h-3.5" />
-          Select Cards
-          <Switch checked={pickMode} onCheckedChange={(on) => savePickPref(on, pickedCards)} aria-label="Select which cards to show" />
-        </label>
+          Adjust View
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${adjustOpen ? "rotate-180" : ""}`} />
+        </button>
       </div>
 
-      {pickMode && (
-        <div className="rounded-xl border bg-card p-2.5 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium">Choose Cards To Show · {pickedIds.length} Of {allCardIds.length}</span>
-            <div className="flex items-center gap-1">
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => savePickPref(true, allCardIds)}>All</Button>
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => savePickPref(true, [])}>None</Button>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {dashboardCards.map((c) => {
-              const active = pickedIds.includes(c.id);
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => togglePicked(c.id)}
-                  aria-pressed={active}
-                  className={`text-xs px-2.5 py-1 rounded-full border inline-flex items-center gap-1 transition ${
-                    active
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-foreground border-border hover:bg-muted"
-                  }`}
-                >
-                  {active && <Check className="w-3 h-3" />}
-                  {c.label}
-                </button>
-              );
-            })}
-          </div>
-          {pickedIds.length === 0 && <p className="text-[10px] text-muted-foreground">No cards selected - pick at least one to see it here.</p>}
-        </div>
+      {adjustOpen && (
+        <AdjustViewPanel
+          cards={dashboardCards.map((c) => ({ id: c.id, label: c.label }))}
+          pickMode={pickMode}
+          pickedIds={pickedIds}
+          onPickMode={(on) => savePickPref(on, pickedCards)}
+          onPick={togglePicked}
+          onPickAll={() => savePickPref(true, allCardIds)}
+          onPickNone={() => savePickPref(true, [])}
+          showReports={allowed("module.reports")}
+          chartViews={chartViews}
+          range={range}
+          onDone={() => setAdjustOpen(false)}
+        />
       )}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {shownCards.map((c) => (
@@ -549,7 +540,7 @@ function Dashboard({
         ))}
       </div>
 
-      {allowed("module.reports") && <ReportsPanels visits={visits} retailers={retailers} salesmen={salesmen} />}
+      {allowed("module.reports") && <ReportsPanels visits={visits} retailers={retailers} salesmen={salesmen} views={chartViews.views} from={range.from} to={range.to} />}
 
       <RecentVisitsSection
         visits={visits}
@@ -1391,15 +1382,262 @@ const DEFAULT_VIEWS: Record<ChartKey, ChartView> = {
 };
 const REPORT_VIEWS_KEY = "ov_report_chart_views";
 
-/* ---------------- Reports (embedded in Dashboard) ---------------- */
-function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retailers: Retailer[]; salesmen: Salesman[] }) {
+const RANGE_KEY = "ov_report_range";
+type ReportRange = { preset: RangePreset; from: string; to: string };
 
-  const today = new Date();
-  const [preset, setPreset] = useState<RangePreset>("monthly");
-  const [from, setFrom] = useState<string>(() => {
-    const d = new Date(); d.setDate(d.getDate() - 29); return toISODate(d);
-  });
-  const [to, setTo] = useState<string>(toISODate(today));
+function presetRange(p: Exclude<RangePreset, "custom">) {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - (p === "weekly" ? 6 : p === "monthly" ? 29 : 89));
+  return { from: toISODate(start), to: toISODate(end) };
+}
+
+/** Report date range (weekly / monthly / quarterly / custom), remembered on this device. */
+function useReportRange() {
+  const [range, setRange] = useState<ReportRange>(() => ({ preset: "monthly", ...presetRange("monthly") }));
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(RANGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<ReportRange>;
+      if (saved.preset === "weekly" || saved.preset === "monthly" || saved.preset === "quarterly") {
+        setRange({ preset: saved.preset, ...presetRange(saved.preset) });
+      } else if (saved.preset === "custom" && saved.from && saved.to) {
+        setRange({ preset: "custom", from: saved.from, to: saved.to });
+      }
+    } catch {
+      /* keep the monthly default */
+    }
+  }, []);
+  const commit = (next: ReportRange) => {
+    setRange(next);
+    try {
+      localStorage.setItem(RANGE_KEY, JSON.stringify(next));
+    } catch {
+      /* preference just won't persist */
+    }
+  };
+  const applyPreset = (p: RangePreset) => {
+    if (p !== "custom") commit({ preset: p, ...presetRange(p) });
+  };
+  const onFromChange = (val: string) => {
+    if (!val) return;
+    const f = new Date(val);
+    const t = new Date(range.to);
+    const maxTo = new Date(f);
+    maxTo.setFullYear(maxTo.getFullYear() + 1);
+    commit({ preset: "custom", from: val, to: t > maxTo ? toISODate(maxTo) : t < f ? val : range.to });
+  };
+  const onToChange = (val: string) => {
+    if (!val) return;
+    const f = new Date(range.from);
+    const t = new Date(val);
+    const minFrom = new Date(t);
+    minFrom.setFullYear(minFrom.getFullYear() - 1);
+    commit({ preset: "custom", from: f > t ? val : f < minFrom ? toISODate(minFrom) : range.from, to: val });
+  };
+  return { ...range, applyPreset, onFromChange, onToChange };
+}
+
+/** Which chart views (tiles / bars) and how much colour opacity each report card uses; kept on this device. */
+function useChartViews() {
+  const [views, setViews] = useState<Record<ChartKey, ChartView>>(DEFAULT_VIEWS);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(REPORT_VIEWS_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<Record<ChartKey, Partial<ChartView>>>;
+        // Merge per card so choices saved before opacity (or a newer card) existed still get a default.
+        setViews(
+          Object.fromEntries(
+            CHART_KEYS.map((k) => {
+              const v = { ...DEFAULT_VIEWS[k], ...saved[k] };
+              return [k, { ...v, opacity: Math.min(100, Math.max(MIN_OPACITY, Number(v.opacity) || 100)) }];
+            })
+          ) as Record<ChartKey, ChartView>
+        );
+      }
+    } catch {
+      /* fall back to both views on */
+    }
+  }, []);
+  const apply = (next: Record<ChartKey, ChartView>) => {
+    setViews(next);
+    try {
+      localStorage.setItem(REPORT_VIEWS_KEY, JSON.stringify(next));
+    } catch {
+      /* preference just won't persist */
+    }
+  };
+  // A card always keeps at least one view on.
+  const withView = (cur: ChartView, which: ChartToggle, on: boolean): ChartView => {
+    const next = { ...cur, [which]: on };
+    if (!next.tiles && !next.bars) next[which === "tiles" ? "bars" : "tiles"] = true;
+    return next;
+  };
+  const toggleView = (chart: ChartKey, which: ChartToggle) =>
+    apply({ ...views, [chart]: withView(views[chart], which, !views[chart][which]) });
+  const setOpacity = (chart: ChartKey, opacity: number) => apply({ ...views, [chart]: { ...views[chart], opacity } });
+  const setAllOpacity = (opacity: number) =>
+    apply(Object.fromEntries(CHART_KEYS.map((k) => [k, { ...views[k], opacity }])) as Record<ChartKey, ChartView>);
+  const allOpacity = Math.round(CHART_KEYS.reduce((n, k) => n + views[k].opacity, 0) / CHART_KEYS.length);
+  const toggleAll = (which: ChartToggle) => {
+    const on = !CHART_KEYS.every((k) => views[k][which]);
+    apply(Object.fromEntries(CHART_KEYS.map((k) => [k, withView(views[k], which, on)])) as Record<ChartKey, ChartView>);
+  };
+  return { views, toggleView, setOpacity, setAllOpacity, allOpacity, toggleAll };
+}
+
+const CHART_LABELS: Record<ChartKey, string> = { status: "Visit Status", outcome: "Outcome", city: "City Wise" };
+
+/** One dropdown for everything that tunes the Dashboard: cards, date range, chart views and opacity. */
+function AdjustViewPanel({
+  cards,
+  pickMode,
+  pickedIds,
+  onPickMode,
+  onPick,
+  onPickAll,
+  onPickNone,
+  showReports,
+  chartViews,
+  range,
+  onDone,
+}: {
+  cards: { id: string; label: string }[];
+  pickMode: boolean;
+  pickedIds: string[];
+  onPickMode: (on: boolean) => void;
+  onPick: (id: string) => void;
+  onPickAll: () => void;
+  onPickNone: () => void;
+  showReports: boolean;
+  chartViews: ReturnType<typeof useChartViews>;
+  range: ReturnType<typeof useReportRange>;
+  onDone: () => void;
+}) {
+  const { views, toggleView, setOpacity, setAllOpacity, allOpacity, toggleAll } = chartViews;
+  return (
+    <div
+      className="rounded-xl border bg-card p-3 space-y-3 shadow-sm"
+      onKeyDown={(e) => { if (e.key === "Escape") onDone(); }}
+    >
+      <section className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold">Cards</h3>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+            Show Only Selected Cards
+            <Switch checked={pickMode} onCheckedChange={onPickMode} aria-label="Show only the cards I select" />
+          </label>
+        </div>
+        {pickMode && (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-muted-foreground">{pickedIds.length} Of {cards.length} Selected</span>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onPickAll}>All</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onPickNone}>None</Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {cards.map((c) => {
+                const active = pickedIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => onPick(c.id)}
+                    aria-pressed={active}
+                    className={`text-xs px-2.5 py-1 rounded-full border inline-flex items-center gap-1 transition ${
+                      active ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:bg-muted"
+                    }`}
+                  >
+                    {active && <Check className="w-3 h-3" />}
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+            {pickedIds.length === 0 && <p className="text-[10px] text-muted-foreground">No cards selected - pick at least one to see it on the Dashboard.</p>}
+          </>
+        )}
+      </section>
+
+      {showReports && (
+        <>
+          <section className="space-y-2 border-t pt-3">
+            <h3 className="text-xs font-semibold">Date Range</h3>
+            <div className="grid grid-cols-3 gap-2">
+              {(["weekly", "monthly", "quarterly"] as const).map((p) => (
+                <Button
+                  key={p}
+                  size="sm"
+                  variant={range.preset === p ? "default" : "outline"}
+                  onClick={() => range.applyPreset(p)}
+                  className="capitalize"
+                >
+                  {p}
+                </Button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="From">
+                <Input type="date" value={range.from} max={range.to} onChange={(e) => range.onFromChange(e.target.value)} />
+              </Field>
+              <Field label="To">
+                <Input type="date" value={range.to} min={range.from} max={toISODate(new Date())} onChange={(e) => range.onToChange(e.target.value)} />
+              </Field>
+            </div>
+            <p className="text-[10px] text-muted-foreground">Max range: 1 year.</p>
+          </section>
+
+          <section className="space-y-2 border-t pt-3">
+            <h3 className="text-xs font-semibold">Charts</h3>
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <span className="w-24 text-xs font-medium">All Charts</span>
+              <OpacitySlider value={allOpacity} onChange={setAllOpacity} />
+              <span className="flex items-center gap-1.5">
+                <ViewChip label="Tiles" on={CHART_KEYS.every((k) => views[k].tiles)} onClick={() => toggleAll("tiles")} />
+                <ViewChip label="Bars" on={CHART_KEYS.every((k) => views[k].bars)} onClick={() => toggleAll("bars")} />
+              </span>
+            </div>
+            {CHART_KEYS.map((k) => (
+              <div key={k} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <span className="w-24 text-xs text-muted-foreground">{CHART_LABELS[k]}</span>
+                <OpacitySlider value={views[k].opacity} onChange={(v) => setOpacity(k, v)} />
+                <span className="flex items-center gap-1.5">
+                  <ViewChip label="Tiles" on={views[k].tiles} onClick={() => toggleView(k, "tiles")} />
+                  <ViewChip label="Bars" on={views[k].bars} onClick={() => toggleView(k, "bars")} />
+                </span>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
+
+      <div className="flex justify-end border-t pt-2">
+        <Button size="sm" onClick={onDone}>Done</Button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Reports (embedded in Dashboard) ---------------- */
+function ReportsPanels({
+  visits,
+  retailers,
+  salesmen,
+  views,
+  from,
+  to,
+}: {
+  visits: Visit[];
+  retailers: Retailer[];
+  salesmen: Salesman[];
+  views: Record<ChartKey, ChartView>;
+  from: string;
+  to: string;
+}) {
   const [selectedSalesmen, setSelectedSalesmen] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
 
@@ -1413,35 +1651,6 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
     setSelectedSalesmen((prev) =>
       prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
     );
-  };
-
-  const applyPreset = (p: RangePreset) => {
-    setPreset(p);
-    const end = new Date();
-    const start = new Date();
-    if (p === "weekly") start.setDate(end.getDate() - 6);
-    else if (p === "monthly") start.setDate(end.getDate() - 29);
-    else if (p === "quarterly") start.setDate(end.getDate() - 89);
-    else return;
-    setFrom(toISODate(start));
-    setTo(toISODate(end));
-  };
-
-  const onFromChange = (val: string) => {
-    setPreset("custom");
-    setFrom(val);
-    const f = new Date(val); const t = new Date(to);
-    const maxTo = new Date(f); maxTo.setFullYear(maxTo.getFullYear() + 1);
-    if (t > maxTo) setTo(toISODate(maxTo));
-    if (t < f) setTo(val);
-  };
-  const onToChange = (val: string) => {
-    setPreset("custom");
-    setTo(val);
-    const f = new Date(from); const t = new Date(val);
-    const minFrom = new Date(t); minFrom.setFullYear(minFrom.getFullYear() - 1);
-    if (f < minFrom) setFrom(toISODate(minFrom));
-    if (f > t) setFrom(val);
   };
 
   const filtered = useMemo(() => {
@@ -1549,53 +1758,6 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
 
 
 
-  // Which chart views (tiles / bars) each report card shows; kept on this device.
-  const [views, setViews] = useState<Record<ChartKey, ChartView>>(DEFAULT_VIEWS);
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(REPORT_VIEWS_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as Partial<Record<ChartKey, Partial<ChartView>>>;
-        // Merge per card so choices saved before opacity existed still get a default.
-        setViews(
-          Object.fromEntries(
-            CHART_KEYS.map((k) => {
-              const v = { ...DEFAULT_VIEWS[k], ...saved[k] };
-              return [k, { ...v, opacity: Math.min(100, Math.max(MIN_OPACITY, Number(v.opacity) || 100)) }];
-            })
-          ) as Record<ChartKey, ChartView>
-        );
-      }
-    } catch {
-      /* fall back to both views on */
-    }
-  }, []);
-  const applyViews = (next: Record<ChartKey, ChartView>) => {
-    setViews(next);
-    try {
-      localStorage.setItem(REPORT_VIEWS_KEY, JSON.stringify(next));
-    } catch {
-      /* preference just won't persist */
-    }
-  };
-  // A card always keeps at least one view on.
-  const withView = (cur: ChartView, which: ChartToggle, on: boolean): ChartView => {
-    const next = { ...cur, [which]: on };
-    if (!next.tiles && !next.bars) next[which === "tiles" ? "bars" : "tiles"] = true;
-    return next;
-  };
-  const toggleView = (chart: ChartKey, which: ChartToggle) =>
-    applyViews({ ...views, [chart]: withView(views[chart], which, !views[chart][which]) });
-  const setOpacity = (chart: ChartKey, opacity: number) =>
-    applyViews({ ...views, [chart]: { ...views[chart], opacity } });
-  const setAllOpacity = (opacity: number) =>
-    applyViews(Object.fromEntries(CHART_KEYS.map((k) => [k, { ...views[k], opacity }])) as Record<ChartKey, ChartView>);
-  const allOpacity = Math.round(CHART_KEYS.reduce((n, k) => n + views[k].opacity, 0) / CHART_KEYS.length);
-  const toggleAllViews = (which: ChartToggle) => {
-    const on = !CHART_KEYS.every((k) => views[k][which]);
-    applyViews(Object.fromEntries(CHART_KEYS.map((k) => [k, withView(views[k], which, on)])) as Record<ChartKey, ChartView>);
-  };
-
   // Recovery and complaint visits are counted inside "Visits", so split them out to make the parts add up.
   const visitSegments = [
     {
@@ -1621,39 +1783,9 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
         <h3 className="text-sm font-semibold flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-muted-foreground" /> Reports &amp; Analysis</h3>
         <ExportCsvDialog visits={filtered} retailers={retailers} filenameHint={`${from}_to_${to}`} />
       </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 -mt-1">
-        <span className="text-[10px] text-muted-foreground">Charts for all cards:</span>
-        <OpacitySlider value={allOpacity} onChange={setAllOpacity} />
-        <ViewChip label="Tiles" on={CHART_KEYS.every((k) => views[k].tiles)} onClick={() => toggleAllViews("tiles")} />
-        <ViewChip label="Bars" on={CHART_KEYS.every((k) => views[k].bars)} onClick={() => toggleAllViews("bars")} />
-      </div>
-
-      <div className="bg-card border rounded-2xl p-4 space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          {(["weekly", "monthly", "quarterly"] as const).map((p) => (
-            <Button
-              key={p}
-              size="sm"
-              variant={preset === p ? "default" : "outline"}
-              onClick={() => applyPreset(p)}
-              className="capitalize"
-            >
-              {p}
-            </Button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="From">
-            <Input type="date" value={from} max={to} onChange={(e) => onFromChange(e.target.value)} />
-          </Field>
-          <Field label="To">
-            <Input type="date" value={to} min={from} max={toISODate(new Date())} onChange={(e) => onToChange(e.target.value)} />
-          </Field>
-        </div>
-        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <CalendarIcon className="w-3 h-3" /> Max range: 1 year · {filtered.length} visits in range
-        </p>
-      </div>
+      <p className="text-[10px] text-muted-foreground flex items-center gap-1 -mt-1">
+        <CalendarIcon className="w-3 h-3" /> {from} to {to} · {filtered.length} visits in range · change it in Adjust View
+      </p>
 
       <div className="bg-card border rounded-2xl p-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -1698,13 +1830,6 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
       </div>
 
       <CollapsibleSection compact title="Visit Status" badge={filtered.length} subtitle={selectionSummary}>
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 mb-1.5">
-          <OpacitySlider value={views.status.opacity} onChange={(v) => setOpacity("status", v)} />
-          <span className="flex items-center gap-1.5">
-            <ViewChip label="Tiles" on={views.status.tiles} onClick={() => toggleView("status", "tiles")} />
-            <ViewChip label="Bars" on={views.status.bars} onClick={() => toggleView("status", "bars")} />
-          </span>
-        </div>
         <SegmentViews
           segments={visitSegments}
           view={views.status}
@@ -1719,13 +1844,6 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
       </CollapsibleSection>
 
       <CollapsibleSection compact title="Outcome" badge={filtered.length} subtitle={selectionSummary}>
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 mb-1.5">
-          <OpacitySlider value={views.outcome.opacity} onChange={(v) => setOpacity("outcome", v)} />
-          <span className="flex items-center gap-1.5">
-            <ViewChip label="Tiles" on={views.outcome.tiles} onClick={() => toggleView("outcome", "tiles")} />
-            <ViewChip label="Bars" on={views.outcome.bars} onClick={() => toggleView("outcome", "bars")} />
-          </span>
-        </div>
         <SegmentViews
           segments={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], ...OUTCOME_SEG[o] }))}
           view={views.outcome}
@@ -1738,13 +1856,6 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
           <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-400" />Multiple Visits</span>
           <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-300" />Not Visited</span>
           <span className="text-muted-foreground">· Numbers: Retailers / Single / Multiple / Not Visited</span>
-        </div>
-        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 mb-1.5">
-          <OpacitySlider value={views.city.opacity} onChange={(v) => setOpacity("city", v)} />
-          <span className="flex items-center gap-1.5">
-            <ViewChip label="Tiles" on={views.city.tiles} onClick={() => toggleView("city", "tiles")} />
-            <ViewChip label="Bars" on={views.city.bars} onClick={() => toggleView("city", "bars")} />
-          </span>
         </div>
         <CityViews
           rows={cityRows}
