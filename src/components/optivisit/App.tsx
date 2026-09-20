@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,16 +9,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
-import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, LENS_MAIN_CATEGORIES, LENS_MATERIALS, LENS_COATINGS, type Visit, type Retailer, type Salesman, type Product, type VisitPlan, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type LensMainCategory, type LensMaterial, type LensCoating } from "@/lib/optivisit-store";
+import { store, uid, hashPin, VISIT_STATUSES, OUTCOMES, VISIT_PURPOSES, SHOP_CATEGORIES, VISIT_ACTIVITIES, LENS_MAIN_CATEGORIES, LENS_MATERIALS, LENS_COATINGS, type Visit, type Retailer, type Salesman, type Product, type VisitPlan, type VisitStatus, type Outcome, type ShopCategory, type VisitActivity, type LensCoating, type CustomCategories } from "@/lib/optivisit-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, defaultTheme, type AppTheme, ICON_PACKS, DEFAULT_ICON_PACK, getIconPack, type IconPack } from "@/lib/optivisit-theme";
 import { Switch } from "@/components/ui/switch";
 import { startPresence, getPresenceCount, PRESENCE_EVENT } from "@/lib/optivisit-presence";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download, Sparkles } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download, Sparkles, ListChecks, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
-import { accessStore, can, scopedSalesmanIds, isScopedRole, type AppUser } from "@/lib/optivisit-access";
+import { accessStore, can, scopedSalesmanIds, isScopedRole, matchSuperUserPin, type AppUser } from "@/lib/optivisit-access";
 
 
 type Tab = "dashboard" | "visits" | "planner" | "retailers" | "products" | "settings";
@@ -173,7 +173,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               <Planner retailers={visibleRetailers} salesmen={visibleSalesmen} currentUser={currentUser} allowed={allowed} />
             </TabsContent>
           )}
-          {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshRetailers} currentUser={currentUser} /></TabsContent>}
+          {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshRetailers} currentUser={currentUser} allowed={allowed} /></TabsContent>}
           {visibleTabs.includes("products") && (
             <TabsContent value="products">
               <Products products={visibleProducts} currentUser={currentUser} allowed={allowed} refresh={refreshProducts} />
@@ -344,112 +344,209 @@ function Dashboard({
 
   const settings = store.getSettings();
 
+  // Per-user "show only the cards I picked" preference, kept on this device.
+  const cardPrefKey = `ov_dash_cards_${currentUser?.id ?? "owner"}`;
+  const [pickMode, setPickMode] = useState(false);
+  const [pickedCards, setPickedCards] = useState<string[] | null>(null);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(cardPrefKey);
+      const saved = raw ? (JSON.parse(raw) as { on?: boolean; ids?: string[] }) : null;
+      setPickMode(!!saved?.on);
+      setPickedCards(Array.isArray(saved?.ids) ? saved.ids : null);
+    } catch {
+      setPickMode(false);
+      setPickedCards(null);
+    }
+  }, [cardPrefKey]);
+  const savePickPref = (on: boolean, ids: string[] | null) => {
+    setPickMode(on);
+    setPickedCards(ids);
+    try {
+      localStorage.setItem(cardPrefKey, JSON.stringify({ on, ids }));
+    } catch {
+      /* preference just won't persist */
+    }
+  };
+
+  const dashboardCards: { id: string; label: string; el: React.ReactNode }[] = [
+    { id: "visits-today", label: "Visits today", el: (
+              <StatCard
+              label="Visits today"
+              value={visitsTodayList.length}
+              icon={<ClipboardList />}
+              trend={trendOf(visitsTodayList.length, visitsYesterdayList.length)}
+              trendCaption="vs yesterday"
+              onClick={() => setDrill({ title: "Visits today", kind: "visits", visits: visitsTodayList })}
+            />
+    ) },
+    { id: "this-week", label: "This week", el: (
+              <StatCard
+              label="This week"
+              value={visitsThisWeek.length}
+              icon={<Clock />}
+              trend={trendOf(visitsThisWeek.length, visitsLastWeek.length)}
+              trendCaption="vs last week"
+              onClick={() => setDrill({ title: "Visits this week", kind: "visits", visits: visitsThisWeek })}
+            />
+    ) },
+    { id: "this-month", label: "This month", el: (
+              <StatCard
+              label="This month"
+              value={visitsMonth.length}
+              icon={<CalendarIcon />}
+              trend={trendOf(visitsMonth.length, visitsLastMonth.length)}
+              trendCaption="vs last month"
+              onClick={() => setDrill({ title: "Visits this month", kind: "visits", visits: visitsMonth })}
+            />
+    ) },
+    { id: "cities", label: "Cities", el: (
+              <StatCard
+              label="Cities"
+              value={citiesMonth}
+              icon={<Building2 />}
+              trend={trendOf(citiesMonth, citiesLastMonth)}
+              trendCaption="vs last month"
+            />
+    ) },
+    { id: "areas", label: "Areas", el: (
+              <StatCard
+              label="Areas"
+              value={areasMonth}
+              icon={<MapIcon />}
+              trend={trendOf(areasMonth, areasLastMonth)}
+              trendCaption="vs last month"
+            />
+    ) },
+    { id: "retailers", label: "Retailers", el: (
+              <StatCard
+              label="Retailers"
+              value={retailers.length}
+              icon={<Store />}
+              caption={`${activeRetailersThisMonth} active this month`}
+              onClick={() => setDrill({ title: "Retailers", kind: "retailers", retailers })}
+            />
+    ) },
+    { id: "recovery-visits", label: "Recovery visits", el: (
+              <StatCard
+              label="Recovery visits"
+              value={recoveryMonth.length}
+              icon={<RotateCcw />}
+              trend={trendOf(recoveryMonth.length, recoveryLastMonth.length)}
+              trendCaption="vs last month"
+              onClick={() => setDrill({ title: "Recovery visits this month", kind: "visits", visits: recoveryMonth })}
+            />
+    ) },
+    { id: "complaints", label: "Complaints", el: (
+              <StatCard
+              label="Complaints"
+              value={complaintsMonth.length}
+              icon={<AlertCircle />}
+              trend={trendOf(complaintsMonth.length, complaintsLastMonth.length)}
+              trendCaption="vs last month"
+              goodDirection="down"
+              onClick={() => setDrill({ title: "Complaints this month", kind: "visits", visits: complaintsMonth })}
+            />
+    ) },
+    { id: "needs-attention", label: "Needs attention", el: (
+              <StatCard
+              label="Needs attention"
+              value={staleRetailers.length}
+              icon={<AlertTriangle />}
+              accent="orange"
+              caption="not visited in 30+ days"
+              onClick={() => setDrill({ title: "Not visited in 30+ days", kind: "retailers", retailers: staleRetailers })}
+            />
+    ) },
+    { id: "success-rate", label: "Success rate", el: (
+              <StatCard
+              label="Success rate"
+              value={`${successRate}%`}
+              icon={<Target />}
+              trend={trendOf(successRate, successRateLastMonth, { suffix: "pt" })}
+              trendCaption="vs last month"
+              onClick={() => setDrill({ title: "Successful / satisfactory visits", kind: "visits", visits: successList })}
+            />
+    ) },
+    { id: "satisfactory", label: "Satisfactory", el: (
+              <StatCard
+              label="Satisfactory"
+              value={satisfactoryMonth.length}
+              icon={<ThumbsUp />}
+              trend={trendOf(satisfactoryMonth.length, satisfactoryLastMonth.length)}
+              trendCaption="vs last month"
+              onClick={() => setDrill({ title: "Satisfactory visits this month", kind: "visits", visits: satisfactoryMonth })}
+            />
+    ) },
+    { id: "not-met-visit-again", label: "Not Met / Visit Again", el: (
+              <StatCard
+              label="Not Met / Visit Again"
+              value={notMetMonth.length}
+              icon={<Repeat2 />}
+              trend={trendOf(notMetMonth.length, notMetLastMonth.length)}
+              trendCaption="vs last month"
+              goodDirection="down"
+              onClick={() => setDrill({ title: "Not Met / Visit Again this month", kind: "visits", visits: notMetMonth })}
+            />
+    ) },
+  ];
+
+  const allCardIds = dashboardCards.map((c) => c.id);
+  const pickedIds = (pickedCards ?? allCardIds).filter((id) => allCardIds.includes(id));
+  const shownCards = pickMode ? dashboardCards.filter((c) => pickedIds.includes(c.id)) : dashboardCards;
+  const togglePicked = (id: string) =>
+    savePickPref(true, pickedIds.includes(id) ? pickedIds.filter((x) => x !== id) : [...pickedIds, id]);
+
   return (
     <div className="space-y-3 sm:space-y-4 pt-1.5 sm:pt-2">
-      <div>
+      <div className="flex items-center justify-between gap-2">
         <h2 className="text-base sm:text-lg font-semibold">
           {greetingFor(new Date())}{currentUser?.name ? `, ${currentUser.name}` : settings.salesmanName ? `, ${settings.salesmanName}` : ""} 👋
         </h2>
+        <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          Select Cards
+          <Switch checked={pickMode} onCheckedChange={(on) => savePickPref(on, pickedCards)} aria-label="Select which cards to show" />
+        </label>
       </div>
+
+      {pickMode && (
+        <div className="rounded-xl border bg-card p-2.5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium">Choose Cards To Show · {pickedIds.length} Of {allCardIds.length}</span>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => savePickPref(true, allCardIds)}>All</Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => savePickPref(true, [])}>None</Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {dashboardCards.map((c) => {
+              const active = pickedIds.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => togglePicked(c.id)}
+                  aria-pressed={active}
+                  className={`text-xs px-2.5 py-1 rounded-full border inline-flex items-center gap-1 transition ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-foreground border-border hover:bg-muted"
+                  }`}
+                >
+                  {active && <Check className="w-3 h-3" />}
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          {pickedIds.length === 0 && <p className="text-[10px] text-muted-foreground">No cards selected - pick at least one to see it here.</p>}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <StatCard
-          label="Visits today"
-          value={visitsTodayList.length}
-          icon={<ClipboardList />}
-          trend={trendOf(visitsTodayList.length, visitsYesterdayList.length)}
-          trendCaption="vs yesterday"
-          onClick={() => setDrill({ title: "Visits today", kind: "visits", visits: visitsTodayList })}
-        />
-        <StatCard
-          label="This week"
-          value={visitsThisWeek.length}
-          icon={<Clock />}
-          trend={trendOf(visitsThisWeek.length, visitsLastWeek.length)}
-          trendCaption="vs last week"
-          onClick={() => setDrill({ title: "Visits this week", kind: "visits", visits: visitsThisWeek })}
-        />
-        <StatCard
-          label="This month"
-          value={visitsMonth.length}
-          icon={<CalendarIcon />}
-          trend={trendOf(visitsMonth.length, visitsLastMonth.length)}
-          trendCaption="vs last month"
-          onClick={() => setDrill({ title: "Visits this month", kind: "visits", visits: visitsMonth })}
-        />
-
-        <StatCard
-          label="Cities"
-          value={citiesMonth}
-          icon={<Building2 />}
-          trend={trendOf(citiesMonth, citiesLastMonth)}
-          trendCaption="vs last month"
-        />
-        <StatCard
-          label="Areas"
-          value={areasMonth}
-          icon={<MapIcon />}
-          trend={trendOf(areasMonth, areasLastMonth)}
-          trendCaption="vs last month"
-        />
-        <StatCard
-          label="Retailers"
-          value={retailers.length}
-          icon={<Store />}
-          caption={`${activeRetailersThisMonth} active this month`}
-          onClick={() => setDrill({ title: "Retailers", kind: "retailers", retailers })}
-        />
-
-        <StatCard
-          label="Recovery visits"
-          value={recoveryMonth.length}
-          icon={<RotateCcw />}
-          trend={trendOf(recoveryMonth.length, recoveryLastMonth.length)}
-          trendCaption="vs last month"
-          onClick={() => setDrill({ title: "Recovery visits this month", kind: "visits", visits: recoveryMonth })}
-        />
-        <StatCard
-          label="Complaints"
-          value={complaintsMonth.length}
-          icon={<AlertCircle />}
-          trend={trendOf(complaintsMonth.length, complaintsLastMonth.length)}
-          trendCaption="vs last month"
-          goodDirection="down"
-          onClick={() => setDrill({ title: "Complaints this month", kind: "visits", visits: complaintsMonth })}
-        />
-        <StatCard
-          label="Needs attention"
-          value={staleRetailers.length}
-          icon={<AlertTriangle />}
-          accent="orange"
-          caption="not visited in 30+ days"
-          onClick={() => setDrill({ title: "Not visited in 30+ days", kind: "retailers", retailers: staleRetailers })}
-        />
-
-        <StatCard
-          label="Success rate"
-          value={`${successRate}%`}
-          icon={<Target />}
-          trend={trendOf(successRate, successRateLastMonth, { suffix: "pt" })}
-          trendCaption="vs last month"
-          onClick={() => setDrill({ title: "Successful / satisfactory visits", kind: "visits", visits: successList })}
-        />
-        <StatCard
-          label="Satisfactory"
-          value={satisfactoryMonth.length}
-          icon={<ThumbsUp />}
-          trend={trendOf(satisfactoryMonth.length, satisfactoryLastMonth.length)}
-          trendCaption="vs last month"
-          onClick={() => setDrill({ title: "Satisfactory visits this month", kind: "visits", visits: satisfactoryMonth })}
-        />
-        <StatCard
-          label="Not Met / Visit Again"
-          value={notMetMonth.length}
-          icon={<Repeat2 />}
-          trend={trendOf(notMetMonth.length, notMetLastMonth.length)}
-          trendCaption="vs last month"
-          goodDirection="down"
-          onClick={() => setDrill({ title: "Not Met / Visit Again this month", kind: "visits", visits: notMetMonth })}
-        />
+        {shownCards.map((c) => (
+          <Fragment key={c.id}>{c.el}</Fragment>
+        ))}
       </div>
 
       {allowed("module.reports") && <ReportsPanels visits={visits} retailers={retailers} salesmen={salesmen} />}
@@ -1250,12 +1347,15 @@ function CollapsibleSection({
   badge,
   subtitle,
   defaultOpen = true,
+  compact = false,
   children,
 }: {
   title: string;
   badge?: React.ReactNode;
   subtitle?: string;
   defaultOpen?: boolean;
+  /** Tighter header and body padding for dense report cards. */
+  compact?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -1264,7 +1364,9 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 p-3 sm:p-4 text-left transition-colors hover:bg-muted/40"
+        className={`w-full flex items-center justify-between gap-2 text-left transition-colors hover:bg-muted/40 ${
+          compact ? "px-3 py-2" : "p-3 sm:p-4"
+        }`}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -1275,7 +1377,7 @@ function CollapsibleSection({
         </div>
         <ChevronsUpDown className="w-4 h-4 shrink-0 text-muted-foreground" />
       </button>
-      {open && <div className="px-3 sm:px-4 pb-3 sm:pb-4 -mt-1">{children}</div>}
+      {open && <div className={compact ? "px-3 pb-2.5" : "px-3 sm:px-4 pb-3 sm:pb-4 -mt-1"}>{children}</div>}
     </div>
   );
 }
@@ -1438,6 +1540,19 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
 
 
 
+  // Recovery and complaint visits are counted inside "Visits", so split them out to make the parts add up.
+  const visitSegments = [
+    {
+      key: "Regular Visits",
+      count: Math.max(0, activityCounts["Visits"] - activityCounts["Recovery Visits"] - activityCounts["Complaints Visits"]),
+      bg: "bg-indigo-500",
+      stroke: "stroke-indigo-500",
+    },
+    { key: "Recovery Visits", count: activityCounts["Recovery Visits"], bg: "bg-amber-500", stroke: "stroke-amber-500" },
+    { key: "Complaint Visits", count: activityCounts["Complaints Visits"], bg: "bg-rose-400", stroke: "stroke-rose-400" },
+    { key: "Others Reasons", count: activityCounts["Others Reasons"], bg: "bg-slate-400", stroke: "stroke-slate-400" },
+  ];
+
   const selectionSummary =
     selectedSalesmen.length === 0
       ? `All salesmen (${sortedSalesmen.length || 0})`
@@ -1521,60 +1636,68 @@ function ReportsPanels({ visits, retailers, salesmen }: { visits: Visit[]; retai
         </p>
       </div>
 
-      <CollapsibleSection title="Visit Status" badge={filtered.length} subtitle={selectionSummary}>
-        <SegmentBars
-          entries={VISIT_ACTIVITIES.map((a) => ({ key: a, count: activityCounts[a], color: ACTIVITY_BAR[a] }))}
-          total={filtered.length}
+      <CollapsibleSection compact title="Visit Status" badge={filtered.length} subtitle={selectionSummary}>
+        <DonutWithLegend
+          segments={visitSegments}
+          centerLabel="total"
+          footer={
+            <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1 mt-0.5 border-t text-[10px] text-muted-foreground">
+              <span><b className="text-foreground tabular-nums">{activityCounts["City Visits"]}</b> Cities</span>
+              <span><b className="text-foreground tabular-nums">{activityCounts["Areas Visited"]}</b> Areas</span>
+              <span><b className="text-foreground tabular-nums">{activityCounts["Shops Visited"]}</b> Shops</span>
+            </div>
+          }
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Outcome" badge={filtered.length} subtitle={selectionSummary}>
-        <SegmentBars
-          entries={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], color: OUTCOME_BAR[o] }))}
-          total={filtered.length}
+      <CollapsibleSection compact title="Outcome" badge={filtered.length} subtitle={selectionSummary}>
+        <DonutWithLegend
+          segments={OUTCOMES.map((o) => ({ key: o, count: outcomeCounts[o], ...OUTCOME_SEG[o] }))}
+          centerLabel="outcomes"
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="City wise Analysis" badge={filtered.length} subtitle={selectionSummary}>
-        <div className="space-y-2">
+      <CollapsibleSection compact title="City wise Analysis" badge={filtered.length} subtitle={selectionSummary}>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1.5 text-[10px]">
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-400" />Single Visit</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-400" />Multiple Visits</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-300" />Not Visited</span>
+          <span className="text-muted-foreground">· Numbers: Retailers / Single / Multiple / Not Visited</span>
+        </div>
+        <div className="space-y-1">
           {cityRows.map((row) => (
-            <div key={row.city}>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="flex items-center gap-1">
-                  {row.city}
-                  {!row.permanent && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCities((prev) => prev.filter((c) => c !== row.city))}
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label={`Remove ${row.city}`}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1 text-[10px]">
-                <span className="text-blue-600 dark:text-blue-400">({row.retailers})</span>
-                <span className="text-yellow-600 dark:text-yellow-400">({row.single})</span>
-                <span className="text-green-600 dark:text-green-400">({row.multiple})</span>
-                <span className="text-red-600 dark:text-red-400">({row.notVisited})</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden flex">
+            <div key={row.city} className="grid grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-2 text-xs">
+              <span className="flex items-center gap-1 min-w-0">
+                <span className="truncate">{row.city}</span>
+                {!row.permanent && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCities((prev) => prev.filter((c) => c !== row.city))}
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label={`Remove ${row.city}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </span>
+              <div
+                className="h-2.5 rounded-full bg-muted overflow-hidden flex"
+                title={`${row.single} single · ${row.multiple} multiple · ${row.notVisited} not visited`}
+              >
                 <div className="h-full bg-yellow-400" style={{ width: `${(row.single / (row.retailers || 1)) * 100}%` }} />
                 <div className="h-full bg-green-400" style={{ width: `${(row.multiple / (row.retailers || 1)) * 100}%` }} />
                 <div className="h-full bg-red-300" style={{ width: `${(row.notVisited / (row.retailers || 1)) * 100}%` }} />
               </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px]">
-                <span className="text-blue-600 dark:text-blue-400">Retailers</span>
-                <span className="text-yellow-600 dark:text-yellow-400">Single visit</span>
-                <span className="text-green-600 dark:text-green-400">Multiple visits</span>
-                <span className="text-red-600 dark:text-red-400">Not visited</span>
-              </div>
+              <span className="flex items-center gap-1 text-[10px] tabular-nums">
+                <b className="w-5 text-right text-blue-600 dark:text-blue-400">{row.retailers}</b>
+                <span className="text-yellow-600 dark:text-yellow-400">{row.single}</span>/
+                <span className="text-green-600 dark:text-green-400">{row.multiple}</span>/
+                <span className="text-red-600 dark:text-red-400">{row.notVisited}</span>
+              </span>
             </div>
           ))}
         </div>
-        <div className="mt-3">
+        <div className="mt-2">
           <Field label="Add city">
             <Select
               value=""
@@ -1604,47 +1727,90 @@ const STATUS_BAR: Record<VisitStatus, string> = {
   Holiday: "bg-amber-500",
 };
 
-const ACTIVITY_BAR: Record<VisitActivity, string> = {
-  "Visits": "bg-indigo-500",
-  "City Visits": "bg-sky-500",
-  "Areas Visited": "bg-teal-500",
-  "Shops Visited": "bg-emerald-500",
-  "Recovery Visits": "bg-amber-500",
-  "Complaints Visits": "bg-rose-300",
-  "Others Reasons": "bg-slate-400",
+// Full class names (not built from strings) so Tailwind picks them up.
+const OUTCOME_SEG: Record<Outcome, { bg: string; stroke: string }> = {
+  Satisfactory: { bg: "bg-teal-500", stroke: "stroke-teal-500" },
+  Successful: { bg: "bg-emerald-500", stroke: "stroke-emerald-500" },
+  "Not Interested": { bg: "bg-rose-300", stroke: "stroke-rose-300" },
+  "Meeting unsuccessful": { bg: "bg-orange-500", stroke: "stroke-orange-500" },
+  "Not Met": { bg: "bg-slate-400", stroke: "stroke-slate-400" },
+  Complaints: { bg: "bg-red-400", stroke: "stroke-red-400" },
+  "Linked to Other Company": { bg: "bg-violet-500", stroke: "stroke-violet-500" },
 };
 
-const OUTCOME_BAR: Record<Outcome, string> = {
-  Satisfactory: "bg-teal-500",
-  Successful: "bg-emerald-500",
-  "Not Interested": "bg-rose-300",
-  "Meeting unsuccessful": "bg-orange-500",
-  "Not Met": "bg-slate-400",
-  Complaints: "bg-red-300",
-  "Linked to Other Company": "bg-violet-500",
-};
+type DonutSegment = { key: string; count: number; bg: string; stroke: string };
 
-function SegmentBars({
-  entries,
-  total,
-}: {
-  entries: { key: string; count: number; color: string }[];
-  total: number;
-}) {
-  const denom = total || 1;
+/** Ring chart whose slices are parts of one total, with the total in the middle. */
+function Donut({ segments, centerLabel, size = 88 }: { segments: DonutSegment[]; centerLabel: string; size?: number }) {
+  const total = segments.reduce((n, s) => n + s.count, 0);
+  let offset = 0;
   return (
-    <div className="space-y-2">
-      {entries.map((e) => (
-        <div key={e.key}>
-          <div className="flex justify-between text-xs mb-1">
-            <span>{e.key}</span>
-            <span className="text-muted-foreground">{e.count}</span>
-          </div>
-          <div className="h-2 rounded-full bg-muted overflow-hidden">
-            <div className={`h-full ${e.color}`} style={{ width: `${(e.count / denom) * 100}%` }} />
-          </div>
-        </div>
-      ))}
+    <svg
+      viewBox="0 0 36 36"
+      width={size}
+      height={size}
+      className="shrink-0 -rotate-90"
+      role="img"
+      aria-label={`${total} ${centerLabel}: ${segments.filter((s) => s.count).map((s) => `${s.key} ${s.count}`).join(", ") || "none"}`}
+    >
+      <circle cx="18" cy="18" r="15.9155" fill="none" strokeWidth="5" className="stroke-muted" />
+      {total > 0 &&
+        segments.map((s) => {
+          if (!s.count) return null;
+          const len = (s.count / total) * 100;
+          const el = (
+            <circle
+              key={s.key}
+              cx="18"
+              cy="18"
+              r="15.9155"
+              fill="none"
+              strokeWidth="5"
+              className={s.stroke}
+              strokeDasharray={`${len} ${100 - len}`}
+              strokeDashoffset={-offset}
+            />
+          );
+          offset += len;
+          return el;
+        })}
+      <g className="rotate-90 origin-center fill-foreground" textAnchor="middle">
+        <text x="18" y="19.5" fontSize="7.5" fontWeight="700">{total}</text>
+        <text x="18" y="24.5" fontSize="3.2" className="fill-muted-foreground">{centerLabel}</text>
+      </g>
+    </svg>
+  );
+}
+
+/** Donut on the left, a compact colour-keyed legend (count + share) on the right. */
+function DonutWithLegend({
+  segments,
+  centerLabel,
+  footer,
+}: {
+  segments: DonutSegment[];
+  centerLabel: string;
+  footer?: React.ReactNode;
+}) {
+  const total = segments.reduce((n, s) => n + s.count, 0);
+  return (
+    <div className="flex items-center gap-3">
+      <Donut segments={segments} centerLabel={centerLabel} />
+      <div className="min-w-0 flex-1">
+        <ul className="space-y-0.5">
+          {segments.map((s) => (
+            <li key={s.key} className="flex items-center gap-1.5 text-[11px] leading-4">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${s.bg}`} />
+              <span className="min-w-0 flex-1 truncate">{s.key}</span>
+              <span className="font-medium tabular-nums">{s.count}</span>
+              <span className="w-8 text-right text-muted-foreground tabular-nums">
+                {total ? `${Math.round((s.count / total) * 100)}%` : "0%"}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {footer}
+      </div>
     </div>
   );
 }
@@ -1937,18 +2103,126 @@ function Planner({
 }
 
 /* ---------------- Retailers ---------------- */
+const MAX_PIN_ATTEMPTS = 3;
+
+/** Asks for a Super User PIN twice in a row (the same Super User both times) before calling onConfirmed. */
+function SuperUserPinDialog({
+  open,
+  title,
+  description,
+  onCancel,
+  onConfirmed,
+}: {
+  open: boolean;
+  title: string;
+  description: string;
+  onCancel: () => void;
+  onConfirmed: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [pin, setPin] = useState("");
+  const [firstMatch, setFirstMatch] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [attempts, setAttempts] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) return;
+    setStep(1);
+    setPin("");
+    setFirstMatch(null);
+    setError("");
+    setAttempts(0);
+  }, [open]);
+
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
+    const match = await matchSuperUserPin(pin, store.getSettings().pinHash);
+    setBusy(false);
+    const ok = match !== null && (step === 1 || match === firstMatch);
+    if (!ok) {
+      const used = attempts + 1;
+      if (used >= MAX_PIN_ATTEMPTS) {
+        toast.error("Too many wrong PIN attempts. Nothing was deleted.");
+        onCancel();
+        return;
+      }
+      setAttempts(used);
+      setPin("");
+      setError(
+        step === 2 && match !== null
+          ? "That PIN belongs to a different Super User. Use the same one."
+          : `Wrong Super User PIN. ${MAX_PIN_ATTEMPTS - used} attempt${MAX_PIN_ATTEMPTS - used === 1 ? "" : "s"} left.`
+      );
+      return;
+    }
+    setError("");
+    setPin("");
+    if (step === 1) {
+      setFirstMatch(match);
+      setStep(2);
+    } else {
+      onConfirmed();
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="w-[calc(100%-1rem)] max-w-sm rounded-xl">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">{description}</p>
+        <div className="space-y-2">
+          <Label htmlFor="su-pin" className="text-xs">
+            {step === 1 ? "Step 1 of 2 - Enter Super User PIN" : "Step 2 of 2 - Enter Super User PIN Again To Confirm"}
+          </Label>
+          <Input
+            key={step}
+            id="su-pin"
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            autoFocus
+            maxLength={4}
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            onKeyDown={(e) => { if (e.key === "Enter" && pin.length === 4) void submit(); }}
+            placeholder="4-digit PIN"
+            className="text-center tracking-[0.5em]"
+          />
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant={step === 2 ? "destructive" : "default"} disabled={pin.length !== 4 || busy} onClick={() => void submit()}>
+            {step === 1 ? "Continue" : "Delete"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Retailers({
   retailers,
   salesmen,
   refresh,
   currentUser,
+  allowed,
 }: {
   retailers: Retailer[];
   salesmen: Salesman[];
   refresh: () => void;
   currentUser?: AppUser | null;
+  allowed: (p: string) => boolean;
 }) {
   const isPrivileged = !currentUser || !isScopedRole(currentUser.role);
+  const canBulkDelete = allowed("retailer.bulkDelete");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const canSeeAddedBy = (r: Retailer) => isPrivileged || r.addedByUserId === currentUser?.id;
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -1987,7 +2261,31 @@ function Retailers({
 
   const remove = (id: string) => {
     if (!confirm("Delete this retailer?")) return;
-    store.setRetailers(retailers.filter((r) => r.id !== id));
+    store.setRetailers(store.getRetailers().filter((r) => r.id !== id));
+    refresh();
+  };
+
+  // Only retailers this user can actually see may be selected or deleted.
+  const visibleIds = useMemo(() => new Set(retailers.map((r) => r.id)), [retailers]);
+  const selectedIds = selected.filter((id) => visibleIds.has(id));
+  const filteredIds = filtered.map((r) => r.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
+
+  const toggleOne = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const toggleMany = (ids: string[], on: boolean) =>
+    setSelected((prev) => (on ? Array.from(new Set([...prev, ...ids])) : prev.filter((x) => !ids.includes(x))));
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelected([]);
+  };
+
+  const bulkDelete = () => {
+    const ids = new Set(selectedIds);
+    store.setRetailers(store.getRetailers().filter((r) => !ids.has(r.id)));
+    toast.success(`Deleted ${ids.size} retailer${ids.size === 1 ? "" : "s"}`);
+    setConfirmOpen(false);
+    exitSelectMode();
     refresh();
   };
 
@@ -2058,6 +2356,17 @@ function Retailers({
               e.target.value = "";
             }}
           />
+          {canBulkDelete && (
+            <Button
+              size="sm"
+              className="min-h-10 px-2.5 sm:px-3"
+              variant={selectMode ? "secondary" : "outline"}
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            >
+              {selectMode ? <X className="w-4 h-4 sm:mr-1" /> : <ListChecks className="w-4 h-4 sm:mr-1" />}
+              <span className="hidden sm:inline">{selectMode ? "Cancel" : "Select"}</span>
+            </Button>
+          )}
           <Button size="sm" className="min-h-10 px-2.5 sm:px-3" variant="outline" onClick={() => fileRef.current?.click()}>
             <Upload className="w-4 h-4 sm:mr-1" /> <span className="hidden sm:inline">Import</span>
           </Button>
@@ -2083,6 +2392,32 @@ function Retailers({
         </SelectContent>
       </Select>
 
+      {selectMode && (
+        <div className="sticky top-16 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-card p-2.5 shadow-sm">
+          <span className="text-sm font-medium">{selectedIds.length} selected</span>
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => toggleMany(filteredIds, !allFilteredSelected)}>
+            {allFilteredSelected ? "Deselect All" : `Select All (${filteredIds.length})`}
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="ml-auto h-8"
+            disabled={selectedIds.length === 0}
+            onClick={() => setConfirmOpen(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+          </Button>
+        </div>
+      )}
+
+      <SuperUserPinDialog
+        open={confirmOpen}
+        title={`Delete ${selectedIds.length} Retailer${selectedIds.length === 1 ? "" : "s"}?`}
+        description="This permanently removes the selected retailers and cannot be undone. A Super User must enter their PIN twice to authorize it."
+        onCancel={() => setConfirmOpen(false)}
+        onConfirmed={bulkDelete}
+      />
+
       {filtered.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
           <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -2097,26 +2432,46 @@ function Retailers({
         <ul className="space-y-2">
           {groups.map((g) => {
             const isOpen = openGroups.includes(g.key);
+            const groupIds = g.items.map((r) => r.id);
+            const groupSelected = groupIds.filter((id) => selectedIds.includes(id)).length;
             return (
               <li key={g.key} className="bg-card border rounded-2xl overflow-hidden transition-shadow hover:shadow-md">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(g.key)}
-                  className="w-full flex items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-muted/50"
-                >
-                  <span className="flex items-center gap-2.5 min-w-0">
-                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                    <InitialAvatar name={g.label} className="h-7 w-7 text-[11px]" />
-                    <span className="text-sm font-medium truncate">{g.label}</span>
-                  </span>
-                  <Badge variant="secondary" className="text-[10px] shrink-0">{g.items.length}</Badge>
-                </button>
+                <div className="flex items-center transition-colors hover:bg-muted/50">
+                  {selectMode && (
+                    <Checkbox
+                      className="ml-3 shrink-0"
+                      aria-label={`Select all retailers of ${g.label}`}
+                      checked={groupSelected === groupIds.length ? true : groupSelected > 0 ? "indeterminate" : false}
+                      onCheckedChange={(c) => toggleMany(groupIds, c === true)}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(g.key)}
+                    className="flex-1 min-w-0 flex items-center justify-between gap-2 p-3 text-left"
+                  >
+                    <span className="flex items-center gap-2.5 min-w-0">
+                      <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      <InitialAvatar name={g.label} className="h-7 w-7 text-[11px]" />
+                      <span className="text-sm font-medium truncate">{g.label}</span>
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] shrink-0">{g.items.length}</Badge>
+                  </button>
+                </div>
 
                 {isOpen && (
                   <ul className="border-t divide-y">
                     {g.items.map((r) => (
                       <li key={r.id} className="px-3 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 transition-colors hover:bg-muted/30 lg:flex lg:items-center lg:py-2">
                         <div className="min-w-0 flex-1 flex items-start gap-2.5">
+                          {selectMode && (
+                            <Checkbox
+                              className="mt-2.5 shrink-0"
+                              aria-label={`Select ${r.name}`}
+                              checked={selectedIds.includes(r.id)}
+                              onCheckedChange={() => toggleOne(r.id)}
+                            />
+                          )}
                           <InitialAvatar name={r.name} className="h-8 w-8 text-xs mt-0.5 sm:mt-0" />
                           <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                             <span className="w-full text-sm font-medium text-foreground truncate sm:w-auto sm:max-w-[40%]">{r.name}</span>
@@ -2251,6 +2606,83 @@ function RetailerDialog({
 
 
 /* ---------------- Products ---------------- */
+/** Capitalises the first letter of every word ("lens type" -> "Lens Type"), leaving the rest as typed. */
+function titleCase(s: string) {
+  return s.trim().replace(/\s+/g, " ").replace(/(^|[\s/(-])([a-z])/g, (_m, p: string, c: string) => p + c.toUpperCase());
+}
+
+/** Built-in categories first, then user-added ones, then any a product already uses (e.g. synced from another device). */
+function mergeCategories(defaults: readonly string[], custom: string[], used: string[]) {
+  const out = [...defaults];
+  [...custom, ...used].forEach((c) => {
+    if (c && !out.some((x) => x.toLowerCase() === c.toLowerCase())) out.push(c);
+  });
+  return out;
+}
+
+const ADD_NEW_CATEGORY = "__add_new_category__";
+
+function CategorySelect({
+  label,
+  value,
+  options,
+  onChange,
+  onAdd,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  /** Persists a new category and returns the name to select (an existing match if it was a duplicate). */
+  onAdd: (name: string) => string;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // The Select hands focus back to its trigger as it closes, so focus the input after that.
+  useEffect(() => {
+    if (!adding) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 60);
+    return () => clearTimeout(t);
+  }, [adding]);
+
+  const commit = () => {
+    const clean = titleCase(name);
+    if (!clean) return toast.error("Enter a category name");
+    onChange(onAdd(clean));
+    setName("");
+    setAdding(false);
+  };
+
+  return (
+    <Field label={label}>
+      <Select value={value} onValueChange={(v) => (v === ADD_NEW_CATEGORY ? setAdding(true) : onChange(v))}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {options.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          <SelectItem value={ADD_NEW_CATEGORY} className="font-medium text-primary">
+            <span className="inline-flex items-center gap-1"><Plus className="w-3.5 h-3.5" /> Add New Category</span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      {adding && (
+        <div className="mt-2 flex items-center gap-2">
+          <Input
+            ref={inputRef}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
+            placeholder="New Category Name"
+          />
+          <Button type="button" size="sm" onClick={commit}>Add</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => { setAdding(false); setName(""); }}>Cancel</Button>
+        </div>
+      )}
+    </Field>
+  );
+}
+
 function Products({
   products,
   currentUser,
@@ -2269,6 +2701,19 @@ function Products({
   const [editing, setEditing] = useState<Product | null>(null);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [openGroups, setOpenGroups] = useState<string[]>(LENS_MAIN_CATEGORIES.slice(0, 1));
+  const [custom, setCustom] = useState<CustomCategories>(() => store.getCustomCategories());
+  const mainCategories = useMemo(
+    () => mergeCategories(LENS_MAIN_CATEGORIES, custom.main, products.map((p) => p.mainCategory)),
+    [custom.main, products]
+  );
+  const subCategories = useMemo(
+    () => mergeCategories(LENS_MATERIALS, custom.sub, products.map((p) => p.subCategory)),
+    [custom.sub, products]
+  );
+  const saveCustom = (next: CustomCategories) => {
+    store.setCustomCategories(next);
+    setCustom(next);
+  };
 
   const canCreate = allowed("product.create");
   const canEdit = (p: Product) => allowed("product.edit") || (isPrivileged === false && p.addedByUserId === currentUser?.id);
@@ -2282,12 +2727,12 @@ function Products({
 
   const groups = useMemo(() => {
     const out: { key: string; label: string; items: Product[] }[] = [];
-    LENS_MAIN_CATEGORIES.forEach((cat) => {
+    mainCategories.forEach((cat) => {
       const items = filtered.filter((p) => p.mainCategory === cat).sort((a, b) => a.name.localeCompare(b.name));
       if (items.length) out.push({ key: cat, label: cat, items });
     });
     return out;
-  }, [filtered]);
+  }, [filtered, mainCategories]);
 
   const toggleGroup = (k: string) =>
     setOpenGroups((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
@@ -2307,7 +2752,14 @@ function Products({
         {canCreate && (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild><Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> Add</Button></DialogTrigger>
-            <ProductDialog currentUser={currentUser} onSaved={() => { refresh(); setOpen(false); }} />
+            <ProductDialog
+              currentUser={currentUser}
+              mainCategories={mainCategories}
+              subCategories={subCategories}
+              custom={custom}
+              onCustomChange={saveCustom}
+              onSaved={() => { refresh(); setOpen(false); }}
+            />
           </Dialog>
         )}
       </div>
@@ -2315,10 +2767,10 @@ function Products({
       <Input placeholder="Search by name, brand, SKU, material or coating..." value={q} onChange={(e) => setQ(e.target.value)} />
 
       <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-        <SelectTrigger><SelectValue placeholder="Filter by lens type" /></SelectTrigger>
+        <SelectTrigger><SelectValue placeholder="Filter by Lens Type" /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All lens types</SelectItem>
-          {LENS_MAIN_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          <SelectItem value="all">All Lens Types</SelectItem>
+          {mainCategories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
         </SelectContent>
       </Select>
 
@@ -2379,15 +2831,15 @@ function Products({
                             <div className="px-3 pb-3 -mt-1">
                               <div className="rounded-xl border bg-muted/30 p-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                                 {p.index && <Detail label="Index" value={p.index} />}
-                                {p.powerRange && <Detail label="Power range" value={p.powerRange} />}
-                                {p.baseCurve && <Detail label="Base curve" value={p.baseCurve} />}
+                                {p.powerRange && <Detail label="Power Range" value={p.powerRange} />}
+                                {p.baseCurve && <Detail label="Base Curve" value={p.baseCurve} />}
                                 {p.diameter && <Detail label="Diameter" value={p.diameter} />}
-                                {p.color && <Detail label="Color / tint" value={p.color} />}
+                                {p.color && <Detail label="Color / Tint" value={p.color} />}
                                 {p.sku && <Detail label="SKU" value={p.sku} />}
                                 {p.stock !== undefined && <Detail label="Stock" value={String(p.stock)} />}
                                 {p.supplier && <Detail label="Supplier" value={p.supplier} />}
                                 {p.warranty && <Detail label="Warranty" value={p.warranty} />}
-                                {p.addedByName && <Detail label="Added by" value={p.addedByName} />}
+                                {p.addedByName && <Detail label="Added By" value={p.addedByName} />}
                                 {p.notes && (
                                   <div className="col-span-2">
                                     <div className="text-muted-foreground">Notes</div>
@@ -2402,7 +2854,15 @@ function Products({
                                       <Button variant="outline" size="sm" className="h-8 text-xs"><Pencil className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                                     </DialogTrigger>
                                     {editing?.id === p.id && (
-                                      <ProductDialog currentUser={currentUser} initial={p} onSaved={() => { refresh(); setEditing(null); }} />
+                                      <ProductDialog
+                                        currentUser={currentUser}
+                                        initial={p}
+                                        mainCategories={mainCategories}
+                                        subCategories={subCategories}
+                                        custom={custom}
+                                        onCustomChange={saveCustom}
+                                        onSaved={() => { refresh(); setEditing(null); }}
+                                      />
                                     )}
                                   </Dialog>
                                 )}
@@ -2441,10 +2901,18 @@ function ProductDialog({
   onSaved,
   initial,
   currentUser,
+  mainCategories,
+  subCategories,
+  custom,
+  onCustomChange,
 }: {
   onSaved: () => void;
   initial?: Product;
   currentUser?: AppUser | null;
+  mainCategories: string[];
+  subCategories: string[];
+  custom: CustomCategories;
+  onCustomChange: (next: CustomCategories) => void;
 }) {
   const [f, setF] = useState<Omit<Product, "id" | "createdAt" | "addedByUserId" | "addedByName">>(
     initial
@@ -2489,6 +2957,17 @@ function ProductDialog({
   const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setF({ ...f, [k]: e.target.value });
 
+  const addCategory = (kind: "main" | "sub") => (name: string) => {
+    const existing = (kind === "main" ? mainCategories : subCategories).find((c) => c.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      toast.info(`"${existing}" already exists`);
+      return existing;
+    }
+    onCustomChange({ ...custom, [kind]: [...custom[kind], name] });
+    toast.success(`Category "${name}" added`);
+    return name;
+  };
+
   const save = () => {
     if (!f.name.trim()) return toast.error("Product name is required");
     if (initial) {
@@ -2513,29 +2992,27 @@ function ProductDialog({
   return (
     <DialogContent className="w-[calc(100%-1rem)] max-w-md max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-xl p-4 sm:p-6">
       <DialogHeader>
-        <DialogTitle>{initial ? "Edit product" : "Add lens product"}</DialogTitle>
+        <DialogTitle>{initial ? "Edit Product" : "Add Lens Product"}</DialogTitle>
       </DialogHeader>
       <div className="space-y-3">
-        <Field label="Product name"><Input value={f.name} onChange={upd("name")} placeholder="e.g. Varilux Comfort" /></Field>
+        <Field label="Product Name"><Input value={f.name} onChange={upd("name")} placeholder="e.g. Varilux Comfort" /></Field>
         <Field label="Brand"><Input value={f.brand} onChange={upd("brand")} placeholder="e.g. Essilor" /></Field>
 
-        <Field label="Main category · lens type">
-          <Select value={f.mainCategory} onValueChange={(v) => setF({ ...f, mainCategory: v as LensMainCategory })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {LENS_MAIN_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Sub category · material">
-          <Select value={f.subCategory} onValueChange={(v) => setF({ ...f, subCategory: v as LensMaterial })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {LENS_MATERIALS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Normal category · coating">
+        <CategorySelect
+          label="Main Category - Lens Type"
+          value={f.mainCategory}
+          options={mainCategories}
+          onChange={(v) => setF((prev) => ({ ...prev, mainCategory: v }))}
+          onAdd={addCategory("main")}
+        />
+        <CategorySelect
+          label="Sub Category - Material"
+          value={f.subCategory}
+          options={subCategories}
+          onChange={(v) => setF((prev) => ({ ...prev, subCategory: v }))}
+          onAdd={addCategory("sub")}
+        />
+        <Field label="Normal Category - Coating">
           <Select value={f.normalCategory} onValueChange={(v) => setF({ ...f, normalCategory: v as LensCoating })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -2545,14 +3022,14 @@ function ProductDialog({
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Refractive index"><Input value={f.index} onChange={upd("index")} placeholder="1.56" /></Field>
-          <Field label="Base curve"><Input value={f.baseCurve} onChange={upd("baseCurve")} placeholder="e.g. 6" /></Field>
+          <Field label="Refractive Index"><Input value={f.index} onChange={upd("index")} placeholder="1.56" /></Field>
+          <Field label="Base Curve"><Input value={f.baseCurve} onChange={upd("baseCurve")} placeholder="e.g. 6" /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Power range"><Input value={f.powerRange} onChange={upd("powerRange")} placeholder="-6.00 to +4.00" /></Field>
+          <Field label="Power Range"><Input value={f.powerRange} onChange={upd("powerRange")} placeholder="-6.00 to +4.00" /></Field>
           <Field label="Diameter (mm)"><Input value={f.diameter} onChange={upd("diameter")} placeholder="70" /></Field>
         </div>
-        <Field label="Color / tint"><Input value={f.color} onChange={upd("color")} placeholder="Clear, Brown, Grey..." /></Field>
+        <Field label="Color / Tint"><Input value={f.color} onChange={upd("color")} placeholder="Clear, Brown, Grey..." /></Field>
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Price (Rs)">
@@ -2562,7 +3039,7 @@ function ProductDialog({
               onChange={(e) => setF({ ...f, price: e.target.value === "" ? undefined : Number(e.target.value) })}
             />
           </Field>
-          <Field label="Stock quantity">
+          <Field label="Stock Quantity">
             <Input
               type="number"
               value={f.stock ?? ""}
@@ -2571,13 +3048,13 @@ function ProductDialog({
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="SKU / code"><Input value={f.sku} onChange={upd("sku")} /></Field>
+          <Field label="SKU / Code"><Input value={f.sku} onChange={upd("sku")} /></Field>
           <Field label="Warranty"><Input value={f.warranty} onChange={upd("warranty")} placeholder="e.g. 1 year" /></Field>
         </div>
         <Field label="Supplier"><Input value={f.supplier} onChange={upd("supplier")} /></Field>
         <Field label="Notes"><Textarea value={f.notes} onChange={upd("notes")} rows={2} /></Field>
       </div>
-      <DialogFooter><Button className="w-full" onClick={save}>{initial ? "Save changes" : "Save product"}</Button></DialogFooter>
+      <DialogFooter><Button className="w-full" onClick={save}>{initial ? "Save Changes" : "Save Product"}</Button></DialogFooter>
     </DialogContent>
   );
 }

@@ -10,6 +10,7 @@ export const SYNC_KEYS = [
   "ov_retailers",
   "ov_salesmen",
   "ov_products",
+  "ov_custom_categories",
   "ov_plans",
   "ov_settings",
   "ov_users",

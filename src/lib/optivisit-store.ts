@@ -120,14 +120,17 @@ export const LENS_COATINGS = [
 ] as const;
 export type LensCoating = (typeof LENS_COATINGS)[number];
 
+/** Categories added by users on top of the built-in lens types and materials. */
+export type CustomCategories = { main: string[]; sub: string[] };
+
 export type Product = {
   id: string;
   name: string;
   brand: string;
-  /** Main category: lens type. */
-  mainCategory: LensMainCategory;
-  /** Sub category: lens material / index family. */
-  subCategory: LensMaterial;
+  /** Main category: lens type (a built-in one or a user-added one). */
+  mainCategory: string;
+  /** Sub category: lens material / index family (a built-in one or a user-added one). */
+  subCategory: string;
   /** Normal category: coating / finish. */
   normalCategory: LensCoating;
   index?: string;
@@ -184,6 +187,7 @@ const K_RETAILERS = "ov_retailers";
 const K_SALESMEN = "ov_salesmen";
 const K_PRODUCTS = "ov_products";
 const K_PLANS = "ov_plans";
+const K_CUSTOM_CATEGORIES = "ov_custom_categories";
 const K_SETTINGS = "ov_settings";
 const K_SESSION = "ov_session";
 
@@ -210,6 +214,11 @@ export const store = {
   setSalesmen: (v: Salesman[]) => write(K_SALESMEN, v),
   getProducts: () => read<Product[]>(K_PRODUCTS, []),
   setProducts: (v: Product[]) => write(K_PRODUCTS, v),
+  getCustomCategories: (): CustomCategories => {
+    const c = read<Partial<CustomCategories>>(K_CUSTOM_CATEGORIES, {});
+    return { main: c.main ?? [], sub: c.sub ?? [] };
+  },
+  setCustomCategories: (v: CustomCategories) => write(K_CUSTOM_CATEGORIES, v),
   getPlans: () => read<VisitPlan[]>(K_PLANS, []),
   setPlans: (v: VisitPlan[]) => write(K_PLANS, v),
   getSettings: () => read<Settings>(K_SETTINGS, { salesmanName: "", pinHash: null, email: null, recoveryHash: null }),

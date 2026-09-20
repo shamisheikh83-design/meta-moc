@@ -47,6 +47,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { id: "retailer.create", label: "Add retailer" },
       { id: "retailer.edit", label: "Edit retailer" },
       { id: "retailer.delete", label: "Delete retailer" },
+      { id: "retailer.bulkDelete", label: "Multi-select delete retailers (Super User PIN twice)" },
       { id: "retailer.assignSalesman", label: "Assign / change salesman" },
       { id: "retailer.import", label: "Import retailers (Excel / CSV)" },
       { id: "salesman.create", label: "Add salesman" },
@@ -110,7 +111,8 @@ export function permissionLabel(id: string): string {
 export const ROLE_DEFAULTS: Record<Role, string[]> = {
   "Super Admin": allPermissionIds(),
   Admin: allPermissionIds().filter(
-    (p) => !["setting.erase", "setting.users", "setting.roles", "module.access", "setting.recentVisits"].includes(p)
+    (p) =>
+      !["setting.erase", "setting.users", "setting.roles", "module.access", "setting.recentVisits", "retailer.bulkDelete"].includes(p)
   ),
   Agent: [
     "tab.dashboard", "tab.visits", "tab.planner", "tab.retailers", "tab.products",
@@ -345,6 +347,19 @@ export async function resolvePinReset(
 export async function verifyPin(user: AppUser, pin: string): Promise<boolean> {
   if (!/^\d{4}$/.test(pin)) return false;
   return (await hashPin(pin)) === user.pinHash;
+}
+
+/**
+ * Finds the Super User whose PIN matches. With no users configured (owner mode) the
+ * device PIN from settings is checked instead. Returns a stable id for the match so a
+ * second prompt can be required to come from the same Super User.
+ */
+export async function matchSuperUserPin(pin: string, devicePinHash: string | null): Promise<string | null> {
+  if (!/^\d{4}$/.test(pin)) return null;
+  const hash = await hashPin(pin);
+  const users = accessStore.getUsers();
+  if (users.length === 0) return devicePinHash && hash === devicePinHash ? "device" : null;
+  return superAdmins(users).find((u) => u.pinHash === hash)?.id ?? null;
 }
 
 /** Update profile fields, user ID and/or PIN of an existing user. */
