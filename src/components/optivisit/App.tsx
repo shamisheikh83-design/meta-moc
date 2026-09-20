@@ -493,6 +493,9 @@ function Dashboard({
 
   const chartViews = useChartViews();
   const range = useReportRange();
+  const salesmanFilter = useSalesmanFilter();
+  // Ignore saved names of salesmen that no longer exist so they can't silently empty the reports.
+  const activeSalesmen = salesmanFilter.selected.filter((n) => salesmen.some((s) => s.name === n));
   const [adjustOpen, setAdjustOpen] = useState(false);
 
   const allCardIds = dashboardCards.map((c) => c.id);
@@ -531,6 +534,10 @@ function Dashboard({
           showReports={allowed("module.reports")}
           chartViews={chartViews}
           range={range}
+          salesmen={salesmen}
+          selectedSalesmen={activeSalesmen}
+          onToggleSalesman={salesmanFilter.toggle}
+          onClearSalesmen={salesmanFilter.clear}
           onDone={() => setAdjustOpen(false)}
         />
       )}
@@ -540,7 +547,7 @@ function Dashboard({
         ))}
       </div>
 
-      {allowed("module.reports") && <ReportsPanels visits={visits} retailers={retailers} salesmen={salesmen} views={chartViews.views} from={range.from} to={range.to} />}
+      {allowed("module.reports") && <ReportsPanels visits={visits} retailers={retailers} salesmen={salesmen} views={chartViews.views} from={range.from} to={range.to} selectedSalesmen={activeSalesmen} />}
 
       <RecentVisitsSection
         visits={visits}
@@ -1439,6 +1446,33 @@ function useReportRange() {
   return { ...range, applyPreset, onFromChange, onToChange };
 }
 
+const SALESMEN_KEY = "ov_report_salesmen";
+
+/** Which salesmen the reports are limited to (none = all), remembered on this device. */
+function useSalesmanFilter() {
+  const [selected, setSelected] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SALESMEN_KEY);
+      const saved = raw ? (JSON.parse(raw) as unknown) : null;
+      if (Array.isArray(saved)) setSelected(saved.filter((n): n is string => typeof n === "string"));
+    } catch {
+      /* start with all salesmen */
+    }
+  }, []);
+  const commit = (next: string[]) => {
+    setSelected(next);
+    try {
+      localStorage.setItem(SALESMEN_KEY, JSON.stringify(next));
+    } catch {
+      /* preference just won't persist */
+    }
+  };
+  const toggle = (name: string) => commit(selected.includes(name) ? selected.filter((n) => n !== name) : [...selected, name]);
+  const clear = () => commit([]);
+  return { selected, toggle, clear };
+}
+
 /** Which chart views (tiles / bars) and how much colour opacity each report card uses; kept on this device. */
 function useChartViews() {
   const [views, setViews] = useState<Record<ChartKey, ChartView>>(DEFAULT_VIEWS);
@@ -1502,6 +1536,10 @@ function AdjustViewPanel({
   showReports,
   chartViews,
   range,
+  salesmen,
+  selectedSalesmen,
+  onToggleSalesman,
+  onClearSalesmen,
   onDone,
 }: {
   cards: { id: string; label: string }[];
@@ -1514,9 +1552,14 @@ function AdjustViewPanel({
   showReports: boolean;
   chartViews: ReturnType<typeof useChartViews>;
   range: ReturnType<typeof useReportRange>;
+  salesmen: Salesman[];
+  selectedSalesmen: string[];
+  onToggleSalesman: (name: string) => void;
+  onClearSalesmen: () => void;
   onDone: () => void;
 }) {
   const { views, toggleView, setOpacity, setAllOpacity, allOpacity, toggleAll } = chartViews;
+  const sortedSalesmen = [...salesmen].sort((a, b) => a.name.localeCompare(b.name));
   return (
     <div
       className="rounded-xl border bg-card p-3 space-y-3 shadow-sm"
@@ -1565,6 +1608,45 @@ function AdjustViewPanel({
 
       {showReports && (
         <>
+          <section className="space-y-2 border-t pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold">Salesmen</h3>
+              {selectedSalesmen.length > 0 && (
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onClearSalesmen}>Clear</Button>
+              )}
+            </div>
+            {sortedSalesmen.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Add salesmen in Settings to filter reports.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {sortedSalesmen.map((sm) => {
+                  const active = selectedSalesmen.includes(sm.name);
+                  return (
+                    <button
+                      key={sm.id}
+                      type="button"
+                      onClick={() => onToggleSalesman(sm.name)}
+                      aria-pressed={active}
+                      className={`text-xs px-2.5 py-1 rounded-full border inline-flex items-center gap-1 transition ${
+                        active ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:bg-muted"
+                      }`}
+                    >
+                      {active && <Check className="w-3 h-3" />}
+                      {sm.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              {selectedSalesmen.length === 0
+                ? "Showing combined data for all salesmen."
+                : selectedSalesmen.length === 1
+                  ? `Showing data for ${selectedSalesmen[0]}.`
+                  : `Showing combined data for ${selectedSalesmen.length} salesmen.`}
+            </p>
+          </section>
+
           <section className="space-y-2 border-t pt-3">
             <h3 className="text-xs font-semibold">Date Range</h3>
             <div className="grid grid-cols-3 gap-2">
@@ -1630,6 +1712,7 @@ function ReportsPanels({
   views,
   from,
   to,
+  selectedSalesmen,
 }: {
   visits: Visit[];
   retailers: Retailer[];
@@ -1637,8 +1720,8 @@ function ReportsPanels({
   views: Record<ChartKey, ChartView>;
   from: string;
   to: string;
+  selectedSalesmen: string[];
 }) {
-  const [selectedSalesmen, setSelectedSalesmen] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
 
 
@@ -1646,12 +1729,6 @@ function ReportsPanels({
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
     [salesmen]
   );
-
-  const toggleSalesman = (name: string) => {
-    setSelectedSalesmen((prev) =>
-      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
-    );
-  };
 
   const filtered = useMemo(() => {
     const f = new Date(from + "T00:00:00").getTime();
@@ -1783,49 +1860,18 @@ function ReportsPanels({
         <h3 className="text-sm font-semibold flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-muted-foreground" /> Reports &amp; Analysis</h3>
         <ExportCsvDialog visits={filtered} retailers={retailers} filenameHint={`${from}_to_${to}`} />
       </div>
-      <p className="text-[10px] text-muted-foreground flex items-center gap-1 -mt-1">
-        <CalendarIcon className="w-3 h-3" /> {from} to {to} · {filtered.length} visits in range · change it in Adjust View
-      </p>
-
-      <div className="bg-card border rounded-2xl p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold">Salesmen</h3>
-          {selectedSalesmen.length > 0 && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelectedSalesmen([])}>
-              Clear
-            </Button>
-          )}
-        </div>
-        {sortedSalesmen.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Add salesmen in the Salesmen tab to filter reports.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {sortedSalesmen.map((s) => {
-              const active = selectedSalesmen.includes(s.name);
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => toggleSalesman(s.name)}
-                  className={`text-xs px-2.5 py-1 rounded-full border inline-flex items-center gap-1 transition ${
-                    active
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-foreground border-border hover:bg-muted"
-                  }`}
-                >
-                  {active && <Check className="w-3 h-3" />}
-                  {s.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        <p className="text-[10px] text-muted-foreground">
-          {selectedSalesmen.length === 0
-            ? "Showing combined data for all salesmen."
-            : selectedSalesmen.length === 1
-              ? `Showing data for ${selectedSalesmen[0]}.`
-              : `Showing combined data for ${selectedSalesmen.length} salesmen.`}
+      <div className="-mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+        <p className="flex items-start gap-1">
+          <Users className="w-3 h-3 mt-px shrink-0" />
+          <span>
+            Salesmen:{" "}
+            <b className="text-foreground">
+              {selectedSalesmen.length ? selectedSalesmen.join(", ") : `All (${sortedSalesmen.length})`}
+            </b>
+          </span>
+        </p>
+        <p className="flex items-center gap-1">
+          <CalendarIcon className="w-3 h-3 shrink-0" /> {from} to {to} · {filtered.length} visits in range · change in Adjust View
         </p>
       </div>
 
