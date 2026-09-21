@@ -76,6 +76,8 @@ export type Retailer = {
   /** Access-control user id of whoever created this retailer. */
   addedByUserId?: string;
   addedByName?: string;
+  /** Set on an imported shop whose name matched another shop: the id of the shop it duplicates. */
+  duplicateOf?: string;
 };
 
 export type Salesman = {

@@ -19,7 +19,7 @@ export const PERMISSION_CATALOG: PermissionGroup[] = [
       { id: "tab.dashboard", label: "Home (Dashboard)" },
       { id: "tab.visits", label: "Visits" },
       { id: "tab.planner", label: "Planner" },
-      { id: "tab.retailers", label: "Retailers" },
+      { id: "tab.retailers", label: "Team (Retailers & Salesmen)" },
       { id: "tab.products", label: "Products" },
       { id: "tab.settings", label: "Settings" },
     ],

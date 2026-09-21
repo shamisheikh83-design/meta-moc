@@ -116,7 +116,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               </div>
               <div className="min-w-0">
                 <div className="truncate text-sm md:text-base font-semibold leading-none">Meta Opti Connect</div>
-                <div className="text-[10px] opacity-80 mt-0.5 capitalize">{tab}</div>
+                <div className="text-[10px] opacity-80 mt-0.5 capitalize">{tab === "retailers" ? "team" : tab}</div>
               </div>
             </div>
 
@@ -125,7 +125,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               {visibleTabs.includes("dashboard") && <TopTab value="dashboard" icon={<LayoutDashboard className="w-4 h-4" />} label="Home" />}
               {visibleTabs.includes("visits") && <TopTab value="visits" icon={<ClipboardList className="w-4 h-4" />} label="Visits" />}
               {visibleTabs.includes("planner") && <TopTab value="planner" icon={<CalendarDays className="w-4 h-4" />} label="Planner" />}
-              {visibleTabs.includes("retailers") && <TopTab value="retailers" icon={<Store className="w-4 h-4" />} label="Retailers" />}
+              {visibleTabs.includes("retailers") && <TopTab value="retailers" icon={<Users className="w-4 h-4" />} label="Team" />}
               {visibleTabs.includes("products") && <TopTab value="products" icon={<Package className="w-4 h-4" />} label="Products" />}
               <TopTab value="settings" icon={<SettingsIcon className="w-4 h-4" />} label="Settings" />
             </TabsList>
@@ -163,9 +163,8 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             </TabsContent>
           )}
           {visibleTabs.includes("visits") && (
-            <TabsContent value="visits" className="space-y-6">
-              {allowed("module.visitLog") && <VisitLog visits={visibleVisits} retailers={visibleRetailers} refresh={refreshVisits} />}
-              {allowed("module.salesmanVisitLog") && <SalesmanVisitLog visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshVisits} />}
+            <TabsContent value="visits">
+              <VisitsTab visits={visibleVisits} retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshVisits} allowed={allowed} />
             </TabsContent>
           )}
           {visibleTabs.includes("planner") && (
@@ -173,7 +172,20 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
               <Planner retailers={visibleRetailers} salesmen={visibleSalesmen} currentUser={currentUser} allowed={allowed} />
             </TabsContent>
           )}
-          {visibleTabs.includes("retailers") && <TabsContent value="retailers"><Retailers retailers={visibleRetailers} salesmen={visibleSalesmen} refresh={refreshRetailers} currentUser={currentUser} allowed={allowed} /></TabsContent>}
+          {visibleTabs.includes("retailers") && (
+            <TabsContent value="retailers">
+              <Team
+                retailers={visibleRetailers}
+                visits={visibleVisits}
+                salesmen={visibleSalesmen}
+                allSalesmen={salesmen}
+                refreshRetailers={refreshRetailers}
+                refreshSalesmen={() => { refreshSalesmen(); refreshVisits(); }}
+                currentUser={currentUser}
+                allowed={allowed}
+              />
+            </TabsContent>
+          )}
           {visibleTabs.includes("products") && (
             <TabsContent value="products">
               <Products products={visibleProducts} currentUser={currentUser} allowed={allowed} refresh={refreshProducts} />
@@ -182,10 +194,6 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
           <TabsContent value="settings">
             <SettingsPanel
               onLock={onLock}
-              salesmen={salesmen}
-              visits={visibleVisits}
-              retailers={visibleRetailers}
-              refreshSalesmen={refreshSalesmen}
               currentUser={currentUser}
               hasUsers={hasUsers}
               onAccessChanged={loadUser}
@@ -202,7 +210,7 @@ export function OptiVisitApp({ onLock }: { onLock: () => void }) {
             {visibleTabs.includes("dashboard") && <NavTab value="dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Home" />}
             {visibleTabs.includes("visits") && <NavTab value="visits" icon={<ClipboardList className="w-5 h-5" />} label="Visits" />}
             {visibleTabs.includes("planner") && <NavTab value="planner" icon={<CalendarDays className="w-5 h-5" />} label="Planner" />}
-            {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Store className="w-5 h-5" />} label="Retailers" />}
+            {visibleTabs.includes("retailers") && <NavTab value="retailers" icon={<Users className="w-5 h-5" />} label="Team" />}
             {visibleTabs.includes("products") && <NavTab value="products" icon={<Package className="w-5 h-5" />} label="Products" />}
             <NavTab value="settings" icon={<SettingsIcon className="w-5 h-5" />} label="Settings" />
           </TabsList>
@@ -839,17 +847,40 @@ const VISIT_EXPORT_COLUMNS: { key: string; label: string; get: (v: Visit, r?: Re
 ];
 
 function ExportCsvDialog({
-  visits,
+  visits: allVisits,
   retailers,
   filenameHint,
+  defaultFrom = "",
+  defaultTo = "",
 }: {
   visits: Visit[];
   retailers: Retailer[];
   filenameHint?: string;
+  /** Starting date range (yyyy-mm-dd) shown in the dialog; blank = no limit. */
+  defaultFrom?: string;
+  defaultTo?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [cols, setCols] = useState<string[]>(VISIT_EXPORT_COLUMNS.map((c) => c.key));
+  const [from, setFrom] = useState(defaultFrom);
+  const [to, setTo] = useState(defaultTo);
   const allSelected = cols.length === VISIT_EXPORT_COLUMNS.length;
+  const badRange = !!from && !!to && from > to;
+
+  // Each time the dialog opens, start from the caller's range again.
+  useEffect(() => {
+    if (open) { setFrom(defaultFrom); setTo(defaultTo); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const visits = useMemo(
+    () =>
+      allVisits.filter((v) => {
+        const day = toISODate(new Date(v.date));
+        return (!from || day >= from) && (!to || day <= to);
+      }),
+    [allVisits, from, to]
+  );
 
   const toggle = (key: string) =>
     setCols((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
@@ -865,7 +896,8 @@ function ExportCsvDialog({
     const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `visits-export${filenameHint ? `-${filenameHint}` : ""}.csv`;
+    const suffix = from || to ? `${from || "start"}_to_${to || "today"}` : filenameHint;
+    a.download = `visits-export${suffix ? `-${suffix}` : ""}.csv`;
     a.click();
     setOpen(false);
   };
@@ -873,13 +905,28 @@ function ExportCsvDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline" disabled={!visits.length}>
+        <Button size="sm" variant="outline" disabled={!allVisits.length}>
           <Download className="w-4 h-4 mr-1" /> Export CSV
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Export visits to CSV</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          <div className="rounded-lg border p-2.5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium">Date range</span>
+              {(from || to) && (
+                <button type="button" className="text-[10px] underline text-muted-foreground" onClick={() => { setFrom(""); setTo(""); }}>
+                  Any date
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="From"><Input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} /></Field>
+              <Field label="To"><Input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} /></Field>
+            </div>
+            {badRange && <p className="text-[11px] text-destructive">"From" must be on or before "To".</p>}
+          </div>
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">{visits.length} visit{visits.length === 1 ? "" : "s"} will be exported</p>
             <button
@@ -900,7 +947,7 @@ function ExportCsvDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button size="sm" className="w-full" onClick={doExport} disabled={cols.length === 0 || visits.length === 0}>
+          <Button size="sm" className="w-full" onClick={doExport} disabled={cols.length === 0 || visits.length === 0 || badRange}>
             <Download className="w-4 h-4 mr-1" /> Export {visits.length} visit{visits.length === 1 ? "" : "s"}
           </Button>
         </DialogFooter>
@@ -1008,7 +1055,7 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
 
   const remove = (id: string) => {
     if (!confirm("Delete this visit?")) return;
-    store.setVisits(visits.filter((v) => v.id !== id));
+    store.setVisits(store.getVisits().filter((v) => v.id !== id));
     refresh();
   };
 
@@ -1730,6 +1777,12 @@ function ReportsPanels({
     [salesmen]
   );
 
+  // Visits for the selected salesmen across all dates: the export dialog picks its own date range.
+  const salesmanVisits = useMemo(
+    () => (selectedSalesmen.length > 0 ? visits.filter((v) => selectedSalesmen.includes(v.salesman)) : visits),
+    [visits, selectedSalesmen]
+  );
+
   const filtered = useMemo(() => {
     const f = new Date(from + "T00:00:00").getTime();
     const t = new Date(to + "T23:59:59").getTime();
@@ -1858,7 +1911,7 @@ function ReportsPanels({
     <div className="space-y-3">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <h3 className="text-sm font-semibold flex items-center gap-1.5"><BarChart3 className="w-4 h-4 text-muted-foreground" /> Reports &amp; Analysis</h3>
-        <ExportCsvDialog visits={filtered} retailers={retailers} filenameHint={`${from}_to_${to}`} />
+        <ExportCsvDialog visits={salesmanVisits} retailers={retailers} defaultFrom={from} defaultTo={to} />
       </div>
       <div className="-mt-1 space-y-0.5 text-[10px] text-muted-foreground">
         <p className="flex items-start gap-1">
@@ -2189,6 +2242,10 @@ function Planner({
   const [mode, setMode] = useState<"create" | "view" | "past-empty">("create");
   const [draftIds, setDraftIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [wipeOpen, setWipeOpen] = useState(false);
+
+  // Only a Super User may clear the whole planner (no users set up yet = owner mode, which has full rights).
+  const isSuperUser = !currentUser || currentUser.role === "Super Admin";
 
   useEffect(() => {
     setPlans(store.getPlans());
@@ -2297,13 +2354,54 @@ function Planner({
     [plans, salesmanId]
   );
 
+  const plannedVisitCount = plans.reduce((n, p) => n + p.retailerIds.length, 0);
+
+  const deleteAllPlans = () => {
+    const removed = store.getPlans().length;
+    store.setPlans([]);
+    setPlans([]);
+    setDraftIds([]);
+    setMode(isPast ? "past-empty" : "create");
+    setWipeOpen(false);
+    toast.success(`Deleted all ${removed} plan${removed === 1 ? "" : "s"}`);
+  };
+
+  // Planned for a past date and never checked off (includes ones tapped "Missed"), newest date first.
+  const missedByDate = useMemo(() => {
+    const today = toISODateStr(todayStart);
+    const known = new Set(retailers.map((r) => r.id));
+    return plans
+      .filter((p) => p.salesmanId === salesmanId && p.date < today)
+      .map((p) => ({ date: p.date, count: p.retailerIds.filter((id) => known.has(id) && !p.status?.[id]?.doneAt).length }))
+      .filter((m) => m.count > 0)
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [plans, salesmanId, retailers, todayStart]);
+  const missedTotal = missedByDate.reduce((n, m) => n + m.count, 0);
+
   if (!allowed("module.planner")) return null;
 
   return (
     <div className="space-y-4 pt-2">
-      <h2 className="text-lg font-semibold flex items-center gap-1.5">
-        <CalendarDays className="w-4 h-4 text-muted-foreground" /> Visit Planner
-      </h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold flex items-center gap-1.5">
+          <CalendarDays className="w-4 h-4 text-muted-foreground" /> Visit Planner
+        </h2>
+        {isSuperUser && plans.length > 0 && (
+          <Button size="sm" variant="outline" className="text-destructive" onClick={() => setWipeOpen(true)}>
+            <Trash2 className="w-4 h-4 sm:mr-1" /> <span className="hidden sm:inline">Delete all plans</span>
+          </Button>
+        )}
+      </div>
+
+      <SuperUserPinDialog
+        open={wipeOpen}
+        steps={1}
+        confirmLabel="Delete all"
+        title="Delete all planned visits?"
+        description={`This permanently removes ${plans.length} plan${plans.length === 1 ? "" : "s"} (${plannedVisitCount} planned visit${plannedVisitCount === 1 ? "" : "s"}) for every salesman and every date, including past plans and the missed-visits counts. It cannot be undone.`}
+        onCancel={() => setWipeOpen(false)}
+        onConfirmed={deleteAllPlans}
+      />
 
       {linkedSalesmen.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
@@ -2348,6 +2446,36 @@ function Planner({
             />
           </div>
 
+          {missedTotal > 0 && (
+            <div className="bg-card border rounded-2xl p-4 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-500" />
+                  Missed visits{linkedSalesmen.length > 1 ? ` · ${linkedSalesmen.find((s) => s.id === salesmanId)?.name ?? ""}` : ""}
+                </h3>
+                <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 text-[10px]">{missedTotal} total</Badge>
+              </div>
+              <ul className="divide-y max-h-48 overflow-y-auto">
+                {missedByDate.map((m) => (
+                  <li key={m.date}>
+                    <button
+                      type="button"
+                      onClick={() => applyDateSelection(new Date(`${m.date}T00:00:00`), salesmanId)}
+                      className="flex w-full items-center justify-between gap-2 py-2 text-left text-sm hover:bg-muted/40"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                        {new Date(`${m.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}
+                      </span>
+                      <span className="font-semibold tabular-nums">{m.count}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-muted-foreground">Tap a date to open that day's plan.</p>
+            </div>
+          )}
+
           <div className="bg-card border rounded-2xl p-4">
             <div className="flex items-center justify-between gap-2 mb-1">
               <h3 className="text-sm font-semibold">
@@ -2373,7 +2501,7 @@ function Planner({
                       <li key={id} className="py-2.5">
                         <div className="flex items-center gap-3">
                           {st?.doneAt ? (
-                            <Checkbox checked disabled />
+                            <span className="w-4 shrink-0" />
                           ) : st?.missed ? (
                             <span className="flex h-4 w-4 items-center justify-center shrink-0">
                               <X className="w-4 h-4 text-rose-500" />
@@ -2384,14 +2512,9 @@ function Planner({
                             <Checkbox checked={false} onCheckedChange={() => markDone(id)} />
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
+                            <div className={`text-sm font-medium truncate ${st?.doneAt ? "text-muted-foreground" : ""}`}>{r?.name ?? "Unknown retailer"}</div>
                             <div className="text-[11px] text-muted-foreground truncate">{[r?.area, r?.city].filter(Boolean).join(" · ")}</div>
                           </div>
-                          {st?.doneAt && (
-                            <div className="text-[10px] text-muted-foreground text-right shrink-0 leading-tight">
-                              {new Date(st.doneAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}<br />{new Date(st.doneAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                            </div>
-                          )}
                           {st?.missed && (
                             <div className="text-[10px] text-rose-500 text-right shrink-0">Missed</div>
                           )}
@@ -2447,6 +2570,158 @@ function Planner({
 }
 
 /* ---------------- Retailers ---------------- */
+type ImportPreview = {
+  fileName: string;
+  rowCount: number;
+  /** Rows dropped because they had no shop name. */
+  skipped: number;
+  items: Retailer[];
+  /** Imported shops whose name matches a shop already in the app. */
+  matchExisting: number;
+  /** Imported shops repeated within the file itself. */
+  matchInFile: number;
+};
+
+/** Shop names match ignoring case and extra spaces. */
+const shopNameKey = (name: string) => name.toLowerCase().replace(/\s+/g, " ").trim();
+
+const DUP_FIELDS: { key: keyof Retailer; label: string }[] = [
+  { key: "owner", label: "Owner" },
+  { key: "city", label: "City" },
+  { key: "area", label: "Area" },
+  { key: "phone", label: "Phone" },
+  { key: "address", label: "Address" },
+  { key: "category", label: "Category" },
+  { key: "salesmanId", label: "Salesman" },
+  { key: "notes", label: "Notes" },
+];
+
+/** The existing shop takes the imported shop's details, but a blank imported field never erases a value. */
+function mergeShop(existing: Retailer, incoming: Retailer): Retailer {
+  const next: Retailer = { ...existing, name: incoming.name.trim() || existing.name };
+  for (const { key } of DUP_FIELDS) {
+    const v = incoming[key];
+    if (v !== undefined && v !== "") (next as Record<string, unknown>)[key] = v;
+  }
+  return next;
+}
+
+function ImportSummaryDialog({
+  preview,
+  onCancel,
+  onConfirm,
+}: {
+  preview: ImportPreview | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const dups = preview ? preview.matchExisting + preview.matchInFile : 0;
+  const rows: [string, number, boolean?][] = preview
+    ? [
+        ["Rows in file", preview.rowCount],
+        ["Skipped (no shop name)", preview.skipped],
+        ["Shops to import", preview.items.length],
+        ["New shops", preview.items.length - dups],
+        ["Match a shop already in the app", preview.matchExisting, preview.matchExisting > 0],
+        ["Repeated inside the file", preview.matchInFile, preview.matchInFile > 0],
+      ]
+    : [];
+  return (
+    <Dialog open={!!preview} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="w-[calc(100%-1rem)] max-w-sm rounded-xl">
+        <DialogHeader>
+          <DialogTitle className="break-all">Import {preview?.fileName}?</DialogTitle>
+        </DialogHeader>
+        <ul className="divide-y rounded-lg border text-sm">
+          {rows.map(([label, value, warn]) => (
+            <li key={label} className="flex items-center justify-between px-3 py-2">
+              <span className={label === "Shops to import" ? "font-medium" : "text-muted-foreground"}>{label}</span>
+              <span className={`tabular-nums ${label === "Shops to import" ? "font-semibold" : ""} ${warn ? "font-semibold text-amber-600 dark:text-amber-400" : ""}`}>{value}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-muted-foreground">
+          {dups > 0
+            ? "Every shop is imported. Shops matching by name are flagged Duplicate, and you can compare each pair afterwards."
+            : "No shop names clash with your existing shops."}
+        </p>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm}>Yes, import {preview?.items.length}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DuplicatesDialog({
+  open,
+  pairs,
+  salesmen,
+  canDelete,
+  onClose,
+  onResolve,
+}: {
+  open: boolean;
+  pairs: { copy: Retailer; original: Retailer }[];
+  salesmen: Salesman[];
+  canDelete: boolean;
+  onClose: () => void;
+  onResolve: (copy: Retailer, mode: "keep" | "delete" | "replace") => void;
+}) {
+  const show = (r: Retailer, key: keyof Retailer) => {
+    const v = r[key];
+    if (key === "salesmanId") return salesmen.find((s) => s.id === v)?.name ?? "";
+    return typeof v === "string" ? v : "";
+  };
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="w-[calc(100%-1rem)] max-w-2xl max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-xl">
+        <DialogHeader>
+          <DialogTitle>Duplicate shops ({pairs.length})</DialogTitle>
+        </DialogHeader>
+        {pairs.length === 0 ? (
+          <EmptyHint text="No duplicate shops left to review." />
+        ) : (
+          <div className="space-y-3">
+            {!canDelete && (
+              <p className="text-[11px] text-muted-foreground">You can keep both shops here. Deleting or replacing needs the "Delete retailer" permission.</p>
+            )}
+            {pairs.map(({ copy, original }) => (
+              <div key={copy.id} className="rounded-xl border p-3 space-y-2">
+                <div className="text-sm font-semibold">{original.name}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {([["Existing", original, copy], ["Imported (new)", copy, original]] as const).map(([title, shop, other]) => (
+                    <div key={title} className="rounded-lg bg-muted/40 p-2 text-[11px] space-y-1">
+                      <div className="font-semibold">{title}</div>
+                      {DUP_FIELDS.map(({ key, label }) => {
+                        const value = show(shop, key);
+                        const differs = value !== show(other, key);
+                        return (
+                          <div key={key} className="flex gap-1">
+                            <span className="w-14 shrink-0 text-muted-foreground">{label}</span>
+                            <span className={`min-w-0 break-words ${differs ? "font-semibold text-amber-700 dark:text-amber-400" : ""}`}>{value || "-"}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button size="sm" variant="outline" onClick={() => onResolve(copy, "keep")}>Keep both</Button>
+                  <Button size="sm" variant="outline" disabled={!canDelete} onClick={() => onResolve(copy, "replace")}>Replace existing with new</Button>
+                  <Button size="sm" variant="outline" className="text-destructive" disabled={!canDelete} onClick={() => onResolve(copy, "delete")}>Delete new copy</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="text-[10px] text-muted-foreground">Highlighted values differ between the two shops. Replacing fills the existing shop with the new details (blank fields never erase data) and keeps its visit history.</p>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const MAX_PIN_ATTEMPTS = 3;
 
 /** Asks for a Super User PIN twice in a row (the same Super User both times) before calling onConfirmed. */
@@ -2454,12 +2729,17 @@ function SuperUserPinDialog({
   open,
   title,
   description,
+  steps = 2,
+  confirmLabel = "Delete",
   onCancel,
   onConfirmed,
 }: {
   open: boolean;
   title: string;
   description: string;
+  /** How many times the PIN is asked: 2 (default, same Super User both times) or 1. */
+  steps?: 1 | 2;
+  confirmLabel?: string;
   onCancel: () => void;
   onConfirmed: () => void;
 }) {
@@ -2503,7 +2783,7 @@ function SuperUserPinDialog({
     }
     setError("");
     setPin("");
-    if (step === 1) {
+    if (step === 1 && steps === 2) {
       setFirstMatch(match);
       setStep(2);
     } else {
@@ -2520,7 +2800,11 @@ function SuperUserPinDialog({
         <p className="text-sm text-muted-foreground">{description}</p>
         <div className="space-y-2">
           <Label htmlFor="su-pin" className="text-xs">
-            {step === 1 ? "Step 1 of 2 - Enter Super User PIN" : "Step 2 of 2 - Enter Super User PIN Again To Confirm"}
+            {steps === 1
+              ? "Enter Super User PIN To Confirm"
+              : step === 1
+                ? "Step 1 of 2 - Enter Super User PIN"
+                : "Step 2 of 2 - Enter Super User PIN Again To Confirm"}
           </Label>
           <Input
             key={step}
@@ -2540,8 +2824,8 @@ function SuperUserPinDialog({
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant={step === 2 ? "destructive" : "default"} disabled={pin.length !== 4 || busy} onClick={() => void submit()}>
-            {step === 1 ? "Continue" : "Delete"}
+          <Button variant={step === 2 || steps === 1 ? "destructive" : "default"} disabled={pin.length !== 4 || busy} onClick={() => void submit()}>
+            {step === 2 || steps === 1 ? confirmLabel : "Continue"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2567,6 +2851,8 @@ function Retailers({
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [dupOpen, setDupOpen] = useState(false);
   const canSeeAddedBy = (r: Retailer) => isPrivileged || r.addedByUserId === currentUser?.id;
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -2673,15 +2959,74 @@ function Retailers({
           notes: pick(row, ["notes", "note", "remarks"]),
           category: (SHOP_CATEGORIES as readonly string[]).includes(cat) ? (cat as ShopCategory) : undefined,
           salesmanId: salesmanByName.get(sm),
+          addedByUserId: currentUser?.id,
+          addedByName: currentUser?.name,
         });
       });
       if (!imported.length) return toast.error("No rows found. Include a 'Name' column.");
-      store.setRetailers([...imported, ...store.getRetailers()]);
-      toast.success(`Imported ${imported.length} retailers`);
-      refresh();
+
+      // Flag shops whose name matches an existing shop (or an earlier row in the file).
+      const existingByKey = new Map<string, string>();
+      retailers.forEach((r) => { const k = shopNameKey(r.name); if (!existingByKey.has(k)) existingByKey.set(k, r.id); });
+      const firstInFile = new Map<string, string>();
+      let matchExisting = 0;
+      let matchInFile = 0;
+      imported.forEach((item) => {
+        const k = shopNameKey(item.name);
+        const existing = existingByKey.get(k);
+        if (existing) { item.duplicateOf = existing; matchExisting++; }
+        else if (firstInFile.has(k)) { item.duplicateOf = firstInFile.get(k); matchInFile++; }
+        else firstInFile.set(k, item.id);
+      });
+      setImportPreview({ fileName: file.name, rowCount: rows.length, skipped: rows.length - imported.length, items: imported, matchExisting, matchInFile });
     } catch {
       toast.error("Could not read that file. Use a .csv or .xlsx file.");
     }
+  };
+
+  const confirmImport = () => {
+    if (!importPreview) return;
+    const { items, matchExisting, matchInFile } = importPreview;
+    const dups = matchExisting + matchInFile;
+    store.setRetailers([...items, ...store.getRetailers()]);
+    toast.success(
+      `Imported ${items.length} retailer${items.length === 1 ? "" : "s"}${dups ? ` · ${dups} flagged as duplicate${dups === 1 ? "" : "s"}` : ""}`,
+      dups ? { action: { label: "Review", onClick: () => setDupOpen(true) } } : undefined
+    );
+    setImportPreview(null);
+    refresh();
+  };
+
+  // Imported shops that still point at a shop that exists (and that this user can see).
+  const retailerById = useMemo(() => new Map(retailers.map((r) => [r.id, r])), [retailers]);
+  const dupPairs = useMemo(
+    () =>
+      retailers
+        .filter((r) => r.duplicateOf && retailerById.has(r.duplicateOf))
+        .map((r) => ({ copy: r, original: retailerById.get(r.duplicateOf as string) as Retailer })),
+    [retailers, retailerById]
+  );
+  const isDupCopy = (r: Retailer) => !!r.duplicateOf && retailerById.has(r.duplicateOf);
+
+  const resolveDuplicate = (copy: Retailer, mode: "keep" | "delete" | "replace") => {
+    const all = store.getRetailers();
+    const original = all.find((r) => r.id === copy.duplicateOf);
+    let next: Retailer[];
+    if (mode === "keep") {
+      next = all.map((r) => (r.id === copy.id ? { ...r, duplicateOf: undefined } : r));
+    } else {
+      // Later copies that pointed at this one now point at the original instead.
+      next = all
+        .filter((r) => r.id !== copy.id)
+        .map((r) => {
+          if (r.duplicateOf === copy.id) return { ...r, duplicateOf: copy.duplicateOf };
+          if (mode === "replace" && original && r.id === original.id) return mergeShop(original, copy);
+          return r;
+        });
+    }
+    store.setRetailers(next);
+    toast.success(mode === "keep" ? "Both shops kept" : mode === "delete" ? "New copy deleted" : "Existing shop updated");
+    refresh();
   };
 
   return (
@@ -2723,6 +3068,30 @@ function Retailers({
       <p className="text-[10px] text-muted-foreground -mt-2">
         Import columns: Name, Owner, City, Area, Phone, Address, Category, Salesman, Notes
       </p>
+
+      {dupPairs.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setDupOpen(true)}
+          className="flex w-full items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-left text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+        >
+          <span className="flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            {dupPairs.length} duplicate shop{dupPairs.length === 1 ? "" : "s"} found by shop name
+          </span>
+          <span className="underline shrink-0">Review</span>
+        </button>
+      )}
+
+      <ImportSummaryDialog preview={importPreview} onCancel={() => setImportPreview(null)} onConfirm={confirmImport} />
+      <DuplicatesDialog
+        open={dupOpen}
+        pairs={dupPairs}
+        salesmen={salesmen}
+        canDelete={allowed("retailer.delete")}
+        onClose={() => setDupOpen(false)}
+        onResolve={resolveDuplicate}
+      />
 
 
       <Input placeholder="Search by name, city, area or owner..." value={q} onChange={(e) => setQ(e.target.value)} />
@@ -2819,6 +3188,15 @@ function Retailers({
                           <InitialAvatar name={r.name} className="h-8 w-8 text-xs mt-0.5 sm:mt-0" />
                           <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
                             <span className="w-full text-sm font-medium text-foreground truncate sm:w-auto sm:max-w-[40%]">{r.name}</span>
+                            {isDupCopy(r) && (
+                              <button
+                                type="button"
+                                onClick={() => setDupOpen(true)}
+                                className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                              >
+                                Duplicate
+                              </button>
+                            )}
                             {r.category && <CategoryBadge category={r.category} />}
                             {r.owner && <span className="truncate">{r.owner}</span>}
                             {r.phone && <span className="truncate">{r.phone}</span>}
@@ -3403,6 +3781,64 @@ function ProductDialog({
   );
 }
 
+/* ---------------- Team (Retailers + Salesmen) ---------------- */
+function Team({
+  retailers,
+  visits,
+  salesmen,
+  allSalesmen,
+  refreshRetailers,
+  refreshSalesmen,
+  currentUser,
+  allowed,
+}: {
+  retailers: Retailer[];
+  visits: Visit[];
+  /** Salesmen this user may see (used by the Retailers list). */
+  salesmen: Salesman[];
+  /** Every salesman, for the Salesmen sub tab. */
+  allSalesmen: Salesman[];
+  refreshRetailers: () => void;
+  refreshSalesmen: () => void;
+  currentUser?: AppUser | null;
+  allowed: (p: string) => boolean;
+}) {
+  const canSeeSalesmen = allowed("setting.salesmen");
+  const [sub, setSub] = useState<"retailers" | "salesmen">("retailers");
+  const active = canSeeSalesmen ? sub : "retailers";
+
+  const subTab = (id: "retailers" | "salesmen", label: string, count: number) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active === id}
+      onClick={() => setSub(id)}
+      className={`flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+        active === id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+      <span className="rounded-full bg-muted px-1.5 text-[10px] tabular-nums">{count}</span>
+    </button>
+  );
+
+  return (
+    <div className="space-y-2 pt-2">
+      {canSeeSalesmen && (
+        <div role="tablist" aria-label="Team sections" className="grid grid-cols-2 gap-1 rounded-full bg-muted p-1">
+          {subTab("retailers", "Retailers", retailers.length)}
+          {subTab("salesmen", "Salesmen", allSalesmen.length)}
+        </div>
+      )}
+      {active === "retailers" ? (
+        <Retailers retailers={retailers} salesmen={salesmen} refresh={refreshRetailers} currentUser={currentUser} allowed={allowed} />
+      ) : (
+        <Salesmen salesmen={allSalesmen} visits={visits} retailers={retailers} refresh={refreshSalesmen} />
+      )}
+    </div>
+  );
+}
+
 /* ---------------- Salesmen ---------------- */
 function Salesmen({
   salesmen,
@@ -3417,6 +3853,7 @@ function Salesmen({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [editing, setEditing] = useState<Salesman | null>(null);
 
   const sorted = [...salesmen].sort((a, b) => a.name.localeCompare(b.name));
   const filtered = sorted.filter((s) =>
@@ -3477,7 +3914,10 @@ function Salesmen({
                       </div>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="shrink-0" onClick={() => remove(s.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+                  <div className="flex shrink-0 items-start">
+                    <Button variant="ghost" size="icon" aria-label={`Edit ${s.name}`} onClick={() => setEditing(s)}><Pencil className="w-4 h-4 text-muted-foreground" /></Button>
+                    <Button variant="ghost" size="icon" aria-label={`Delete ${s.name}`} onClick={() => remove(s.id)}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t pt-3">
                   <Badge variant="secondary" className="text-[10px] font-normal">{stats.assigned} retailer{stats.assigned === 1 ? "" : "s"}</Badge>
@@ -3496,22 +3936,45 @@ function Salesmen({
           })}
         </ul>
       )}
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        {editing && <SalesmanDialog key={editing.id} initial={editing} onSaved={() => { refresh(); setEditing(null); }} />}
+      </Dialog>
     </div>
   );
 }
 
-function SalesmanDialog({ onSaved }: { onSaved: () => void }) {
-  const [f, setF] = useState<Omit<Salesman, "id">>({ name: "", city: "", region: "", mobile: "" });
+function SalesmanDialog({ onSaved, initial }: { onSaved: () => void; initial?: Salesman }) {
+  const [f, setF] = useState<Omit<Salesman, "id">>(
+    initial
+      ? { name: initial.name, city: initial.city, region: initial.region, mobile: initial.mobile }
+      : { name: "", city: "", region: "", mobile: "" }
+  );
   const save = () => {
-    if (!f.name.trim()) return toast.error("Name is required");
-    store.setSalesmen([{ id: uid(), ...f }, ...store.getSalesmen()]);
-    toast.success("Salesman added");
+    const name = f.name.trim();
+    if (!name) return toast.error("Name is required");
+    const all = store.getSalesmen();
+    // Visits refer to a salesman by name, so two salesmen can't share one.
+    if (all.some((s) => s.id !== initial?.id && s.name.trim().toLowerCase() === name.toLowerCase()))
+      return toast.error("A salesman with this name already exists");
+    const next = { ...f, name };
+    if (initial) {
+      store.setSalesmen(all.map((s) => (s.id === initial.id ? { ...s, ...next } : s)));
+      if (initial.name !== name) {
+        // Keep this salesman's visit history attached after a rename.
+        store.setVisits(store.getVisits().map((v) => (v.salesman === initial.name ? { ...v, salesman: name } : v)));
+      }
+      toast.success("Salesman updated");
+    } else {
+      store.setSalesmen([{ id: uid(), ...next }, ...all]);
+      toast.success("Salesman added");
+    }
     onSaved();
   };
   const upd = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
   return (
     <DialogContent className="max-w-md">
-      <DialogHeader><DialogTitle>Add salesman</DialogTitle></DialogHeader>
+      <DialogHeader><DialogTitle>{initial ? "Edit salesman" : "Add salesman"}</DialogTitle></DialogHeader>
       <div className="space-y-3">
         <Field label="Name"><Input value={f.name} onChange={upd("name")} placeholder="Full name" /></Field>
         <div className="grid grid-cols-2 gap-3">
@@ -3520,7 +3983,10 @@ function SalesmanDialog({ onSaved }: { onSaved: () => void }) {
         </div>
         <Field label="Mobile"><Input value={f.mobile} onChange={upd("mobile")} placeholder="Phone number" /></Field>
       </div>
-      <DialogFooter><Button className="w-full" onClick={save}>Save salesman</Button></DialogFooter>
+      {initial && initial.name !== f.name.trim() && f.name.trim() && (
+        <p className="text-[11px] text-muted-foreground">Past visits recorded under "{initial.name}" will show the new name.</p>
+      )}
+      <DialogFooter><Button className="w-full" onClick={save}>{initial ? "Save changes" : "Save salesman"}</Button></DialogFooter>
     </DialogContent>
   );
 }
@@ -3623,6 +4089,7 @@ function ThemePanel() {
   const userId = accessStore.getCurrentUserId();
   const [theme, setLocalTheme] = useState<AppTheme>(defaultTheme);
   const [themeGroup, setThemeGroup] = useState<string>("all");
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setLocalTheme(getTheme(userId));
@@ -3639,21 +4106,32 @@ function ThemePanel() {
 
   return (
     <section className="bg-card border rounded-2xl overflow-hidden">
-      <div className="ov-toolbar px-4 py-3 flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-current">Appearance</h3>
-          <p className="text-[11px] opacity-85">Your own theme &amp; icon pack — independent of other users</p>
-        </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 text-xs text-current hover:bg-white/15"
-          onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "", iconPack: DEFAULT_ICON_PACK, iconPackEnabled: true })}
+      <div className="ov-toolbar px-4 py-3 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          Reset
-        </Button>
+          <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-current">Appearance</span>
+            <span className="block text-[11px] opacity-85">Your own theme &amp; icon pack — independent of other users</span>
+          </span>
+        </button>
+        {open && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-current hover:bg-white/15"
+            onClick={() => update({ preset: "", background: "", card: "", font: "", accent: "", iconPack: DEFAULT_ICON_PACK, iconPackEnabled: true })}
+          >
+            Reset
+          </Button>
+        )}
       </div>
 
+      {open && (
       <div className="p-4 space-y-4">
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -3767,6 +4245,7 @@ function ThemePanel() {
           </div>
         </div>
       </div>
+      )}
     </section>
   );
 }
@@ -3832,19 +4311,11 @@ function IconPackCard({
 
 function SettingsPanel({
   onLock,
-  salesmen,
-  visits,
-  retailers,
-  refreshSalesmen,
   currentUser,
   hasUsers,
   onAccessChanged,
 }: {
   onLock: () => void;
-  salesmen: Salesman[];
-  visits: Visit[];
-  retailers: Retailer[];
-  refreshSalesmen: () => void;
   currentUser: AppUser | null;
   hasUsers: boolean;
   onAccessChanged: () => void;
@@ -3925,12 +4396,6 @@ function SettingsPanel({
         </section>
       )}
 
-      {allow("setting.salesmen") && (
-        <section className="bg-card border rounded-2xl p-4">
-          <Salesmen salesmen={salesmen} visits={visits} retailers={retailers} refresh={refreshSalesmen} />
-        </section>
-      )}
-
       <section className="bg-card border rounded-2xl p-4 space-y-3">
         <h3 className="text-sm font-semibold flex items-center gap-1.5"><Lock className="w-4 h-4 text-muted-foreground" /> Security</h3>
         {allow("setting.pin") && (
@@ -3990,20 +4455,165 @@ function SettingsPanel({
   );
 }
 
-/* ---------------- Salesman Visit Log (city-wise) ---------------- */
-function SalesmanVisitLog({
+/* ---------------- Visits tab: salesman list + both logs ---------------- */
+const UNASSIGNED_KEY = "unassigned";
+
+function VisitsTab({
   visits,
   retailers,
   salesmen,
   refresh,
+  allowed,
 }: {
   visits: Visit[];
   retailers: Retailer[];
   salesmen: Salesman[];
   refresh: () => void;
+  allowed: (p: string) => boolean;
 }) {
-  // "all" = All Salesmen (exclusive). Otherwise a multi-select of salesman ids + "unassigned".
-  const [selected, setSelected] = useState<string[]>(["unassigned"]);
+  const sortedSalesmen = useMemo(() => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)), [salesmen]);
+  const allKeys = useMemo(() => [...sortedSalesmen.map((s) => s.id), UNASSIGNED_KEY], [sortedSalesmen]);
+  // Everything starts selected. Ids of salesmen that no longer exist are simply ignored.
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const selected = (picked ?? allKeys).filter((k) => allKeys.includes(k));
+  const isAll = selected.length === allKeys.length;
+  const toggle = (key: string) => {
+    const next = selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key];
+    if (next.length > 0) setPicked(next); // at least one stays selected
+  };
+
+  const scopedRetailers = useMemo(
+    () =>
+      isAll
+        ? retailers
+        : retailers.filter((r) => (r.salesmanId && allKeys.includes(r.salesmanId) ? selected.includes(r.salesmanId) : selected.includes(UNASSIGNED_KEY))),
+    [retailers, selected, allKeys, isAll]
+  );
+  const scopedVisits = useMemo(() => {
+    if (isAll) return visits;
+    const ids = new Set(scopedRetailers.map((r) => r.id));
+    const names = new Set(sortedSalesmen.filter((s) => selected.includes(s.id)).map((s) => s.name));
+    return visits.filter((v) => ids.has(v.retailerId) || names.has(v.salesman));
+  }, [visits, scopedRetailers, sortedSalesmen, selected, isAll]);
+
+  // The Visit log follows who recorded each visit; a visit by nobody we know counts as "Unassigned".
+  const knownNames = useMemo(() => new Set(sortedSalesmen.map((s) => s.name)), [sortedSalesmen]);
+  const loggedVisits = useMemo(() => {
+    if (isAll) return visits;
+    const names = new Set(sortedSalesmen.filter((s) => selected.includes(s.id)).map((s) => s.name));
+    const wantUnassigned = selected.includes(UNASSIGNED_KEY);
+    return visits.filter((v) => names.has(v.salesman) || (wantUnassigned && !knownNames.has(v.salesman)));
+  }, [visits, sortedSalesmen, selected, isAll, knownNames]);
+
+  const unassignedIds = useMemo(
+    () => new Set(retailers.filter((r) => !r.salesmanId || !allKeys.includes(r.salesmanId)).map((r) => r.id)),
+    [retailers, allKeys]
+  );
+  const rows = useMemo(
+    () => [
+      ...sortedSalesmen.map((s) => ({
+        key: s.id,
+        label: s.name,
+        shops: retailers.filter((r) => r.salesmanId === s.id).length,
+        visits: visits.filter((v) => v.salesman === s.name).length,
+      })),
+      {
+        key: UNASSIGNED_KEY,
+        label: "Unassigned",
+        shops: unassignedIds.size,
+        visits: visits.filter((v) => !knownNames.has(v.salesman)).length,
+      },
+    ],
+    [sortedSalesmen, retailers, visits, unassignedIds, knownNames]
+  );
+
+  const chosen = rows.filter((r) => selected.includes(r.key));
+  const summary = isAll
+    ? `All (${rows.length})`
+    : chosen.length <= 2
+      ? chosen.map((r) => r.label).join(", ")
+      : `${chosen.slice(0, 2).map((r) => r.label).join(", ")} +${chosen.length - 2}`;
+  const scopeNote = isAll
+    ? "Showing all shops, grouped city wise."
+    : `Showing shops for ${chosen.length} selection${chosen.length === 1 ? "" : "s"}, grouped city wise.`;
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-card border rounded-2xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex w-full items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-muted/40"
+        >
+          <span className="min-w-0 flex items-center gap-2">
+            <Users className="w-4 h-4 shrink-0 text-muted-foreground" />
+            <span className="text-sm font-semibold">Salesmen</span>
+            <span className="truncate text-xs text-muted-foreground">· {summary}</span>
+          </span>
+          <ChevronDown className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && (
+          <div className="px-3 pb-3">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">Pick whose visits and shops to show</span>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setPicked(allKeys)}>All</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOpen(false)}>Done</Button>
+              </div>
+            </div>
+            <ul className="divide-y border-t">
+              {rows.map((r) => (
+                <li key={r.key}>
+                  <label className="flex cursor-pointer items-center gap-2 py-2 text-sm">
+                    <Checkbox checked={selected.includes(r.key)} onCheckedChange={() => toggle(r.key)} />
+                    <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+                      {r.shops} shop{r.shops === 1 ? "" : "s"} · {r.visits} visit{r.visits === 1 ? "" : "s"}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {allowed("module.visitLog") && <VisitLog visits={loggedVisits} retailers={retailers} refresh={refresh} />}
+      {allowed("module.salesmanVisitLog") && (
+        <SalesmanVisitLog
+          retailers={retailers}
+          salesmen={salesmen}
+          scopedRetailers={scopedRetailers}
+          scopedVisits={scopedVisits}
+          scopeNote={scopeNote}
+          refresh={refresh}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Salesman Visit Log (city-wise) ---------------- */
+function SalesmanVisitLog({
+  retailers,
+  salesmen,
+  scopedRetailers,
+  scopedVisits,
+  scopeNote,
+  refresh,
+}: {
+  /** Every retailer this user can see (for the Record dialog). */
+  retailers: Retailer[];
+  salesmen: Salesman[];
+  /** Shops and visits belonging to the salesmen picked at the top of the Visits tab. */
+  scopedRetailers: Retailer[];
+  scopedVisits: Visit[];
+  scopeNote: string;
+  refresh: () => void;
+}) {
   const [target, setTarget] = useState<Retailer | null>(null);
   const [openCities, setOpenCities] = useState<string[]>([]);
   const toggleCity = (c: string) =>
@@ -4013,35 +4623,6 @@ function SalesmanVisitLog({
     () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
     [salesmen]
   );
-  const isAll = selected.includes("all");
-  const toggleSel = (key: string) => {
-    if (key === "all") return setSelected(["all"]);
-    setSelected((prev) => {
-      const base = prev.filter((k) => k !== "all");
-      const next = base.includes(key) ? base.filter((k) => k !== key) : [...base, key];
-      return next.length === 0 ? ["unassigned"] : next;
-    });
-  };
-
-  const scopedRetailers = useMemo(
-    () =>
-      isAll
-        ? retailers
-        : retailers.filter((r) =>
-            r.salesmanId ? selected.includes(r.salesmanId) : selected.includes("unassigned")
-          ),
-    [retailers, selected, isAll]
-  );
-
-  const scopedVisits = useMemo(() => {
-    if (isAll) return visits;
-    const ids = new Set(scopedRetailers.map((r) => r.id));
-    const names = new Set(
-      sortedSalesmen.filter((s) => selected.includes(s.id)).map((s) => s.name)
-    );
-    return visits.filter((v) => ids.has(v.retailerId) || names.has(v.salesman));
-  }, [visits, scopedRetailers, sortedSalesmen, selected, isAll]);
-
 
   const visitsPerRetailer = useMemo(() => {
     const m = new Map<string, number>();
@@ -4090,45 +4671,10 @@ function SalesmanVisitLog({
         <Badge variant="secondary">{scopedRetailers.length} shops</Badge>
       </div>
 
-      <div className="bg-card border rounded-2xl p-4">
-        <Field label="Salesman">
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => toggleSel("unassigned")}
-              className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes("unassigned") ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
-            >
-              Unassigned
-            </button>
-            {sortedSalesmen.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => toggleSel(s.id)}
-                className={`px-2.5 py-1 rounded-full border text-xs ${selected.includes(s.id) ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
-              >
-                {s.name}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => toggleSel("all")}
-              className={`px-2.5 py-1 rounded-full border text-xs ${isAll ? "bg-primary text-primary-foreground border-primary" : "bg-background"}`}
-            >
-              All Salesmen
-            </button>
-          </div>
-        </Field>
-        <p className="text-[10px] text-muted-foreground mt-2">
-          {isAll
-            ? "Showing all shops, grouped city wise."
-            : `Showing linked shops for ${selected.length} selection${selected.length === 1 ? "" : "s"}, grouped city wise.`}
-        </p>
-
-      </div>
+      <p className="text-[10px] text-muted-foreground -mt-2">{scopeNote}</p>
 
       {cityGroups.length === 0 ? (
-        <EmptyHint text="No shops linked yet. Assign retailers to this salesman in the Retailers tab." />
+        <EmptyHint text="No shops linked yet. Assign retailers to a salesman in the Team tab." />
       ) : (
         cityGroups.map((g) => {
           const isOpen = openCities.includes(g.city);
