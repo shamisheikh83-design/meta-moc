@@ -796,6 +796,7 @@ const OUTCOME_COLORS: Record<Outcome, string> = {
   "Not Met": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   Complaints: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   "Linked to Other Company": "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  Other: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
 };
 
 const STATUS_COLORS: Record<VisitStatus, string> = {
@@ -1203,12 +1204,14 @@ function VisitDialog({
 }) {
   const [retailerId, setRetailerId] = useState(presetRetailer?.id ?? "");
   const [date, setDate] = useState<string>(todayISODate());
-  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [resultsOpen, setResultsOpen] = useState(false);
   const [sort, setSort] = useState<"az" | "area">("az");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
   const [area, setArea] = useState(presetRetailer?.area ?? "");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
+  const [outcomeReason, setOutcomeReason] = useState("");
   const [notes, setNotes] = useState("");
 
   const salesmenList = useMemo(
@@ -1217,7 +1220,7 @@ function VisitDialog({
   );
 
   const filteredRetailers = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = query.trim().toLowerCase();
     const list = retailers.filter((r) =>
       !q ? true : [r.name, r.owner, r.city, r.area, r.address, r.phone].filter(Boolean).some((s) => String(s).toLowerCase().includes(q))
     );
@@ -1226,7 +1229,7 @@ function VisitDialog({
         ? a.name.localeCompare(b.name)
         : (a.area || "").localeCompare(b.area || "") || a.name.localeCompare(b.name)
     );
-  }, [retailers, search, sort]);
+  }, [retailers, query, sort]);
 
   const selectedRetailer = presetRetailer ?? retailers.find((r) => r.id === retailerId);
   const salesman = selectedRetailer
@@ -1242,6 +1245,7 @@ function VisitDialog({
     if (!retailerId) return toast.error("Please select a retailer");
     if (!date) return toast.error("Please select a visit date");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
+    if (outcome === "Other" && !outcomeReason.trim()) return toast.error("Please give the reason for Other");
     const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
     const p = finalPurpose.toLowerCase();
     const derivedActivity: VisitActivity = p.includes("recovery")
@@ -1262,6 +1266,7 @@ function VisitDialog({
       visitStatus: "Visited",
       activity: derivedActivity,
       outcome,
+      outcomeReason: outcome === "Other" ? outcomeReason.trim() : undefined,
       notes,
       addedByUserId: accessStore.getCurrentUserId() ?? undefined,
     };
@@ -1293,28 +1298,56 @@ function VisitDialog({
           <p className="text-xs text-muted-foreground">Add a retailer first in the Retailers tab.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+            <Field label="Retailer">
               <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search retailers..." className="pl-9 h-9" />
+                <Search className="w-4 h-4 absolute left-3 top-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setRetailerId("");
+                    setResultsOpen(true);
+                  }}
+                  onFocus={() => setResultsOpen(true)}
+                  onBlur={() => window.setTimeout(() => setResultsOpen(false), 150)}
+                  placeholder="Type to search & select retailer..."
+                  className="pl-9 h-10"
+                  autoComplete="off"
+                />
+                {resultsOpen && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-md border bg-popover shadow-lg">
+                    {filteredRetailers.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">No shops match "{query.trim()}"</p>
+                    ) : (
+                      filteredRetailers.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setRetailerId(r.id);
+                            setQuery(r.name);
+                            setResultsOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted/60 border-b border-border/40 last:border-0"
+                        >
+                          <span className="font-medium">{r.name}</span>
+                          <span className="block text-[11px] text-muted-foreground truncate">
+                            {[r.area, normalizeCity(r.city || ""), r.category, r.owner].filter(Boolean).join(" · ")}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
+            </Field>
+            <Field label="Sort list">
               <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
-                <SelectTrigger className="h-10 w-full text-xs sm:w-28"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="az">A – Z</SelectItem>
                   <SelectItem value="area">Area wise</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Field label="Retailer">
-              <Select value={retailerId} onValueChange={setRetailerId}>
-                <SelectTrigger><SelectValue placeholder="Select retailer" /></SelectTrigger>
-                <SelectContent>
-                  {filteredRetailers.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}{r.area ? ` · ${r.area}` : ""}
-                    </SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             </Field>
@@ -1353,6 +1386,11 @@ function VisitDialog({
             </SelectContent>
           </Select>
         </Field>
+        {outcome === "Other" && (
+          <Field label="Reason for Other">
+            <Input value={outcomeReason} onChange={(e) => setOutcomeReason(e.target.value)} placeholder="Enter reason for Other" />
+          </Field>
+        )}
         <Field label="Notes"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering..." rows={3} /></Field>
       </div>
       <DialogFooter><Button onClick={save} className="w-full">Save visit</Button></DialogFooter>
@@ -2000,6 +2038,7 @@ const OUTCOME_SEG: Record<Outcome, { bg: string }> = {
   "Not Met": { bg: "bg-slate-500" },
   Complaints: { bg: "bg-red-500" },
   "Linked to Other Company": { bg: "bg-violet-500" },
+  Other: { bg: "bg-sky-500" },
 };
 
 type ChartSegment = { key: string; count: number; bg: string };
