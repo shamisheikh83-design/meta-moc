@@ -796,6 +796,7 @@ const OUTCOME_COLORS: Record<Outcome, string> = {
   "Not Met": "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   Complaints: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
   "Linked to Other Company": "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  Other: "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
 };
 
 const STATUS_COLORS: Record<VisitStatus, string> = {
@@ -2000,6 +2001,7 @@ const OUTCOME_SEG: Record<Outcome, { bg: string }> = {
   "Not Met": { bg: "bg-slate-500" },
   Complaints: { bg: "bg-red-500" },
   "Linked to Other Company": { bg: "bg-violet-500" },
+  Other: { bg: "bg-sky-500" },
 };
 
 type ChartSegment = { key: string; count: number; bg: string };
