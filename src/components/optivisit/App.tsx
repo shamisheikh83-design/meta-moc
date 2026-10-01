@@ -1298,28 +1298,56 @@ function VisitDialog({
           <p className="text-xs text-muted-foreground">Add a retailer first in the Retailers tab.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+            <Field label="Retailer">
               <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search retailers..." className="pl-9 h-9" />
+                <Search className="w-4 h-4 absolute left-3 top-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setRetailerId("");
+                    setResultsOpen(true);
+                  }}
+                  onFocus={() => setResultsOpen(true)}
+                  onBlur={() => window.setTimeout(() => setResultsOpen(false), 150)}
+                  placeholder="Type to search & select retailer..."
+                  className="pl-9 h-10"
+                  autoComplete="off"
+                />
+                {resultsOpen && (
+                  <div className="absolute z-50 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-md border bg-popover shadow-lg">
+                    {filteredRetailers.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-muted-foreground">No shops match "{query.trim()}"</p>
+                    ) : (
+                      filteredRetailers.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setRetailerId(r.id);
+                            setQuery(r.name);
+                            setResultsOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-muted/60 border-b border-border/40 last:border-0"
+                        >
+                          <span className="font-medium">{r.name}</span>
+                          <span className="block text-[11px] text-muted-foreground truncate">
+                            {[r.area, normalizeCity(r.city || ""), r.category, r.owner].filter(Boolean).join(" · ")}
+                          </span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
+            </Field>
+            <Field label="Sort list">
               <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
-                <SelectTrigger className="h-10 w-full text-xs sm:w-28"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="az">A – Z</SelectItem>
                   <SelectItem value="area">Area wise</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <Field label="Retailer">
-              <Select value={retailerId} onValueChange={setRetailerId}>
-                <SelectTrigger><SelectValue placeholder="Select retailer" /></SelectTrigger>
-                <SelectContent>
-                  {filteredRetailers.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name}{r.area ? ` · ${r.area}` : ""}
-                    </SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             </Field>
