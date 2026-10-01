@@ -1266,6 +1266,7 @@ function VisitDialog({
       visitStatus: "Visited",
       activity: derivedActivity,
       outcome,
+      outcomeReason: outcome === "Other" ? outcomeReason.trim() : undefined,
       notes,
       addedByUserId: accessStore.getCurrentUserId() ?? undefined,
     };
