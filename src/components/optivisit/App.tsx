@@ -1220,7 +1220,7 @@ function VisitDialog({
   );
 
   const filteredRetailers = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = query.trim().toLowerCase();
     const list = retailers.filter((r) =>
       !q ? true : [r.name, r.owner, r.city, r.area, r.address, r.phone].filter(Boolean).some((s) => String(s).toLowerCase().includes(q))
     );
@@ -1229,7 +1229,7 @@ function VisitDialog({
         ? a.name.localeCompare(b.name)
         : (a.area || "").localeCompare(b.area || "") || a.name.localeCompare(b.name)
     );
-  }, [retailers, search, sort]);
+  }, [retailers, query, sort]);
 
   const selectedRetailer = presetRetailer ?? retailers.find((r) => r.id === retailerId);
   const salesman = selectedRetailer
