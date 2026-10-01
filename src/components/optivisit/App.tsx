@@ -1204,12 +1204,14 @@ function VisitDialog({
 }) {
   const [retailerId, setRetailerId] = useState(presetRetailer?.id ?? "");
   const [date, setDate] = useState<string>(todayISODate());
-  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [resultsOpen, setResultsOpen] = useState(false);
   const [sort, setSort] = useState<"az" | "area">("az");
   const [purpose, setPurpose] = useState<string>("");
   const [otherPurpose, setOtherPurpose] = useState("");
   const [area, setArea] = useState(presetRetailer?.area ?? "");
   const [outcome, setOutcome] = useState<Outcome>("Successful");
+  const [outcomeReason, setOutcomeReason] = useState("");
   const [notes, setNotes] = useState("");
 
   const salesmenList = useMemo(
