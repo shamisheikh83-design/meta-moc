@@ -11,6 +11,7 @@ export const OUTCOMES = [
   "Not Met",
   "Complaints",
   "Linked to Other Company",
+  "Other",
 ] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 
@@ -51,6 +52,8 @@ export type Visit = {
   area?: string;
   visitStatus: VisitStatus;
   outcome: Outcome;
+  /** Free-text reason, recorded when the outcome is "Other". */
+  outcomeReason?: string;
   notes: string;
   activity?: VisitActivity;
   unavailableReason?: UnavailableReason;
