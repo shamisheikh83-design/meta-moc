@@ -1386,6 +1386,11 @@ function VisitDialog({
             </SelectContent>
           </Select>
         </Field>
+        {outcome === "Other" && (
+          <Field label="Reason for Other">
+            <Input value={outcomeReason} onChange={(e) => setOutcomeReason(e.target.value)} placeholder="Enter reason for Other" />
+          </Field>
+        )}
         <Field label="Notes"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anything worth remembering..." rows={3} /></Field>
       </div>
       <DialogFooter><Button onClick={save} className="w-full">Save visit</Button></DialogFooter>
