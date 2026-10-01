@@ -1245,6 +1245,7 @@ function VisitDialog({
     if (!retailerId) return toast.error("Please select a retailer");
     if (!date) return toast.error("Please select a visit date");
     if (purpose === "Other" && !otherPurpose.trim()) return toast.error("Please describe the purpose");
+    if (outcome === "Other" && !outcomeReason.trim()) return toast.error("Please give the reason for Other");
     const finalPurpose = purpose === "Other" ? otherPurpose.trim() : purpose;
     const p = finalPurpose.toLowerCase();
     const derivedActivity: VisitActivity = p.includes("recovery")
