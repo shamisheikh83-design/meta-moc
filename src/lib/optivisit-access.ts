@@ -143,6 +143,11 @@ export type AppUser = {
   permissions: string[];
   /** For Agent / Member / Guest: which salesmen's data this user may see. Empty = none restricted set chosen. */
   salesmanIds?: string[];
+  /**
+   * Whether this user may open the Access Level Control view-only panel (their own
+   * permission browser). Super Users always can. Missing = enabled (previous behavior).
+   */
+  accessViewOnly?: boolean;
   createdAt: string;
   /** Set when this user submits a "forgot my PIN" request. Cleared once a Super User resolves it. */
   pinResetRequestedAt?: string;
@@ -274,6 +279,13 @@ export function setPermissions(userId: string, permissions: string[]) {
 export function setSalesmanIds(userId: string, salesmanIds: string[]) {
   accessStore.setUsers(
     accessStore.getUsers().map((u) => (u.id === userId ? { ...u, salesmanIds } : u))
+  );
+}
+
+/** Super User toggle: whether a user may see their own view-only access details. */
+export function setAccessViewOnly(userId: string, enabled: boolean) {
+  accessStore.setUsers(
+    accessStore.getUsers().map((u) => (u.id === userId ? { ...u, accessViewOnly: enabled } : u))
   );
 }
 
