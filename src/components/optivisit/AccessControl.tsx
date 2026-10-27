@@ -365,6 +365,25 @@ function SuperUserPanel({
                 {effectivePermissions(u).length} permissions
               </Badge>
             </div>
+            {u.role !== "Super Admin" && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium leading-tight">Access view-only mode</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Let this user view their own access details (PIN-gated).
+                  </p>
+                </div>
+                <Switch
+                  checked={u.accessViewOnly !== false}
+                  onCheckedChange={(v) => {
+                    setAccessViewOnly(u.id, v);
+                    toast.success(v ? `${u.name} can now view their access details` : `${u.name}'s view-only access is off`);
+                    onChanged();
+                  }}
+                  aria-label="Access view-only mode"
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
