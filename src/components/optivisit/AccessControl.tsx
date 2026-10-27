@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download, ArrowLeft, AlertTriangle, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,6 +29,7 @@ import {
   resolvePinReset,
   isScopedRole,
   setSalesmanIds,
+  setAccessViewOnly,
   type AppUser,
   type Role,
 } from "@/lib/optivisit-access";
@@ -80,7 +82,16 @@ export function AccessControl({
       )}
 
       {!isSuper ? (
-        <OwnAccessView currentUser={currentUser} />
+        currentUser.accessViewOnly === false ? (
+          <div className="rounded-xl border p-4 flex items-center gap-2">
+            <Lock className="w-4 h-4 shrink-0 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">
+              Your Super User has not made view-only access details available for your account.
+            </p>
+          </div>
+        ) : (
+          <OwnAccessView currentUser={currentUser} />
+        )
       ) : (
         <SuperUserPanel users={users} currentUser={currentUser} onChanged={onChanged} />
       )}
@@ -354,6 +365,25 @@ function SuperUserPanel({
                 {effectivePermissions(u).length} permissions
               </Badge>
             </div>
+            {u.role !== "Super Admin" && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium leading-tight">Access view-only mode</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Let this user view their own access details (PIN-gated).
+                  </p>
+                </div>
+                <Switch
+                  checked={u.accessViewOnly !== false}
+                  onCheckedChange={(v) => {
+                    setAccessViewOnly(u.id, v);
+                    toast.success(v ? `${u.name} can now view their access details` : `${u.name}'s view-only access is off`);
+                    onChanged();
+                  }}
+                  aria-label="Access view-only mode"
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
