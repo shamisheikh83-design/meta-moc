@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download, ArrowLeft, AlertTriangle, Mail, Lock } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,6 +29,7 @@ import {
   resolvePinReset,
   isScopedRole,
   setSalesmanIds,
+  setAccessViewOnly,
   type AppUser,
   type Role,
 } from "@/lib/optivisit-access";
@@ -80,7 +82,16 @@ export function AccessControl({
       )}
 
       {!isSuper ? (
-        <OwnAccessView currentUser={currentUser} />
+        currentUser.accessViewOnly === false ? (
+          <div className="rounded-xl border p-4 flex items-center gap-2">
+            <Lock className="w-4 h-4 shrink-0 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">
+              Your Super User has not made view-only access details available for your account.
+            </p>
+          </div>
+        ) : (
+          <OwnAccessView currentUser={currentUser} />
+        )
       ) : (
         <SuperUserPanel users={users} currentUser={currentUser} onChanged={onChanged} />
       )}
