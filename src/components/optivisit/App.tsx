@@ -2887,6 +2887,7 @@ function Retailers({
 }) {
   const isPrivileged = !currentUser || !isScopedRole(currentUser.role);
   const canBulkDelete = allowed("retailer.bulkDelete");
+  const canShift = allowed("retailer.assignSalesman");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
