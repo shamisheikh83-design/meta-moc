@@ -15,7 +15,7 @@ import { THEME_PALETTE, THEME_PRESETS, NO_FILL, getTheme, setTheme, applyTheme, 
 import { Switch } from "@/components/ui/switch";
 import { startPresence, getPresenceCount, PRESENCE_EVENT } from "@/lib/optivisit-presence";
 
-import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download, Sparkles, ListChecks, SlidersHorizontal } from "lucide-react";
+import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as SettingsIcon, Plus, Trash2, LogOut, MapPin, Phone, User, Users, Calendar as CalendarIcon, Check, X, Pencil, Upload, ChevronDown, Search, ArrowUpDown, TrendingUp, TrendingDown, Minus, Target, Lock, AlertTriangle, Clock, AlertCircle, RotateCcw, Package, ChevronsUpDown, Building2, Map as MapIcon, ThumbsUp, Repeat2, CalendarDays, Download, Sparkles, ListChecks, SlidersHorizontal, ArrowLeftRight } from "lucide-react";
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, matchSuperUserPin, type AppUser } from "@/lib/optivisit-access";
@@ -2887,9 +2887,11 @@ function Retailers({
 }) {
   const isPrivileged = !currentUser || !isScopedRole(currentUser.role);
   const canBulkDelete = allowed("retailer.bulkDelete");
+  const canShift = allowed("retailer.assignSalesman");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [shiftOpen, setShiftOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
   const canSeeAddedBy = (r: Retailer) => isPrivileged || r.addedByUserId === currentUser?.id;
@@ -2963,6 +2965,22 @@ function Retailers({
       store.getRetailers().map((r) => (r.id === id ? { ...r, salesmanId: salesmanId === "none" ? undefined : salesmanId } : r))
     );
     toast.success("Salesman updated");
+    refresh();
+  };
+
+  // Shift / Assign: move every selected retailer (including unassigned ones) to a chosen salesman.
+  const shiftTo = (targetId: string) => {
+    const ids = new Set(selectedIds);
+    if (!ids.size) return;
+    const label = targetId === "none" ? "Unassigned" : salesmanName(targetId) ?? "salesman";
+    store.setRetailers(
+      store.getRetailers().map((r) =>
+        ids.has(r.id) ? { ...r, salesmanId: targetId === "none" ? undefined : targetId } : r
+      )
+    );
+    toast.success(`Shifted ${ids.size} retailer${ids.size === 1 ? "" : "s"} to ${label}`);
+    setShiftOpen(false);
+    exitSelectMode();
     refresh();
   };
 
@@ -3150,6 +3168,17 @@ function Retailers({
           <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => toggleMany(filteredIds, !allFilteredSelected)}>
             {allFilteredSelected ? "Deselect All" : `Select All (${filteredIds.length})`}
           </Button>
+          {canShift && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={selectedIds.length === 0}
+              onClick={() => setShiftOpen(true)}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Shift / Assign
+            </Button>
+          )}
           <Button
             size="sm"
             variant="destructive"
@@ -3169,6 +3198,45 @@ function Retailers({
         onCancel={() => setConfirmOpen(false)}
         onConfirmed={bulkDelete}
       />
+
+      {/* Shift / Assign: pick the salesman to move every selected retailer to. */}
+      <Dialog open={shiftOpen} onOpenChange={setShiftOpen}>
+        <DialogContent className="w-[calc(100%-1rem)] max-w-sm rounded-xl p-4">
+          <DialogHeader>
+            <DialogTitle>Shift / Assign Retailers</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Move {selectedIds.length} selected retailer{selectedIds.length === 1 ? "" : "s"} to a salesman, or unassign them.
+          </p>
+          <div className="max-h-[45dvh] space-y-1.5 overflow-y-auto pr-0.5">
+            {sortedSalesmen.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+                onClick={() => shiftTo(s.id)}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <InitialAvatar name={s.name} className="h-6 w-6 text-[10px]" />
+                  <span className="truncate">{s.name}</span>
+                </span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">{retailers.filter((r) => r.salesmanId === s.id).length}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+              onClick={() => shiftTo("none")}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <InitialAvatar name="Unassigned" className="h-6 w-6 text-[10px]" />
+                <span className="truncate">Unassigned</span>
+              </span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{retailers.filter((r) => !r.salesmanId).length}</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {filtered.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
