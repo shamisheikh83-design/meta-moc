@@ -3199,6 +3199,47 @@ function Retailers({
         onConfirmed={bulkDelete}
       />
 
+      {/* Shift / Assign: pick the salesman to move every selected retailer to. */}
+      <Dialog open={shiftOpen} onOpenChange={setShiftOpen}>
+        <DialogContent className="w-[calc(100%-1rem)] max-w-sm rounded-xl p-4">
+          <DialogHeader>
+            <DialogTitle>Shift / Assign Retailers</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Move {selectedIds.length} selected retailer{selectedIds.length === 1 ? "" : "s"} to a salesman, or unassign them.
+          </p>
+          <div className="max-h-[45dvh] space-y-1.5 overflow-y-auto pr-0.5">
+            {sortedSalesmen.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+                onClick={() => shiftTo(s.id)}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <InitialAvatar name={s.name} className="h-6 w-6 text-[10px]" />
+                  <span className="truncate">{s.name}</span>
+                </span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {salesmen.filter((x) => x.id === s.id).length && (retailers.filter((r) => r.salesmanId === s.id).length)}
+                </span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-2 rounded-lg border border-dashed px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted"
+              onClick={() => shiftTo("none")}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <InitialAvatar name="Unassigned" className="h-6 w-6 text-[10px]" />
+                <span className="truncate">Unassigned</span>
+              </span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{retailers.filter((r) => !r.salesmanId).length}</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {filtered.length === 0 ? (
         <div className="bg-card rounded-2xl border p-8 text-center">
           <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
