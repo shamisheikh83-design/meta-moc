@@ -2968,6 +2968,22 @@ function Retailers({
     refresh();
   };
 
+  // Shift / Assign: move every selected retailer (including unassigned ones) to a chosen salesman.
+  const shiftTo = (targetId: string) => {
+    const ids = new Set(selectedIds);
+    if (!ids.size) return;
+    const label = targetId === "none" ? "Unassigned" : salesmanName(targetId) ?? "salesman";
+    store.setRetailers(
+      store.getRetailers().map((r) =>
+        ids.has(r.id) ? { ...r, salesmanId: targetId === "none" ? undefined : targetId } : r
+      )
+    );
+    toast.success(`Shifted ${ids.size} retailer${ids.size === 1 ? "" : "s"} to ${label}`);
+    setShiftOpen(false);
+    exitSelectMode();
+    refresh();
+  };
+
   const fileRef = useRef<HTMLInputElement>(null);
 
   const importFile = async (file: File) => {
