@@ -3168,6 +3168,17 @@ function Retailers({
           <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => toggleMany(filteredIds, !allFilteredSelected)}>
             {allFilteredSelected ? "Deselect All" : `Select All (${filteredIds.length})`}
           </Button>
+          {canShift && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={selectedIds.length === 0}
+              onClick={() => setShiftOpen(true)}
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 mr-1" /> Shift / Assign
+            </Button>
+          )}
           <Button
             size="sm"
             variant="destructive"
