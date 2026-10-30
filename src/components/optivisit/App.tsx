@@ -3220,9 +3220,7 @@ function Retailers({
                   <InitialAvatar name={s.name} className="h-6 w-6 text-[10px]" />
                   <span className="truncate">{s.name}</span>
                 </span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
-                  {salesmen.filter((x) => x.id === s.id).length && (retailers.filter((r) => r.salesmanId === s.id).length)}
-                </span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">{retailers.filter((r) => r.salesmanId === s.id).length}</span>
               </button>
             ))}
             <button
