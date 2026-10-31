@@ -2259,6 +2259,13 @@ function toISODateStr(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+/** ISO date string `days` after `dateStr`. */
+function addDaysISO(dateStr: string, days: number) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toISODateStr(d);
+}
+
 function Planner({
   retailers,
   salesmen,
@@ -2282,6 +2289,10 @@ function Planner({
   const [draftIds, setDraftIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [wipeOpen, setWipeOpen] = useState(false);
+  /** ISO date of the plan whose shops are shown in the tile popup. */
+  const [tileOpenDate, setTileOpenDate] = useState<string | null>(null);
+  /** Shop the user tried to add while it is already planned within the next 7 days. */
+  const [conflict, setConflict] = useState<{ retailer: Retailer; clashes: VisitPlan[] } | null>(null);
 
   // Only a Super User may clear the whole planner (no users set up yet = owner mode, which has full rights).
   const isSuperUser = !currentUser || currentUser.role === "Super Admin";
@@ -2339,7 +2350,20 @@ function Planner({
 
   const toggleRetailer = (retailerId: string) => {
     if (mode !== "create" || isPast || !salesmanId) return;
-    const next = draftIds.includes(retailerId) ? draftIds.filter((id) => id !== retailerId) : [...draftIds, retailerId];
+    if (!draftIds.includes(retailerId)) {
+      // Adding a shop: warn first when it is already planned within the next 7 days.
+      const clashes = conflictsFor(retailerId, selectedDateStr);
+      if (clashes.length > 0) {
+        const retailer = retailers.find((r) => r.id === retailerId);
+        if (retailer) {
+          setConflict({ retailer, clashes });
+          return;
+        }
+      }
+      commitAddRetailer(retailerId, false);
+      return;
+    }
+    const next = draftIds.filter((id) => id !== retailerId);
     setDraftIds(next);
 
     const all = store.getPlans();
@@ -2355,6 +2379,68 @@ function Planner({
     } else {
       nextAll = all.map((p, i) => (i === existingIdx ? { ...p, retailerIds: next } : p));
     }
+    store.setPlans(nextAll);
+    setPlans(nextAll);
+  };
+
+  /** Adds a shop to the current date's plan. `additional` flags it as an extra visit added despite a nearby plan. */
+  const commitAddRetailer = (retailerId: string, additional: boolean) => {
+    if (draftIds.includes(retailerId)) return;
+    const next = [...draftIds, retailerId];
+    setDraftIds(next);
+
+    const all = store.getPlans();
+    const existingIdx = all.findIndex((p) => p.date === selectedDateStr && p.salesmanId === salesmanId);
+    let nextAll: VisitPlan[];
+    if (existingIdx === -1) {
+      nextAll = [
+        {
+          id: uid(),
+          date: selectedDateStr,
+          salesmanId,
+          retailerIds: next,
+          status: additional ? { [retailerId]: { additional: true } } : {},
+          createdAt: new Date().toISOString(),
+          createdByUserId: currentUser?.id,
+        },
+        ...all,
+      ];
+    } else {
+      nextAll = all.map((p, i) => {
+        if (i !== existingIdx) return p;
+        const status = { ...p.status };
+        if (additional) status[retailerId] = { ...status[retailerId], additional: true };
+        return { ...p, retailerIds: next, status };
+      });
+    }
+    store.setPlans(nextAll);
+    setPlans(nextAll);
+  };
+
+  /** Plans of this salesman where the shop is already set in the 7 days following `dateStr`. */
+  const conflictsFor = (retailerId: string, dateStr: string) => {
+    const until = addDaysISO(dateStr, 7);
+    return plans.filter(
+      (p) => p.salesmanId === salesmanId && p.date !== dateStr && p.date >= dateStr && p.date <= until && p.retailerIds.includes(retailerId)
+    );
+  };
+
+  /** Ticks / unticks a shop as done from any plan (tile popup or day card). */
+  const togglePlanDoneById = (planId: string, retailerId: string) => {
+    const nextAll = store.getPlans().map((p) => {
+      if (p.id !== planId) return p;
+      const status = { ...p.status };
+      const cur = status[retailerId];
+      if (cur?.doneAt) {
+        const rest = { ...cur };
+        delete rest.doneAt;
+        if (rest.missed || rest.additional) status[retailerId] = rest;
+        else delete status[retailerId];
+      } else {
+        status[retailerId] = { ...cur, doneAt: new Date().toISOString() };
+      }
+      return { ...p, status };
+    });
     store.setPlans(nextAll);
     setPlans(nextAll);
   };
@@ -2394,6 +2480,17 @@ function Planner({
   );
 
   const plannedVisitCount = plans.reduce((n, p) => n + p.retailerIds.length, 0);
+
+  const todayISO = toISODateStr(todayStart);
+  // Next five planned meetings for this salesman, today onward.
+  const upcomingPlans = useMemo(
+    () =>
+      plans
+        .filter((p) => p.salesmanId === salesmanId && p.date >= todayISO && p.retailerIds.length > 0)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(0, 5),
+    [plans, salesmanId, todayISO]
+  );
 
   const deleteAllPlans = () => {
     const removed = store.getPlans().length;
@@ -2466,6 +2563,7 @@ function Planner({
           <div className="bg-card border rounded-2xl p-2 sm:p-4">
             <Calendar
               mode="single"
+              captionLayout="dropdown"
               selected={selectedDate}
               onSelect={handleSelectDate}
               disabled={(d) => d < todayStart && !plannedDates.has(toISODateStr(d))}
@@ -2484,6 +2582,33 @@ function Planner({
               modifiersClassNames={{ planned: "after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:h-1 after:w-1 after:rounded-full after:bg-primary" }}
             />
           </div>
+
+          {upcomingPlans.length > 0 && (
+            <div className="bg-card border rounded-2xl p-4">
+              <h3 className="text-sm font-semibold mb-2">Next 5 planned meetings</h3>
+              <div className="grid grid-cols-5 gap-2">
+                {upcomingPlans.map((p) => {
+                  const d = new Date(`${p.date}T00:00:00`);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setTileOpenDate(p.date)}
+                      className="rounded-xl border bg-muted/30 p-2 text-center transition hover:bg-muted/60 active:scale-95"
+                    >
+                      <div className="text-[10px] uppercase text-muted-foreground">{d.toLocaleDateString(undefined, { weekday: "short" })}</div>
+                      <div className="text-base font-bold leading-tight">{d.getDate()}</div>
+                      <div className="text-[10px] text-muted-foreground">{d.toLocaleDateString(undefined, { month: "short" })}</div>
+                      <div className="mt-1 text-[10px] font-semibold text-primary">
+                        {p.retailerIds.length} shop{p.retailerIds.length === 1 ? "" : "s"}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">Tap a tile to see the shops planned and tick them off.</p>
+            </div>
+          )}
 
           {missedTotal > 0 && (
             <div className="bg-card border rounded-2xl p-4 space-y-2">
@@ -2557,6 +2682,9 @@ function Planner({
                           {st?.missed && (
                             <div className="text-[10px] text-rose-500 text-right shrink-0">Missed</div>
                           )}
+                          {st?.additional && !st?.missed && (
+                            <div className="text-[10px] text-amber-600 text-right shrink-0">Additional</div>
+                          )}
                         </div>
                         {overduePending && (
                           <div className="flex items-center gap-1.5 mt-2 pl-7 flex-wrap">
@@ -2602,6 +2730,97 @@ function Planner({
               </>
             )}
           </div>
+
+          {/* Tap-a-tile popup: shops planned for that date, tickable */}
+          <Dialog open={!!tileOpenDate} onOpenChange={(o) => { if (!o) setTileOpenDate(null); }}>
+            <DialogContent className="w-[calc(100%-1rem)] max-w-sm rounded-xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {tileOpenDate
+                    ? new Date(`${tileOpenDate}T00:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short", year: "numeric" })
+                    : ""}
+                </DialogTitle>
+              </DialogHeader>
+              {(() => {
+                const plan = tileOpenDate ? planFor(tileOpenDate, salesmanId) : undefined;
+                if (!plan) return <p className="text-sm text-muted-foreground">No plan found for this date.</p>;
+                const doneCount = plan.retailerIds.filter((id) => plan.status?.[id]?.doneAt).length;
+                return (
+                  <>
+                    <p className="text-[11px] text-muted-foreground">
+                      {plan.retailerIds.length} shop{plan.retailerIds.length === 1 ? "" : "s"} planned · {doneCount} done — tick a shop once the visit is complete.
+                    </p>
+                    <ul className="divide-y max-h-72 overflow-y-auto rounded-lg border">
+                      {plan.retailerIds.map((id) => {
+                        const r = retailers.find((x) => x.id === id);
+                        const st = plan.status?.[id];
+                        return (
+                          <li key={id} className="px-3 py-2.5 flex items-center gap-3">
+                            <Checkbox checked={!!st?.doneAt} onCheckedChange={() => togglePlanDoneById(plan.id, id)} />
+                            <div className="min-w-0 flex-1">
+                              <div className={`text-sm font-medium truncate ${st?.doneAt ? "text-muted-foreground line-through" : ""}`}>
+                                {r?.name ?? "Unknown retailer"}
+                              </div>
+                              <div className="text-[11px] text-muted-foreground truncate">{[r?.area, r?.city].filter(Boolean).join(" · ")}</div>
+                            </div>
+                            {st?.missed && <Badge className="bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 text-[10px] shrink-0">Missed</Badge>}
+                            {st?.additional && !st?.missed && <Badge variant="secondary" className="text-[10px] shrink-0">Additional</Badge>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                );
+              })()}
+            </DialogContent>
+          </Dialog>
+
+          {/* Shop already planned within the next 7 days */}
+          <Dialog open={!!conflict} onOpenChange={(o) => { if (!o) setConflict(null); }}>
+            <DialogContent className="w-[calc(100%-1rem)] max-w-sm rounded-xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" /> Already planned
+                </DialogTitle>
+              </DialogHeader>
+              {conflict && (
+                <>
+                  <p className="text-sm">
+                    <span className="font-medium">{conflict.retailer.name}</span> is already planned for{" "}
+                    <span className="font-medium">{linkedSalesmen.find((s) => s.id === salesmanId)?.name ?? "this salesman"}</span> within the next 7 days:
+                  </p>
+                  <ul className="rounded-lg border divide-y text-sm">
+                    {conflict.clashes.map((c) => {
+                      const d = new Date(`${c.date}T00:00:00`);
+                      return (
+                        <li key={c.date} className="px-3 py-2 flex items-center justify-between gap-2">
+                          <span>{d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}</span>
+                          <span className="text-[11px] text-muted-foreground shrink-0">
+                            {c.retailerIds.length} shop{c.retailerIds.length === 1 ? "" : "s"} that day
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="text-[11px] text-muted-foreground">
+                    <b>Ignore</b> adds the shop to {selectedDate.toLocaleDateString(undefined, { day: "numeric", month: "short" })} as a normal visit.{" "}
+                    <b>Add Additional</b> adds it as an extra visit on top of the existing plan.
+                  </p>
+                  <DialogFooter className="gap-2 sm:gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setConflict(null)}>
+                      <X className="w-4 h-4" /> X
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => { commitAddRetailer(conflict.retailer.id, false); setConflict(null); }}>
+                      Ignore
+                    </Button>
+                    <Button size="sm" onClick={() => { commitAddRetailer(conflict.retailer.id, true); setConflict(null); }}>
+                      Add Additional
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
