@@ -156,7 +156,12 @@ export type Product = {
 };
 
 /** Per-retailer completion status within a VisitPlan. Absent entry = still pending. */
-export type VisitPlanItemStatus = { doneAt?: string; missed?: boolean };
+export type VisitPlanItemStatus = {
+  doneAt?: string;
+  missed?: boolean;
+  /** Extra visit added deliberately even though the shop was already planned nearby. */
+  additional?: boolean;
+};
 
 /** A salesman's planned retailer visits for one calendar date. */
 export type VisitPlan = {
