@@ -2417,11 +2417,12 @@ function Planner({
     setPlans(nextAll);
   };
 
-  /** Plans of this salesman where the shop is already set in the 7 days following `dateStr`. */
+  /** Plans of this salesman where the shop is already set within 7 days of `dateStr` (before or after). */
   const conflictsFor = (retailerId: string, dateStr: string) => {
+    const from = addDaysISO(dateStr, -7);
     const until = addDaysISO(dateStr, 7);
     return plans.filter(
-      (p) => p.salesmanId === salesmanId && p.date !== dateStr && p.date >= dateStr && p.date <= until && p.retailerIds.includes(retailerId)
+      (p) => p.salesmanId === salesmanId && p.date !== dateStr && p.date >= from && p.date <= until && p.retailerIds.includes(retailerId)
     );
   };
 
@@ -2787,7 +2788,8 @@ function Planner({
                 <>
                   <p className="text-sm">
                     <span className="font-medium">{conflict.retailer.name}</span> is already planned for{" "}
-                    <span className="font-medium">{linkedSalesmen.find((s) => s.id === salesmanId)?.name ?? "this salesman"}</span> within the next 7 days:
+                    <span className="font-medium">{linkedSalesmen.find((s) => s.id === salesmanId)?.name ?? "this salesman"}</span> within 7 days of{" "}
+                    {selectedDate.toLocaleDateString(undefined, { day: "numeric", month: "short" })}:
                   </p>
                   <ul className="rounded-lg border divide-y text-sm">
                     {conflict.clashes.map((c) => {
