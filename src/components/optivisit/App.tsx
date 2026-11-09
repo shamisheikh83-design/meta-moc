@@ -19,6 +19,7 @@ import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as Sett
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, matchSuperUserPin, type AppUser } from "@/lib/optivisit-access";
+import { countVisitsByRetailer, PLANNER_END_YEAR, PLANNER_START_YEAR, visitCountBucket, VISIT_COUNT_BUCKETS, type VisitCountBucket } from "@/lib/visit-counts";
 
 
 type Tab = "dashboard" | "visits" | "planner" | "retailers" | "products" | "settings";
@@ -2287,6 +2288,7 @@ function Planner({
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [mode, setMode] = useState<"create" | "view" | "past-empty">("create");
   const [draftIds, setDraftIds] = useState<string[]>([]);
+  const [selectedPlanItems, setSelectedPlanItems] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [wipeOpen, setWipeOpen] = useState(false);
   /** ISO date of the plan whose shops are shown in the tile popup. */
@@ -2335,6 +2337,7 @@ function Planner({
     if (dateStr === toISODateStr(selectedDate) && sId === salesmanId) return;
     setSelectedDate(d);
     setDraftIds([]);
+    setSelectedPlanItems([]);
     setSearch("");
     const past = d < todayStart;
     setMode(modeFor(dateStr, sId, past));
@@ -2345,6 +2348,7 @@ function Planner({
   const handleSelectSalesman = (id: string) => {
     setSalesmanId(id);
     setDraftIds([]);
+    setSelectedPlanItems([]);
     setMode(modeFor(selectedDateStr, id, isPast));
   };
 
@@ -2473,6 +2477,44 @@ function Planner({
       return { ...p, retailerIds: nextIds, status: nextStatus };
     });
 
+  const planItemKey = (planId: string, retailerId: string) => `${planId}::${retailerId}`;
+  const togglePlanItemSelection = (planId: string, retailerId: string) => {
+    const key = planItemKey(planId, retailerId);
+    setSelectedPlanItems((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  };
+
+  const deleteSelectedPlanItems = () => {
+    if (selectedPlanItems.length === 0) return;
+    const selectedCount = selectedPlanItems.length;
+    if (!confirm(`Delete ${selectedCount} selected planned retailer${selectedCount === 1 ? "" : "s"}?`)) return;
+    const selectedKeys = new Set(selectedPlanItems);
+    const all = store.getPlans();
+    const next = all
+      .map((plan) => {
+        const removedIds = plan.retailerIds.filter((retailerId) => selectedKeys.has(planItemKey(plan.id, retailerId)));
+        if (!removedIds.length) return plan;
+        const retailerIds = plan.retailerIds.filter((retailerId) => !selectedKeys.has(planItemKey(plan.id, retailerId)));
+        const status = { ...plan.status };
+        removedIds.forEach((retailerId) => delete status[retailerId]);
+        return retailerIds.length ? { ...plan, retailerIds, status } : null;
+      })
+      .filter((plan): plan is VisitPlan => plan !== null);
+    store.setPlans(next);
+    setPlans(next);
+    setSelectedPlanItems([]);
+    const removed = all.reduce((count, plan) => count + plan.retailerIds.filter((retailerId) => selectedKeys.has(planItemKey(plan.id, retailerId))).length, 0);
+    toast.success(`Deleted ${removed} planned retailer${removed === 1 ? "" : "s"}`);
+    const remaining = planFor(selectedDateStr, salesmanId, next);
+    if (!remaining) setMode(isPast ? "past-empty" : "create");
+  };
+
+  const selectPlanItems = (plan: VisitPlan, selected: boolean) => {
+    const keys = plan.retailerIds.map((retailerId) => planItemKey(plan.id, retailerId));
+    setSelectedPlanItems((current) => selected
+      ? Array.from(new Set([...current, ...keys]))
+      : current.filter((key) => !keys.includes(key)));
+  };
+
   const currentPlan = mode === "view" ? planFor(selectedDateStr, salesmanId) : undefined;
 
   const plannedDates = useMemo(
@@ -2565,6 +2607,8 @@ function Planner({
             <Calendar
               mode="single"
               captionLayout="dropdown"
+              startMonth={new Date(PLANNER_START_YEAR, 0, 1)}
+              endMonth={new Date(PLANNER_END_YEAR, 11, 31)}
               selected={selectedDate}
               onSelect={handleSelectDate}
               disabled={(d) => d < todayStart && !plannedDates.has(toISODateStr(d))}
@@ -2657,6 +2701,20 @@ function Planner({
                   {currentPlan.retailerIds.length} retailer{currentPlan.retailerIds.length === 1 ? "" : "s"} planned
                   {isPast ? " · this date has passed" : " · check off as you complete each visit"}
                 </p>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Checkbox
+                      checked={currentPlan.retailerIds.every((id) => selectedPlanItems.includes(planItemKey(currentPlan.id, id)))}
+                      onCheckedChange={(checked) => selectPlanItems(currentPlan, checked === true)}
+                    />
+                    Select all to delete
+                  </label>
+                  {selectedPlanItems.length > 0 && (
+                    <Button size="sm" variant="destructive" className="h-8" onClick={deleteSelectedPlanItems}>
+                      <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete selected ({selectedPlanItems.length})
+                    </Button>
+                  )}
+                </div>
                 <ul className="divide-y">
                   {currentPlan.retailerIds.map((id) => {
                     const r = retailers.find((x) => x.id === id);
@@ -2665,6 +2723,11 @@ function Planner({
                     return (
                       <li key={id} className="py-2.5">
                         <div className="flex items-center gap-3">
+                          <Checkbox
+                            checked={selectedPlanItems.includes(planItemKey(currentPlan.id, id))}
+                            onCheckedChange={() => togglePlanItemSelection(currentPlan.id, id)}
+                            aria-label={`Select ${r?.name ?? "retailer"} for deletion`}
+                          />
                           {st?.doneAt ? (
                             <span className="w-4 shrink-0" />
                           ) : st?.missed ? (
@@ -2746,17 +2809,34 @@ function Planner({
                 const plan = tileOpenDate ? planFor(tileOpenDate, salesmanId) : undefined;
                 if (!plan) return <p className="text-sm text-muted-foreground">No plan found for this date.</p>;
                 const doneCount = plan.retailerIds.filter((id) => plan.status?.[id]?.doneAt).length;
+                const allSelected = plan.retailerIds.every((id) => selectedPlanItems.includes(planItemKey(plan.id, id)));
                 return (
                   <>
                     <p className="text-[11px] text-muted-foreground">
                       {plan.retailerIds.length} shop{plan.retailerIds.length === 1 ? "" : "s"} planned · {doneCount} done — tick a shop once the visit is complete.
                     </p>
+                    <div className="my-2 flex items-center justify-between gap-2">
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Checkbox checked={allSelected} onCheckedChange={(checked) => selectPlanItems(plan, checked === true)} />
+                        Select all to delete
+                      </label>
+                      {selectedPlanItems.length > 0 && (
+                        <Button size="sm" variant="destructive" className="h-8" onClick={deleteSelectedPlanItems}>
+                          <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete selected ({selectedPlanItems.length})
+                        </Button>
+                      )}
+                    </div>
                     <ul className="divide-y max-h-72 overflow-y-auto rounded-lg border">
                       {plan.retailerIds.map((id) => {
                         const r = retailers.find((x) => x.id === id);
                         const st = plan.status?.[id];
                         return (
                           <li key={id} className="px-3 py-2.5 flex items-center gap-3">
+                            <Checkbox
+                              checked={selectedPlanItems.includes(planItemKey(plan.id, id))}
+                              onCheckedChange={() => togglePlanItemSelection(plan.id, id)}
+                              aria-label={`Select ${r?.name ?? "retailer"} for deletion`}
+                            />
                             <Checkbox checked={!!st?.doneAt} onCheckedChange={() => togglePlanDoneById(plan.id, id)} />
                             <div className="min-w-0 flex-1">
                               <div className={`text-sm font-medium truncate ${st?.doneAt ? "text-muted-foreground line-through" : ""}`}>
@@ -4943,7 +5023,12 @@ function SalesmanVisitLog({
   refresh: () => void;
 }) {
   const [target, setTarget] = useState<Retailer | null>(null);
+  const [countTarget, setCountTarget] = useState<Retailer | null>(null);
   const [openCities, setOpenCities] = useState<string[]>([]);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [groupBy, setGroupBy] = useState<"city" | "visits">("city");
+  const [visitBuckets, setVisitBuckets] = useState<VisitCountBucket[]>([...VISIT_COUNT_BUCKETS]);
   const toggleCity = (c: string) =>
     setOpenCities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
 
@@ -4952,15 +5037,32 @@ function SalesmanVisitLog({
     [salesmen]
   );
 
-  const visitsPerRetailer = useMemo(() => {
-    const m = new Map<string, number>();
-    scopedVisits.forEach((v) => m.set(v.retailerId, (m.get(v.retailerId) || 0) + 1));
-    return m;
-  }, [scopedVisits]);
+  const filteredVisits = useMemo(() => {
+    return scopedVisits.filter((v) => {
+      const date = v.date.slice(0, 10);
+      return (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
+    });
+  }, [scopedVisits, fromDate, toDate]);
+
+  const visitsPerRetailer = useMemo(
+    () => countVisitsByRetailer(scopedRetailers, filteredVisits),
+    [scopedRetailers, filteredVisits]
+  );
+
+  const visibleRetailers = useMemo(() => {
+    const items = scopedRetailers.filter((r) => visitBuckets.includes(visitCountBucket(visitsPerRetailer.get(r.id) ?? 0)));
+    return items.sort((a, b) => (visitsPerRetailer.get(b.id) ?? 0) - (visitsPerRetailer.get(a.id) ?? 0) || a.name.localeCompare(b.name));
+  }, [scopedRetailers, visitBuckets, visitsPerRetailer]);
+
+  const toggleVisitBucket = (bucket: VisitCountBucket) => {
+    setVisitBuckets((selected) => selected.includes(bucket)
+      ? selected.filter((item) => item !== bucket)
+      : [...selected, bucket]);
+  };
 
   const cityGroups = useMemo(() => {
     const groups = new Map<string, Retailer[]>();
-    scopedRetailers.forEach((r) => {
+    (groupBy === "city" ? scopedRetailers : visibleRetailers).forEach((r) => {
       const key = normalizeCity((r.city || "").trim() || "Unassigned city");
       const list = groups.get(key) || [];
       list.push(r);
@@ -4975,9 +5077,12 @@ function SalesmanVisitLog({
           else if (n === 1) single++;
           else multiple++;
         });
-        return {
+      const sortedList = [...list].sort((a, b) =>
+        (visitsPerRetailer.get(b.id) ?? 0) - (visitsPerRetailer.get(a.id) ?? 0) || a.name.localeCompare(b.name)
+      );
+      return {
           city,
-          list: [...list].sort((a, b) => a.name.localeCompare(b.name)),
+          list: groupBy === "visits" ? sortedList : [...list].sort((a, b) => a.name.localeCompare(b.name)),
           total: list.length,
           single,
           multiple,
@@ -4985,7 +5090,48 @@ function SalesmanVisitLog({
         };
       })
       .sort((a, b) => a.city.localeCompare(b.city));
-  }, [scopedRetailers, visitsPerRetailer]);
+  }, [scopedRetailers, visibleRetailers, groupBy, visitsPerRetailer]);
+
+  const visitCountGroups = useMemo(() => {
+    const buckets: VisitCountBucket[] = ["5+", "4", "3", "2", "1", "0"];
+    return buckets
+      .filter((bucket) => visitBuckets.includes(bucket))
+      .map((bucket) => ({
+        bucket,
+        items: visibleRetailers.filter((r) => visitCountBucket(visitsPerRetailer.get(r.id) ?? 0) === bucket),
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [visibleRetailers, visitBuckets, visitsPerRetailer]);
+
+  const visitsForCountTarget = useMemo(() => countTarget
+    ? filteredVisits.filter((visit) => visit.retailerId === countTarget.id).sort((a, b) => b.date.localeCompare(a.date))
+    : [], [countTarget, filteredVisits]);
+
+  const renderRetailerRow = (r: Retailer) => {
+    const n = visitsPerRetailer.get(r.id) || 0;
+    const dot = n === 0 ? "bg-red-500" : n === 1 ? "bg-yellow-500" : "bg-green-500";
+    const salesmanName = sortedSalesmen.find((s) => s.id === r.salesmanId)?.name ?? "Unassigned";
+    const line = [r.owner, r.phone, r.area, normalizeCity(r.city || ""), r.address, r.category, salesmanName].filter(Boolean).join(" · ");
+    return (
+      <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
+        <div className="min-w-0 flex items-center gap-2 flex-1">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium truncate">{r.name}</div>
+            <div className="text-[11px] text-muted-foreground line-clamp-2 sm:truncate">{line}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button type="button" variant="outline" size="sm" className="h-9 px-2.5 text-xs tabular-nums" onClick={() => setCountTarget(r)} aria-label={`${n} visits for ${r.name}; view dates`}>
+            {n} visit{n === 1 ? "" : "s"}
+          </Button>
+          <Button size="sm" variant="outline" className="h-10 px-2.5 text-xs" onClick={() => setTarget(r)}>
+            <Plus className="w-3.5 h-3.5 sm:mr-1" /> <span className="hidden sm:inline">Record</span>
+          </Button>
+        </div>
+      </li>
+    );
+  };
 
   const recent = useMemo(
     () => [...scopedVisits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10),
@@ -5001,8 +5147,53 @@ function SalesmanVisitLog({
 
       <p className="text-[10px] text-muted-foreground -mt-2">{scopeNote}</p>
 
-      {cityGroups.length === 0 ? (
+      <div className="bg-card border rounded-xl p-3 space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="Visits from">
+            <Input type="date" value={fromDate} max={toDate || undefined} onChange={(event) => setFromDate(event.target.value)} className="h-9 text-sm" />
+          </Field>
+          <Field label="Visits to">
+            <Input type="date" value={toDate} min={fromDate || undefined} onChange={(event) => setToDate(event.target.value)} className="h-9 text-sm" />
+          </Field>
+        </div>
+        <Field label="Group filter">
+          <Select value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
+            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="city">Group by city</SelectItem>
+              <SelectItem value="visits">Group by number of visits</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        {groupBy === "visits" && (
+          <fieldset className="space-y-2">
+            <legend className="text-[11px] font-medium text-muted-foreground">Number of visits</legend>
+            <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+              {VISIT_COUNT_BUCKETS.map((bucket) => (
+                <label key={bucket} className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox checked={visitBuckets.includes(bucket)} onCheckedChange={() => toggleVisitBucket(bucket)} />
+                  {bucket === "5+" ? "5+ visits" : `${bucket} ${bucket === "1" ? "visit" : "visits"}`}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+      </div>
+
+      {groupBy === "city" && cityGroups.length === 0 || groupBy === "visits" && visitCountGroups.length === 0 ? (
         <EmptyHint text="No shops linked yet. Assign retailers to a salesman in the Team tab." />
+      ) : groupBy === "visits" ? (
+        <div className="space-y-3">
+          {visitCountGroups.map((g) => (
+            <section key={g.bucket} className="bg-card border rounded-xl overflow-hidden">
+              <h3 className="px-3 py-2.5 text-sm font-semibold flex items-center justify-between">
+                <span>{g.bucket === "5+" ? "5 or more visits" : `${g.bucket} ${g.bucket === "1" ? "visit" : "visits"}`}</span>
+                <Badge variant="secondary">{g.items.length} shops</Badge>
+              </h3>
+              <ul className="divide-y border-t px-3">{g.items.map(renderRetailerRow)}</ul>
+            </section>
+          ))}
+        </div>
       ) : (
         cityGroups.map((g) => {
           const isOpen = openCities.includes(g.city);
@@ -5034,35 +5225,7 @@ function SalesmanVisitLog({
 
             {isOpen && (
             <ul className="divide-y border-t">
-              {g.list.map((r) => {
-                const n = visitsPerRetailer.get(r.id) || 0;
-                const dot = n === 0 ? "bg-red-500" : n === 1 ? "bg-yellow-500" : "bg-green-500";
-                const salesmanName = sortedSalesmen.find((s) => s.id === r.salesmanId)?.name ?? "Unassigned";
-                const line = [
-                  r.owner,
-                  r.phone,
-                  r.area,
-                  normalizeCity(r.city || ""),
-                  r.address,
-                  r.category,
-                  salesmanName,
-                  `${n} visit${n === 1 ? "" : "s"}`,
-                ].filter(Boolean).join(" · ");
-                return (
-                  <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
-                    <div className="min-w-0 flex items-center gap-2 flex-1">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">{r.name}</div>
-                        <div className="text-[11px] text-muted-foreground line-clamp-2 sm:truncate">{line}</div>
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline" className="h-10 px-2.5 text-xs shrink-0" onClick={() => setTarget(r)}>
-                      <Plus className="w-3.5 h-3.5 sm:mr-1" /> <span className="hidden sm:inline">Record</span>
-                    </Button>
-                  </li>
-                );
-              })}
+              {g.list.map(renderRetailerRow)}
             </ul>
             )}
           </div>
@@ -5103,6 +5266,31 @@ function SalesmanVisitLog({
             onSaved={() => { refresh(); setTarget(null); }}
           />
         )}
+      </Dialog>
+
+      <Dialog open={!!countTarget} onOpenChange={(open) => !open && setCountTarget(null)}>
+        <DialogContent className="w-[calc(100%-1rem)] max-w-sm rounded-xl">
+          <DialogHeader>
+            <DialogTitle>{countTarget?.name} · visit dates</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            {visitsForCountTarget.length} visit{visitsForCountTarget.length === 1 ? "" : "s"}
+            {fromDate || toDate ? ` in selected period${fromDate ? ` from ${fromDate}` : ""}${toDate ? ` to ${toDate}` : ""}` : " recorded"}.
+          </p>
+          {visitsForCountTarget.length ? (
+            <ul className="max-h-72 overflow-y-auto divide-y rounded-lg border">
+              {visitsForCountTarget.map((visit) => (
+                <li key={visit.id} className="px-3 py-2.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{new Date(`${visit.date.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{visit.salesman || "Unassigned"} · {visit.purpose}</div>
+                  </div>
+                  <StatusBadge status={visit.visitStatus} />
+                </li>
+              ))}
+            </ul>
+          ) : <EmptyHint text="No visits in this date range." />}
+        </DialogContent>
       </Dialog>
     </div>
   );

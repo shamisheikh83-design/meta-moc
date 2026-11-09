@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep Visits retailer-count date-range and bucket calculations in `src/lib/visit-counts.ts` so the display and focused tests share the same rules.
