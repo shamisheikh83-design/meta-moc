@@ -2638,7 +2638,7 @@ function Planner({
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => setTileOpenDate(p.date)}
+                      onClick={() => { setSelectedPlanItems([]); setTileOpenDate(p.date); }}
                       className="rounded-xl border bg-muted/30 p-2 text-center transition hover:bg-muted/60 active:scale-95"
                     >
                       <div className="text-[10px] uppercase text-muted-foreground">{d.toLocaleDateString(undefined, { weekday: "short" })}</div>
@@ -5165,7 +5165,9 @@ function SalesmanVisitLog({
             </SelectContent>
           </Select>
         </Field>
-        {groupBy === "visits" && (
+      </div>
+
+      {groupBy === "visits" && (
           <fieldset className="space-y-2">
             <legend className="text-[11px] font-medium text-muted-foreground">Number of visits</legend>
             <div className="grid grid-cols-3 gap-x-3 gap-y-2">
@@ -5177,11 +5179,10 @@ function SalesmanVisitLog({
               ))}
             </div>
           </fieldset>
-        )}
-      </div>
+      )}
 
-      {groupBy === "city" && cityGroups.length === 0 || groupBy === "visits" && visitCountGroups.length === 0 ? (
-        <EmptyHint text="No shops linked yet. Assign retailers to a salesman in the Team tab." />
+      {(groupBy === "city" && cityGroups.length === 0) || (groupBy === "visits" && visitCountGroups.length === 0) ? (
+        <EmptyHint text={groupBy === "visits" ? "No retailers match these visit-count and date filters." : "No shops linked yet. Assign retailers to a salesman in the Team tab."} />
       ) : groupBy === "visits" ? (
         <div className="space-y-3">
           {visitCountGroups.map((g) => (
