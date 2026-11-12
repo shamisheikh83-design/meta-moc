@@ -19,7 +19,7 @@ import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as Sett
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, matchSuperUserPin, type AppUser } from "@/lib/optivisit-access";
-import { countVisitsByRetailer, PLANNER_END_YEAR, PLANNER_START_YEAR, visitCountBucket, VISIT_COUNT_BUCKETS, type VisitCountBucket } from "@/lib/visit-counts";
+import { countVisitsByRetailer, isVisitInDateRange, PLANNER_END_YEAR, PLANNER_START_YEAR, visitCountBucket, VISIT_COUNT_BUCKETS, type VisitCountBucket } from "@/lib/visit-counts";
 
 
 type Tab = "dashboard" | "visits" | "planner" | "retailers" | "products" | "settings";
@@ -992,24 +992,31 @@ function InitialAvatar({ name, className }: { name: string; className?: string }
 /* ---------------- Visit Log ---------------- */
 type VisitGroupBy = "none" | "city" | "date" | "salesman" | "outcome";
 
-function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: Retailer[]; refresh: () => void }) {
-  const [open, setOpen] = useState(false);
+function VisitLog({
+  visits,
+  retailers,
+  refresh,
+  visitCounts,
+  countPeriodLabel,
+}: {
+  /** Visits already narrowed by the Visits tab's salesman and date-range filters. */
+  visits: Visit[];
+  retailers: Retailer[];
+  refresh: () => void;
+  /** Visits per shop inside the selected date range, shown on every visit card. */
+  visitCounts: Map<string, number>;
+  /** Short description of the selected date range, e.g. "in selected dates". */
+  countPeriodLabel: string;
+}) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest" | "retailer" | "salesman">("newest");
-  const [salesmanFilter, setSalesmanFilter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<VisitGroupBy>("none");
   const [openGroups, setOpenGroups] = useState<string[]>([]);
-
-  const salesmanNames = useMemo(
-    () => Array.from(new Set(visits.map((v) => v.salesman).filter(Boolean))).sort((a, b) => a.localeCompare(b)),
-    [visits]
-  );
 
   const sorted = useMemo(() => {
     const q = query.trim().toLowerCase();
     const nameOf = (v: Visit) => retailers.find((r) => r.id === v.retailerId)?.name ?? "";
     let list = visits.filter((v) => {
-      if (salesmanFilter !== "all" && v.salesman !== salesmanFilter) return false;
       if (!q) return true;
       const r = retailers.find((x) => x.id === v.retailerId);
       return [nameOf(v), v.salesman, v.purpose, v.notes, v.outcome, v.visitStatus, r?.city, r?.area]
@@ -1023,7 +1030,7 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
       return (a.salesman || "").localeCompare(b.salesman || "");
     });
     return list;
-  }, [visits, retailers, query, sort, salesmanFilter]);
+  }, [visits, retailers, query, sort]);
 
   const groups = useMemo(() => {
     if (groupBy === "none") return null;
@@ -1062,18 +1069,13 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
   };
 
   return (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-4">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-        <h2 className="text-lg font-semibold">Visit log</h2>
-        <div className="flex items-center gap-2">
-          <ExportCsvDialog visits={sorted} retailers={retailers} filenameHint="log" />
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> New visit</Button>
-            </DialogTrigger>
-            {open && <VisitDialog retailers={retailers} onSaved={() => { refresh(); setOpen(false); }} />}
-          </Dialog>
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="text-base font-semibold">Visit history</h3>
+          <Badge variant="secondary">{sorted.length} visit{sorted.length === 1 ? "" : "s"}</Badge>
         </div>
+        <ExportCsvDialog visits={sorted} retailers={retailers} filenameHint="log" />
       </div>
 
       <div className="bg-card border rounded-2xl p-3 space-y-2">
@@ -1091,24 +1093,17 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
               <SelectItem value="salesman">Salesman A–Z</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={salesmanFilter} onValueChange={setSalesmanFilter}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+          <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as VisitGroupBy); setOpenGroups([]); }}>
+            <SelectTrigger className="h-9 text-xs"><Building2 className="w-3.5 h-3.5 mr-1" /><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All salesmen</SelectItem>
-              {salesmanNames.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+              <SelectItem value="none">No grouping</SelectItem>
+              <SelectItem value="city">Group by city</SelectItem>
+              <SelectItem value="date">Group by date</SelectItem>
+              <SelectItem value="salesman">Group by salesman</SelectItem>
+              <SelectItem value="outcome">Group by outcome</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as VisitGroupBy); setOpenGroups([]); }}>
-          <SelectTrigger className="h-9 text-xs"><Building2 className="w-3.5 h-3.5 mr-1" /><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No grouping</SelectItem>
-            <SelectItem value="city">Group by city</SelectItem>
-            <SelectItem value="date">Group by date</SelectItem>
-            <SelectItem value="salesman">Group by salesman</SelectItem>
-            <SelectItem value="outcome">Group by outcome</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {sorted.length === 0 ? (
@@ -1117,7 +1112,7 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
             <ClipboardList className="w-6 h-6 text-muted-foreground" />
           </span>
           <p className="text-sm font-medium">No visits found</p>
-          <p className="text-xs text-muted-foreground mt-1">Tap "New visit" above to log your first one.</p>
+          <p className="text-xs text-muted-foreground mt-1">Try a wider date range or salesman selection, or tap "New visit" above.</p>
         </div>
       ) : groups ? (
         <ul className="space-y-2">
@@ -1140,7 +1135,7 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
                   <ul className="border-t divide-y">
                     {g.items.map((v) => (
                       <li key={v.id} className="px-3 sm:px-4 py-3">
-                        <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} />
+                        <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} count={visitCounts.get(v.retailerId)} countPeriodLabel={countPeriodLabel} />
                       </li>
                     ))}
                   </ul>
@@ -1156,7 +1151,7 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
               key={v.id}
               className="bg-card border rounded-2xl p-3 sm:p-4 transition-shadow hover:shadow-md hover:border-primary/20"
             >
-              <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} />
+              <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} count={visitCounts.get(v.retailerId)} countPeriodLabel={countPeriodLabel} />
             </li>
           ))}
         </ul>
@@ -1165,7 +1160,20 @@ function VisitLog({ visits, retailers, refresh }: { visits: Visit[]; retailers: 
   );
 }
 
-function VisitRowContent({ v, r, onDelete }: { v: Visit; r?: Retailer; onDelete: () => void }) {
+function VisitRowContent({
+  v,
+  r,
+  onDelete,
+  count,
+  countPeriodLabel,
+}: {
+  v: Visit;
+  r?: Retailer;
+  onDelete: () => void;
+  /** How many times this shop was visited in the selected date range. */
+  count?: number;
+  countPeriodLabel?: string;
+}) {
   return (
     <div className="flex items-start gap-3">
       <InitialAvatar name={r?.name ?? "?"} className="h-10 w-10 text-sm mt-0.5" />
@@ -1174,6 +1182,16 @@ function VisitRowContent({ v, r, onDelete }: { v: Visit; r?: Retailer; onDelete:
           <div className="font-medium text-sm truncate">{r?.name ?? "Unknown"}</div>
           <StatusBadge status={v.visitStatus} />
           <OutcomeBadge outcome={v.outcome} />
+          {count !== undefined && (
+            <Badge
+              variant="outline"
+              className="text-[10px] tabular-nums"
+              title={`This shop was visited ${count} time${count === 1 ? "" : "s"} ${countPeriodLabel ?? ""}`.trim()}
+            >
+              <Repeat2 className="w-3 h-3 mr-1" />
+              {count} visit{count === 1 ? "" : "s"}{countPeriodLabel ? ` ${countPeriodLabel}` : ""}
+            </Badge>
+          )}
         </div>
         <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-x-1.5">
           <span>{new Date(v.date).toLocaleString()} · {v.salesman || "—"}</span>
@@ -4865,6 +4883,7 @@ function SettingsPanel({
 
 /* ---------------- Visits tab: salesman list + both logs ---------------- */
 const UNASSIGNED_KEY = "unassigned";
+type VisitsView = "shops" | "history";
 
 function VisitsTab({
   visits,
@@ -4884,6 +4903,10 @@ function VisitsTab({
   // Everything starts selected. Ids of salesmen that no longer exist are simply ignored.
   const [picked, setPicked] = useState<string[] | null>(null);
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<VisitsView>("shops");
+  const [newOpen, setNewOpen] = useState(false);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   const selected = (picked ?? allKeys).filter((k) => allKeys.includes(k));
   const isAll = selected.length === allKeys.length;
@@ -4944,12 +4967,56 @@ function VisitsTab({
       ? chosen.map((r) => r.label).join(", ")
       : `${chosen.slice(0, 2).map((r) => r.label).join(", ")} +${chosen.length - 2}`;
   const scopeNote = isAll
-    ? "Showing all shops, grouped city wise."
-    : `Showing shops for ${chosen.length} selection${chosen.length === 1 ? "" : "s"}, grouped city wise.`;
+    ? "Showing all shops."
+    : `Showing shops for ${chosen.length} selection${chosen.length === 1 ? "" : "s"}.`;
+
+  // One date range drives both sub-tabs and the per-shop visit counts.
+  const hasRange = !!(fromDate || toDate);
+  const countPeriodLabel = hasRange ? "in selected dates" : "in total";
+  const visitCounts = useMemo(
+    () => countVisitsByRetailer(retailers, scopedVisits, fromDate, toDate),
+    [retailers, scopedVisits, fromDate, toDate]
+  );
+  const historyVisits = useMemo(
+    () => loggedVisits.filter((v) => isVisitInDateRange(v, fromDate, toDate)),
+    [loggedVisits, fromDate, toDate]
+  );
+
+  const showShops = allowed("module.salesmanVisitLog");
+  const showHistory = allowed("module.visitLog");
+  const activeView: VisitsView | null = showShops && showHistory ? view : showShops ? "shops" : showHistory ? "history" : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pt-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <h2 className="text-lg font-semibold">Visits</h2>
+        <Dialog open={newOpen} onOpenChange={setNewOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="min-h-10"><Plus className="w-4 h-4 mr-1" /> New visit</Button>
+          </DialogTrigger>
+          {newOpen && <VisitDialog retailers={retailers} onSaved={() => { refresh(); setNewOpen(false); }} />}
+        </Dialog>
+      </div>
+
       <div className="bg-card border rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 border-b p-3">
+          <Field label="From">
+            <Input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} className="h-9 text-sm" />
+          </Field>
+          <Field label="To">
+            <Input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} className="h-9 text-sm" />
+          </Field>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-9 px-2 text-xs"
+            disabled={!hasRange}
+            onClick={() => { setFromDate(""); setToDate(""); }}
+          >
+            <X className="w-3.5 h-3.5 mr-1" /> Clear
+          </Button>
+        </div>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -4989,15 +5056,49 @@ function VisitsTab({
         )}
       </div>
 
-      {allowed("module.visitLog") && <VisitLog visits={loggedVisits} retailers={retailers} refresh={refresh} />}
-      {allowed("module.salesmanVisitLog") && (
+      {showShops && showHistory && (
+        <div role="tablist" aria-label="Visits views" className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+          {([
+            { key: "shops", label: "Shops", count: scopedRetailers.length, icon: <Store className="w-4 h-4" /> },
+            { key: "history", label: "History", count: historyVisits.length, icon: <ClipboardList className="w-4 h-4" /> },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={activeView === t.key}
+              onClick={() => setView(t.key)}
+              className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors ${
+                activeView === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t.icon}
+              {t.label}
+              <span className="text-[11px] tabular-nums opacity-70">({t.count})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeView === "shops" && (
         <SalesmanVisitLog
           retailers={retailers}
           salesmen={salesmen}
           scopedRetailers={scopedRetailers}
           scopedVisits={scopedVisits}
           scopeNote={scopeNote}
+          fromDate={fromDate}
+          toDate={toDate}
           refresh={refresh}
+        />
+      )}
+      {activeView === "history" && (
+        <VisitLog
+          visits={historyVisits}
+          retailers={retailers}
+          refresh={refresh}
+          visitCounts={visitCounts}
+          countPeriodLabel={countPeriodLabel}
         />
       )}
     </div>
@@ -5011,6 +5112,8 @@ function SalesmanVisitLog({
   scopedRetailers,
   scopedVisits,
   scopeNote,
+  fromDate,
+  toDate,
   refresh,
 }: {
   /** Every retailer this user can see (for the Record dialog). */
@@ -5020,13 +5123,14 @@ function SalesmanVisitLog({
   scopedRetailers: Retailer[];
   scopedVisits: Visit[];
   scopeNote: string;
+  /** Date range picked at the top of the Visits tab (yyyy-mm-dd, empty = open). */
+  fromDate: string;
+  toDate: string;
   refresh: () => void;
 }) {
   const [target, setTarget] = useState<Retailer | null>(null);
   const [countTarget, setCountTarget] = useState<Retailer | null>(null);
   const [openCities, setOpenCities] = useState<string[]>([]);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
   const [groupBy, setGroupBy] = useState<"city" | "visits">("city");
   const [visitBuckets, setVisitBuckets] = useState<VisitCountBucket[]>([...VISIT_COUNT_BUCKETS]);
   const toggleCity = (c: string) =>
@@ -5037,12 +5141,10 @@ function SalesmanVisitLog({
     [salesmen]
   );
 
-  const filteredVisits = useMemo(() => {
-    return scopedVisits.filter((v) => {
-      const date = v.date.slice(0, 10);
-      return (!fromDate || date >= fromDate) && (!toDate || date <= toDate);
-    });
-  }, [scopedVisits, fromDate, toDate]);
+  const filteredVisits = useMemo(
+    () => scopedVisits.filter((v) => isVisitInDateRange(v, fromDate, toDate)),
+    [scopedVisits, fromDate, toDate]
+  );
 
   const visitsPerRetailer = useMemo(
     () => countVisitsByRetailer(scopedRetailers, filteredVisits),
@@ -5133,39 +5235,25 @@ function SalesmanVisitLog({
     );
   };
 
-  const recent = useMemo(
-    () => [...scopedVisits].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10),
-    [scopedVisits]
-  );
-
   return (
-    <div className="space-y-4 pt-2">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Visit Log</h2>
-        <Badge variant="secondary">{scopedRetailers.length} shops</Badge>
-      </div>
-
-      <p className="text-[10px] text-muted-foreground -mt-2">{scopeNote}</p>
-
-      <div className="bg-card border rounded-xl p-3 space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Visits from">
-            <Input type="date" value={fromDate} max={toDate || undefined} onChange={(event) => setFromDate(event.target.value)} className="h-9 text-sm" />
-          </Field>
-          <Field label="Visits to">
-            <Input type="date" value={toDate} min={fromDate || undefined} onChange={(event) => setToDate(event.target.value)} className="h-9 text-sm" />
-          </Field>
+    <div className="space-y-4">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <h3 className="text-base font-semibold">Shop coverage</h3>
+          <Badge variant="secondary">{scopedRetailers.length} shops</Badge>
         </div>
-        <Field label="Group filter">
-          <Select value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
-            <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="city">Group by city</SelectItem>
-              <SelectItem value="visits">Group by number of visits</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
+        <Select value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
+          <SelectTrigger className="h-9 w-auto gap-1 text-xs" aria-label="Group shops by"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="city">By city</SelectItem>
+            <SelectItem value="visits">By number of visits</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
+
+      <p className="text-[11px] text-muted-foreground -mt-2">
+        {scopeNote} Visit counts cover {fromDate || toDate ? "the selected dates" : "all dates"}.
+      </p>
 
       {groupBy === "visits" && (
           <fieldset className="space-y-2">
@@ -5205,11 +5293,8 @@ function SalesmanVisitLog({
                 <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                 <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{g.city}</span>
               </span>
-              <span className="flex items-center gap-1.5 text-xs font-medium">
-                <span className="text-blue-600 dark:text-blue-400">({g.total})</span>
-                <span className="text-yellow-600 dark:text-yellow-400">({g.single})</span>
-                <span className="text-green-600 dark:text-green-400">({g.multiple})</span>
-                <span className="text-red-600 dark:text-red-400">({g.notVisited})</span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {g.total} shop{g.total === 1 ? "" : "s"}
               </span>
             </button>
             <div className="h-2 rounded-full bg-muted overflow-hidden flex">
@@ -5217,11 +5302,18 @@ function SalesmanVisitLog({
               <div className="h-full bg-green-500" style={{ width: `${(g.multiple / (g.total || 1)) * 100}%` }} />
               <div className="h-full bg-red-500" style={{ width: `${(g.notVisited / (g.total || 1)) * 100}%` }} />
             </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]">
-              <span className="text-blue-600 dark:text-blue-400">Retailers ({g.total})</span>
-              <span className="text-yellow-600 dark:text-yellow-400">Single visit ({g.single})</span>
-              <span className="text-green-600 dark:text-green-400">Multiple visits ({g.multiple})</span>
-              <span className="text-red-600 dark:text-red-400">Not visited ({g.notVisited})</span>
+            <div className="flex flex-wrap gap-1.5 text-[11px]">
+              {[
+                { dot: "bg-red-500", n: g.notVisited, label: "not visited" },
+                { dot: "bg-yellow-500", n: g.single, label: "visited once" },
+                { dot: "bg-green-500", n: g.multiple, label: "visited 2+ times" },
+              ].map((chip) => (
+                <span key={chip.label} className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2 py-0.5">
+                  <span className={`h-2 w-2 rounded-full ${chip.dot}`} />
+                  <span className="font-semibold tabular-nums">{chip.n}</span>
+                  <span className="text-muted-foreground">{chip.label}</span>
+                </span>
+              ))}
             </div>
 
             {isOpen && (
@@ -5232,31 +5324,6 @@ function SalesmanVisitLog({
           </div>
           );
         })
-      )}
-
-      {recent.length > 0 && (
-        <div className="bg-card border rounded-2xl p-4">
-          <h3 className="text-sm font-semibold mb-2">Recent entries</h3>
-          <ul className="space-y-2">
-            {recent.map((v) => {
-              const r = retailers.find((x) => x.id === v.retailerId);
-              return (
-                <li key={v.id} className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm truncate">{r?.name ?? "Unknown"}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {new Date(v.date).toLocaleString()} · {v.salesman || "—"}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-1 shrink-0">
-                    <StatusBadge status={v.visitStatus} />
-                    <OutcomeBadge outcome={v.outcome} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
       )}
 
       <Dialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>

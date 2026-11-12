@@ -6,6 +6,14 @@ export type VisitCountBucket = (typeof VISIT_COUNT_BUCKETS)[number];
 export const PLANNER_START_YEAR = 2026;
 export const PLANNER_END_YEAR = 2040;
 
+/** Inclusive yyyy-mm-dd range check; an empty bound means "no limit" on that side. */
+export function isVisitInDateRange(visit: Pick<Visit, "date">, fromDate = "", toDate = "") {
+  const date = visit.date.slice(0, 10);
+  if (fromDate && date < fromDate) return false;
+  if (toDate && date > toDate) return false;
+  return true;
+}
+
 export function countVisitsByRetailer(
   retailers: Retailer[],
   visits: Visit[],
@@ -14,9 +22,7 @@ export function countVisitsByRetailer(
 ) {
   const counts = new Map(retailers.map((retailer) => [retailer.id, 0]));
   visits.forEach((visit) => {
-    const date = visit.date.slice(0, 10);
-    if (fromDate && date < fromDate) return;
-    if (toDate && date > toDate) return;
+    if (!isVisitInDateRange(visit, fromDate, toDate)) return;
     if (counts.has(visit.retailerId)) {
       counts.set(visit.retailerId, (counts.get(visit.retailerId) ?? 0) + 1);
     }

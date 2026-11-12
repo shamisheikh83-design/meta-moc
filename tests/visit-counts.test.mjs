@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "bun:test";
-import { countVisitsByRetailer, PLANNER_END_YEAR, PLANNER_START_YEAR, visitCountBucket } from "../src/lib/visit-counts.ts";
+import { countVisitsByRetailer, isVisitInDateRange, PLANNER_END_YEAR, PLANNER_START_YEAR, visitCountBucket } from "../src/lib/visit-counts.ts";
 
 const retailer = (id) => ({ id, name: id });
 const visit = (retailerId, date) => ({ id: `${retailerId}-${date}`, retailerId, date });
@@ -15,6 +15,14 @@ describe("Visits and Planner rules", () => {
     );
     assert.equal(counts.get("a"), 1);
     assert.equal(counts.get("b"), 0);
+  });
+
+  test("treats both date-range bounds as inclusive and empty bounds as open", () => {
+    const v = { date: "2026-01-03T10:00:00.000Z" };
+    assert.equal(isVisitInDateRange(v), true);
+    assert.equal(isVisitInDateRange(v, "2026-01-03", "2026-01-03"), true);
+    assert.equal(isVisitInDateRange(v, "2026-01-04", ""), false);
+    assert.equal(isVisitInDateRange(v, "", "2026-01-02"), false);
   });
 
   test("maps zero, exact values, and five-or-more visits to the count buckets", () => {
