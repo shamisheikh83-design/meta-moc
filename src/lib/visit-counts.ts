@@ -30,6 +30,56 @@ export function countVisitsByRetailer(
   return counts;
 }
 
+export const VISIT_RANGE_PRESETS = ["today", "week", "month", "all", "custom"] as const;
+export type VisitRangePreset = (typeof VISIT_RANGE_PRESETS)[number];
+
+function localISODate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * yyyy-mm-dd bounds for a quick date preset, in the device's local calendar.
+ * Weeks start on Monday. "all" and "custom" have no computed bounds.
+ */
+export function visitRangeForPreset(preset: VisitRangePreset, today = new Date()): { from: string; to: string } {
+  if (preset === "all" || preset === "custom") return { from: "", to: "" };
+  const to = localISODate(today);
+  if (preset === "today") return { from: to, to };
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (preset === "week") start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  else start.setDate(1);
+  return { from: localISODate(start), to };
+}
+
+/** Headline coverage numbers for a set of per-shop visit counts. */
+export function summarizeCoverage(counts: Map<string, number>) {
+  let visited = 0;
+  let visits = 0;
+  counts.forEach((n) => {
+    if (n > 0) visited++;
+    visits += n;
+  });
+  const shops = counts.size;
+  return {
+    shops,
+    visited,
+    notVisited: shops - visited,
+    visits,
+    coveragePct: shops === 0 ? 0 : Math.round((visited / shops) * 100),
+  };
+}
+
+/** Latest visit date (yyyy-mm-dd) per shop, ignoring any date filter. */
+export function lastVisitByRetailer(visits: Pick<Visit, "date" | "retailerId">[]) {
+  const last = new Map<string, string>();
+  visits.forEach((visit) => {
+    const date = visit.date.slice(0, 10);
+    const prev = last.get(visit.retailerId);
+    if (!prev || date > prev) last.set(visit.retailerId, date);
+  });
+  return last;
+}
+
 export function visitCountBucket(count: number): VisitCountBucket {
   return count >= 5 ? "5+" : String(Math.max(0, count)) as VisitCountBucket;
 }

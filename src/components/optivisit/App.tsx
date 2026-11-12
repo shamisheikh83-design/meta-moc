@@ -19,7 +19,7 @@ import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as Sett
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, matchSuperUserPin, type AppUser } from "@/lib/optivisit-access";
-import { countVisitsByRetailer, isVisitInDateRange, PLANNER_END_YEAR, PLANNER_START_YEAR, visitCountBucket, VISIT_COUNT_BUCKETS, type VisitCountBucket } from "@/lib/visit-counts";
+import { countVisitsByRetailer, isVisitInDateRange, lastVisitByRetailer, PLANNER_END_YEAR, PLANNER_START_YEAR, summarizeCoverage, visitCountBucket, visitRangeForPreset, VISIT_COUNT_BUCKETS, type VisitCountBucket, type VisitRangePreset } from "@/lib/visit-counts";
 
 
 type Tab = "dashboard" | "visits" | "planner" | "retailers" | "products" | "settings";
@@ -1003,22 +1003,25 @@ function VisitLog({
   visits: Visit[];
   retailers: Retailer[];
   refresh: () => void;
-  /** Visits per shop inside the selected date range, shown on every visit card. */
+  /** Visits per shop inside the selected date range, shown on every visit row. */
   visitCounts: Map<string, number>;
-  /** Short description of the selected date range, e.g. "in selected dates". */
+  /** Short description of the selected date range, e.g. "this month". */
   countPeriodLabel: string;
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest" | "retailer" | "salesman">("newest");
-  const [groupBy, setGroupBy] = useState<VisitGroupBy>("none");
-  const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const [groupBy, setGroupBy] = useState<VisitGroupBy>("date");
+  // Groups start expanded; this holds the ones the user has folded away.
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+
+  const retailerById = useMemo(() => new Map(retailers.map((r) => [r.id, r])), [retailers]);
 
   const sorted = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const nameOf = (v: Visit) => retailers.find((r) => r.id === v.retailerId)?.name ?? "";
+    const nameOf = (v: Visit) => retailerById.get(v.retailerId)?.name ?? "";
     let list = visits.filter((v) => {
       if (!q) return true;
-      const r = retailers.find((x) => x.id === v.retailerId);
+      const r = retailerById.get(v.retailerId);
       return [nameOf(v), v.salesman, v.purpose, v.notes, v.outcome, v.visitStatus, r?.city, r?.area]
         .filter(Boolean)
         .some((s) => String(s).toLowerCase().includes(q));
@@ -1030,7 +1033,7 @@ function VisitLog({
       return (a.salesman || "").localeCompare(b.salesman || "");
     });
     return list;
-  }, [visits, retailers, query, sort]);
+  }, [visits, retailerById, query, sort]);
 
   const groups = useMemo(() => {
     if (groupBy === "none") return null;
@@ -1038,7 +1041,7 @@ function VisitLog({
       if (groupBy === "date") return v.date.slice(0, 10);
       if (groupBy === "salesman") return v.salesman || "Unassigned";
       if (groupBy === "outcome") return v.outcome;
-      const r = retailers.find((x) => x.id === v.retailerId);
+      const r = retailerById.get(v.retailerId);
       return r?.city?.trim() ? normalizeCity(r.city) : "Unknown city";
     };
     const map = new Map<string, Visit[]>();
@@ -1049,7 +1052,7 @@ function VisitLog({
       map.set(k, list);
     });
     const entries = Array.from(map.entries());
-    if (groupBy === "date") entries.sort((a, b) => b[0].localeCompare(a[0]));
+    if (groupBy === "date") entries.sort((a, b) => (sort === "oldest" ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0])));
     else if (groupBy === "outcome") entries.sort((a, b) => OUTCOMES.indexOf(a[0] as Outcome) - OUTCOMES.indexOf(b[0] as Outcome));
     else entries.sort((a, b) => a[0].localeCompare(b[0]));
     return entries.map(([key, items]) => ({
@@ -1057,10 +1060,10 @@ function VisitLog({
       label: groupBy === "date" ? new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : key,
       items,
     }));
-  }, [sorted, groupBy, retailers]);
+  }, [sorted, groupBy, retailerById, sort]);
 
   const toggleGroup = (k: string) =>
-    setOpenGroups((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+    setCollapsedGroups((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
   const remove = (id: string) => {
     if (!confirm("Delete this visit?")) return;
@@ -1068,93 +1071,97 @@ function VisitLog({
     refresh();
   };
 
+  const renderVisitRow = (v: Visit) => (
+    <li key={v.id} className="px-3 py-2 transition-colors hover:bg-muted/40">
+      <VisitRowContent
+        v={v}
+        r={retailerById.get(v.retailerId)}
+        onDelete={() => remove(v.id)}
+        count={visitCounts.get(v.retailerId)}
+        countPeriodLabel={countPeriodLabel}
+        timeOnly={groupBy === "date"}
+      />
+    </li>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="text-base font-semibold">Visit history</h3>
-          <Badge variant="secondary">{sorted.length} visit{sorted.length === 1 ? "" : "s"}</Badge>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 basis-48">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search shop, salesman, purpose, area"
+            aria-label="Search visits"
+            className="pl-9 h-9"
+          />
         </div>
+        <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+          <SelectTrigger className="h-9 w-auto gap-1 text-xs" aria-label="Sort visits"><ArrowUpDown className="w-3.5 h-3.5" /><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">Newest first</SelectItem>
+            <SelectItem value="oldest">Oldest first</SelectItem>
+            <SelectItem value="retailer">Shop A–Z</SelectItem>
+            <SelectItem value="salesman">Salesman A–Z</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as VisitGroupBy); setCollapsedGroups([]); }}>
+          <SelectTrigger className="h-9 w-auto gap-1 text-xs" aria-label="Group visits"><Building2 className="w-3.5 h-3.5" /><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="date">By day</SelectItem>
+            <SelectItem value="city">By city</SelectItem>
+            <SelectItem value="salesman">By salesman</SelectItem>
+            <SelectItem value="outcome">By outcome</SelectItem>
+            <SelectItem value="none">No grouping</SelectItem>
+          </SelectContent>
+        </Select>
         <ExportCsvDialog visits={sorted} retailers={retailers} filenameHint="log" />
       </div>
 
-      <div className="bg-card border rounded-2xl p-3 space-y-2">
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search retailer, salesman, purpose, area..." className="pl-9 h-9" />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
-            <SelectTrigger className="h-9 text-xs"><ArrowUpDown className="w-3.5 h-3.5 mr-1" /><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="newest">Newest first</SelectItem>
-              <SelectItem value="oldest">Oldest first</SelectItem>
-              <SelectItem value="retailer">Retailer A–Z</SelectItem>
-              <SelectItem value="salesman">Salesman A–Z</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={groupBy} onValueChange={(v) => { setGroupBy(v as VisitGroupBy); setOpenGroups([]); }}>
-            <SelectTrigger className="h-9 text-xs"><Building2 className="w-3.5 h-3.5 mr-1" /><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No grouping</SelectItem>
-              <SelectItem value="city">Group by city</SelectItem>
-              <SelectItem value="date">Group by date</SelectItem>
-              <SelectItem value="salesman">Group by salesman</SelectItem>
-              <SelectItem value="outcome">Group by outcome</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
       {sorted.length === 0 ? (
-        <div className="bg-card rounded-2xl border p-8 text-center">
+        <div className="bg-card rounded-xl border p-8 text-center">
           <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             <ClipboardList className="w-6 h-6 text-muted-foreground" />
           </span>
           <p className="text-sm font-medium">No visits found</p>
           <p className="text-xs text-muted-foreground mt-1">Try a wider date range or salesman selection, or tap "New visit" above.</p>
         </div>
-      ) : groups ? (
-        <ul className="space-y-2">
-          {groups.map((g) => {
-            const isOpen = openGroups.includes(g.key);
-            return (
-              <li key={g.key} className="bg-card border rounded-2xl overflow-hidden transition-shadow hover:shadow-md">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(g.key)}
-                  className="w-full flex items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-muted/50"
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                    <span className="text-sm font-medium truncate">{g.label}</span>
-                  </span>
-                  <Badge variant="secondary" className="text-[10px] shrink-0">{g.items.length}</Badge>
-                </button>
-                {isOpen && (
-                  <ul className="border-t divide-y">
-                    {g.items.map((v) => (
-                      <li key={v.id} className="px-3 sm:px-4 py-3">
-                        <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} count={visitCounts.get(v.retailerId)} countPeriodLabel={countPeriodLabel} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            );
-          })}
-        </ul>
       ) : (
-        <ul className="space-y-2">
-          {sorted.map((v) => (
-            <li
-              key={v.id}
-              className="bg-card border rounded-2xl p-3 sm:p-4 transition-shadow hover:shadow-md hover:border-primary/20"
-            >
-              <VisitRowContent v={v} r={retailers.find((x) => x.id === v.retailerId)} onDelete={() => remove(v.id)} count={visitCounts.get(v.retailerId)} countPeriodLabel={countPeriodLabel} />
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-hidden rounded-xl border bg-card">
+          {groups ? (
+            groups.map((g) => {
+              const isOpen = !collapsedGroups.includes(g.key);
+              return (
+                <section key={g.key} className="border-b last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(g.key)}
+                    aria-expanded={isOpen}
+                    className="flex min-h-9 w-full items-center justify-between gap-2 bg-muted/30 px-3 py-1.5 text-left transition-colors hover:bg-muted/60"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`} />
+                      <span className="truncate text-xs font-semibold">{g.label}</span>
+                    </span>
+                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                      {g.items.length} visit{g.items.length === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                  {isOpen && <ul className="divide-y border-t">{g.items.map(renderVisitRow)}</ul>}
+                </section>
+              );
+            })
+          ) : (
+            <ul className="divide-y">{sorted.map(renderVisitRow)}</ul>
+          )}
+        </div>
+      )}
+
+      {sorted.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          {sorted.length} visit{sorted.length === 1 ? "" : "s"} {countPeriodLabel} · the count on each row is that shop's visits {countPeriodLabel}
+        </p>
       )}
     </div>
   );
@@ -1166,6 +1173,7 @@ function VisitRowContent({
   onDelete,
   count,
   countPeriodLabel,
+  timeOnly,
 }: {
   v: Visit;
   r?: Retailer;
@@ -1173,36 +1181,39 @@ function VisitRowContent({
   /** How many times this shop was visited in the selected date range. */
   count?: number;
   countPeriodLabel?: string;
+  /** Rows under a day heading only need the time. */
+  timeOnly?: boolean;
 }) {
+  const at = new Date(v.date);
+  const time = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const when = timeOnly ? time : `${at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}, ${time}`;
+  const meta = [when, v.salesman || "Unassigned", v.purpose, v.area].filter(Boolean).join(" · ");
   return (
-    <div className="flex items-start gap-3">
-      <InitialAvatar name={r?.name ?? "?"} className="h-10 w-10 text-sm mt-0.5" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="font-medium text-sm truncate">{r?.name ?? "Unknown"}</div>
-          <StatusBadge status={v.visitStatus} />
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate text-sm font-medium">{r?.name ?? "Unknown shop"}</span>
           <OutcomeBadge outcome={v.outcome} />
-          {count !== undefined && (
-            <Badge
-              variant="outline"
-              className="text-[10px] tabular-nums"
-              title={`This shop was visited ${count} time${count === 1 ? "" : "s"} ${countPeriodLabel ?? ""}`.trim()}
-            >
-              <Repeat2 className="w-3 h-3 mr-1" />
-              {count} visit{count === 1 ? "" : "s"}{countPeriodLabel ? ` ${countPeriodLabel}` : ""}
-            </Badge>
-          )}
+          {v.visitStatus !== "Visited" && <StatusBadge status={v.visitStatus} />}
         </div>
-        <div className="text-xs text-muted-foreground mt-1 flex items-center flex-wrap gap-x-1.5">
-          <span>{new Date(v.date).toLocaleString()} · {v.salesman || "—"}</span>
-          {v.area && <span className="inline-flex items-center gap-0.5"><MapPin className="w-3 h-3" />{v.area}</span>}
-        </div>
-        {v.purpose && <div className="text-xs mt-2"><span className="text-muted-foreground">Purpose:</span> {v.purpose}</div>}
-        {v.notes && <div className="text-xs mt-1 text-muted-foreground line-clamp-2">{v.notes}</div>}
+        <div className="truncate text-[11px] text-muted-foreground">{meta}</div>
+        {v.notes && <div className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground/80">{v.notes}</div>}
       </div>
-      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={onDelete} aria-label="Delete visit">
-        <Trash2 className="w-4 h-4 text-muted-foreground" />
-      </Button>
+      <div className="flex shrink-0 items-center gap-1">
+        {count !== undefined && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground"
+            title={`This shop was visited ${count} time${count === 1 ? "" : "s"} ${countPeriodLabel ?? ""}`.trim()}
+          >
+            <Repeat2 className="w-3 h-3" />
+            <span className="font-semibold text-foreground">{count}</span>
+            <span className="hidden sm:inline">visit{count === 1 ? "" : "s"}{countPeriodLabel ? ` ${countPeriodLabel}` : ""}</span>
+          </span>
+        )}
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={onDelete} aria-label="Delete visit">
+          <Trash2 className="w-4 h-4 text-muted-foreground" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -4905,8 +4916,12 @@ function VisitsTab({
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<VisitsView>("shops");
   const [newOpen, setNewOpen] = useState(false);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [preset, setPreset] = useState<VisitRangePreset>("month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const presetRangeNow = visitRangeForPreset(preset);
+  const fromDate = preset === "custom" ? customFrom : presetRangeNow.from;
+  const toDate = preset === "custom" ? customTo : presetRangeNow.to;
 
   const selected = (picked ?? allKeys).filter((k) => allKeys.includes(k));
   const isAll = selected.length === allKeys.length;
@@ -4966,16 +4981,24 @@ function VisitsTab({
     : chosen.length <= 2
       ? chosen.map((r) => r.label).join(", ")
       : `${chosen.slice(0, 2).map((r) => r.label).join(", ")} +${chosen.length - 2}`;
-  const scopeNote = isAll
-    ? "Showing all shops."
-    : `Showing shops for ${chosen.length} selection${chosen.length === 1 ? "" : "s"}.`;
+  const salesmenChip = isAll ? "All salesmen" : summary;
 
-  // One date range drives both sub-tabs and the per-shop visit counts.
+  // One date range drives the summary numbers, both sub-tabs and the per-shop visit counts.
   const hasRange = !!(fromDate || toDate);
-  const countPeriodLabel = hasRange ? "in selected dates" : "in total";
+  const periodLabel =
+    preset === "today" ? "today"
+    : preset === "week" ? "this week"
+    : preset === "month" ? "this month"
+    : hasRange ? "in selected dates"
+    : "in total";
+  const countPeriodLabel = periodLabel;
   const visitCounts = useMemo(
     () => countVisitsByRetailer(retailers, scopedVisits, fromDate, toDate),
     [retailers, scopedVisits, fromDate, toDate]
+  );
+  const coverage = useMemo(
+    () => summarizeCoverage(countVisitsByRetailer(scopedRetailers, scopedVisits, fromDate, toDate)),
+    [scopedRetailers, scopedVisits, fromDate, toDate]
   );
   const historyVisits = useMemo(
     () => loggedVisits.filter((v) => isVisitInDateRange(v, fromDate, toDate)),
@@ -4998,40 +5021,73 @@ function VisitsTab({
         </Dialog>
       </div>
 
-      <div className="bg-card border rounded-2xl overflow-hidden">
-        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 border-b p-3">
-          <Field label="From">
-            <Input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} className="h-9 text-sm" />
-          </Field>
-          <Field label="To">
-            <Input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} className="h-9 text-sm" />
-          </Field>
-          <Button
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-1.5">
+            {([
+              { key: "today", label: "Today" },
+              { key: "week", label: "This week" },
+              { key: "month", label: "This month" },
+              { key: "all", label: "All time" },
+              { key: "custom", label: "Custom" },
+            ] as const).map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                aria-pressed={preset === p.key}
+                onClick={() => {
+                  // Start a custom range from whatever was showing, so nothing jumps.
+                  if (p.key === "custom" && preset !== "custom") { setCustomFrom(fromDate); setCustomTo(toDate); }
+                  setPreset(p.key);
+                }}
+                className={`min-h-9 rounded-full border px-3 text-xs font-medium transition-colors ${
+                  preset === p.key
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-background text-foreground hover:bg-muted"
+                }`}
+              >
+                {p.key === "custom" && <CalendarIcon className="mr-1 inline h-3.5 w-3.5 -translate-y-px" />}
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <button
             type="button"
-            variant="ghost"
-            size="sm"
-            className="h-9 px-2 text-xs"
-            disabled={!hasRange}
-            onClick={() => { setFromDate(""); setToDate(""); }}
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className={`ml-auto flex min-h-9 max-w-full items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-muted ${
+              isAll ? "bg-background" : "border-primary/40 bg-primary/10 text-primary"
+            }`}
           >
-            <X className="w-3.5 h-3.5 mr-1" /> Clear
-          </Button>
+            <Users className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{salesmenChip}</span>
+            <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          className="flex w-full items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-muted/40"
-        >
-          <span className="min-w-0 flex items-center gap-2">
-            <Users className="w-4 h-4 shrink-0 text-muted-foreground" />
-            <span className="text-sm font-semibold">Salesmen</span>
-            <span className="truncate text-xs text-muted-foreground">· {summary}</span>
-          </span>
-          <ChevronDown className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
+
+        {preset === "custom" && (
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 rounded-xl border bg-card p-3">
+            <Field label="From">
+              <Input type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} className="h-9 text-sm" />
+            </Field>
+            <Field label="To">
+              <Input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} className="h-9 text-sm" />
+            </Field>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 px-2 text-xs"
+              disabled={!hasRange}
+              onClick={() => { setCustomFrom(""); setCustomTo(""); }}
+            >
+              <X className="w-3.5 h-3.5 mr-1" /> Clear
+            </Button>
+          </div>
+        )}
+
         {open && (
-          <div className="px-3 pb-3">
+          <div className="rounded-xl border bg-card p-3">
             <div className="mb-1 flex items-center justify-between">
               <span className="text-[11px] text-muted-foreground">Pick whose visits and shops to show</span>
               <div className="flex items-center gap-1">
@@ -5056,8 +5112,25 @@ function VisitsTab({
         )}
       </div>
 
+      {showShops && (
+        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            { label: "Shops", value: String(coverage.shops), hint: salesmenChip, tone: "" },
+            { label: "Visited", value: String(coverage.visited), hint: `${coverage.visits} visit${coverage.visits === 1 ? "" : "s"} ${periodLabel}`, tone: "" },
+            { label: "Not visited", value: String(coverage.notVisited), hint: periodLabel, tone: coverage.notVisited > 0 ? "text-red-600 dark:text-red-400" : "" },
+            { label: "Coverage", value: `${coverage.coveragePct}%`, hint: "of shops visited", tone: "" },
+          ].map((kpi) => (
+            <div key={kpi.label} className="rounded-xl border bg-card px-3 py-2.5">
+              <dt className="text-[11px] font-medium text-muted-foreground">{kpi.label}</dt>
+              <dd className={`text-2xl font-semibold leading-tight tabular-nums ${kpi.tone}`}>{kpi.value}</dd>
+              <dd className="truncate text-[11px] text-muted-foreground">{kpi.hint}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
       {showShops && showHistory && (
-        <div role="tablist" aria-label="Visits views" className="grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+        <div role="tablist" aria-label="Visits views" className="flex gap-5 border-b">
           {([
             { key: "shops", label: "Shops", count: scopedRetailers.length, icon: <Store className="w-4 h-4" /> },
             { key: "history", label: "History", count: historyVisits.length, icon: <ClipboardList className="w-4 h-4" /> },
@@ -5068,13 +5141,13 @@ function VisitsTab({
               role="tab"
               aria-selected={activeView === t.key}
               onClick={() => setView(t.key)}
-              className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors ${
-                activeView === t.key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              className={`-mb-px flex min-h-10 items-center gap-1.5 border-b-2 px-1 text-sm font-medium transition-colors ${
+                activeView === t.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               {t.icon}
               {t.label}
-              <span className="text-[11px] tabular-nums opacity-70">({t.count})</span>
+              <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground">{t.count}</span>
             </button>
           ))}
         </div>
@@ -5086,7 +5159,7 @@ function VisitsTab({
           salesmen={salesmen}
           scopedRetailers={scopedRetailers}
           scopedVisits={scopedVisits}
-          scopeNote={scopeNote}
+          periodLabel={periodLabel}
           fromDate={fromDate}
           toDate={toDate}
           refresh={refresh}
@@ -5105,13 +5178,25 @@ function VisitsTab({
   );
 }
 
-/* ---------------- Salesman Visit Log (city-wise) ---------------- */
+/* ---------------- Shop coverage table ---------------- */
+type ShopSortKey = "name" | "visits" | "last";
+type ShopGroupBy = "none" | "city" | "visits";
+
+const SHOP_ROW_GRID =
+  "grid grid-cols-[minmax(0,1fr)_3.5rem_2.5rem] sm:grid-cols-[minmax(0,1fr)_5rem_6.5rem_5.5rem] items-center gap-x-3";
+
+function formatShortDate(isoDate: string) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, sameYear ? { day: "numeric", month: "short" } : { day: "numeric", month: "short", year: "2-digit" });
+}
+
 function SalesmanVisitLog({
   retailers,
   salesmen,
   scopedRetailers,
   scopedVisits,
-  scopeNote,
+  periodLabel,
   fromDate,
   toDate,
   refresh,
@@ -5122,7 +5207,8 @@ function SalesmanVisitLog({
   /** Shops and visits belonging to the salesmen picked at the top of the Visits tab. */
   scopedRetailers: Retailer[];
   scopedVisits: Visit[];
-  scopeNote: string;
+  /** Words for the selected period, e.g. "this month". */
+  periodLabel: string;
   /** Date range picked at the top of the Visits tab (yyyy-mm-dd, empty = open). */
   fromDate: string;
   toDate: string;
@@ -5131,15 +5217,18 @@ function SalesmanVisitLog({
   const [target, setTarget] = useState<Retailer | null>(null);
   const [countTarget, setCountTarget] = useState<Retailer | null>(null);
   const [openCities, setOpenCities] = useState<string[]>([]);
-  const [groupBy, setGroupBy] = useState<"city" | "visits">("city");
+  const [groupBy, setGroupBy] = useState<ShopGroupBy>("none");
   const [visitBuckets, setVisitBuckets] = useState<VisitCountBucket[]>([...VISIT_COUNT_BUCKETS]);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ key: ShopSortKey; dir: "asc" | "desc" }>({ key: "visits", dir: "desc" });
   const toggleCity = (c: string) =>
     setOpenCities((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+  const toggleSort = (key: ShopSortKey) =>
+    setSort((prev) =>
+      prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "name" ? "asc" : "desc" }
+    );
 
-  const sortedSalesmen = useMemo(
-    () => [...salesmen].sort((a, b) => a.name.localeCompare(b.name)),
-    [salesmen]
-  );
+  const salesmanNameById = useMemo(() => new Map(salesmen.map((s) => [s.id, s.name])), [salesmen]);
 
   const filteredVisits = useMemo(
     () => scopedVisits.filter((v) => isVisitInDateRange(v, fromDate, toDate)),
@@ -5151,10 +5240,28 @@ function SalesmanVisitLog({
     [scopedRetailers, filteredVisits]
   );
 
-  const visibleRetailers = useMemo(() => {
-    const items = scopedRetailers.filter((r) => visitBuckets.includes(visitCountBucket(visitsPerRetailer.get(r.id) ?? 0)));
-    return items.sort((a, b) => (visitsPerRetailer.get(b.id) ?? 0) - (visitsPerRetailer.get(a.id) ?? 0) || a.name.localeCompare(b.name));
-  }, [scopedRetailers, visitBuckets, visitsPerRetailer]);
+  // "Last visit" ignores the date filter, so a shop skipped this month still shows when it was last seen.
+  const lastVisit = useMemo(() => lastVisitByRetailer(scopedVisits), [scopedVisits]);
+
+  /** Shops matching the search box, in the chosen column order. */
+  const matched = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const items = !q
+      ? scopedRetailers
+      : scopedRetailers.filter((r) =>
+          [r.name, r.owner, r.city, r.area, r.phone, salesmanNameById.get(r.salesmanId ?? "")]
+            .filter(Boolean)
+            .some((s) => String(s).toLowerCase().includes(q))
+        );
+    const dir = sort.dir === "asc" ? 1 : -1;
+    return [...items].sort((a, b) => {
+      let d = 0;
+      if (sort.key === "visits") d = (visitsPerRetailer.get(a.id) ?? 0) - (visitsPerRetailer.get(b.id) ?? 0);
+      else if (sort.key === "last") d = (lastVisit.get(a.id) ?? "").localeCompare(lastVisit.get(b.id) ?? "");
+      else d = a.name.localeCompare(b.name);
+      return d * dir || a.name.localeCompare(b.name);
+    });
+  }, [scopedRetailers, query, sort, visitsPerRetailer, lastVisit, salesmanNameById]);
 
   const toggleVisitBucket = (bucket: VisitCountBucket) => {
     setVisitBuckets((selected) => selected.includes(bucket)
@@ -5164,7 +5271,7 @@ function SalesmanVisitLog({
 
   const cityGroups = useMemo(() => {
     const groups = new Map<string, Retailer[]>();
-    (groupBy === "city" ? scopedRetailers : visibleRetailers).forEach((r) => {
+    matched.forEach((r) => {
       const key = normalizeCity((r.city || "").trim() || "Unassigned city");
       const list = groups.get(key) || [];
       list.push(r);
@@ -5179,20 +5286,10 @@ function SalesmanVisitLog({
           else if (n === 1) single++;
           else multiple++;
         });
-      const sortedList = [...list].sort((a, b) =>
-        (visitsPerRetailer.get(b.id) ?? 0) - (visitsPerRetailer.get(a.id) ?? 0) || a.name.localeCompare(b.name)
-      );
-      return {
-          city,
-          list: groupBy === "visits" ? sortedList : [...list].sort((a, b) => a.name.localeCompare(b.name)),
-          total: list.length,
-          single,
-          multiple,
-          notVisited,
-        };
+        return { city, list, total: list.length, single, multiple, notVisited };
       })
       .sort((a, b) => a.city.localeCompare(b.city));
-  }, [scopedRetailers, visibleRetailers, groupBy, visitsPerRetailer]);
+  }, [matched, visitsPerRetailer]);
 
   const visitCountGroups = useMemo(() => {
     const buckets: VisitCountBucket[] = ["5+", "4", "3", "2", "1", "0"];
@@ -5200,50 +5297,103 @@ function SalesmanVisitLog({
       .filter((bucket) => visitBuckets.includes(bucket))
       .map((bucket) => ({
         bucket,
-        items: visibleRetailers.filter((r) => visitCountBucket(visitsPerRetailer.get(r.id) ?? 0) === bucket),
+        items: matched.filter((r) => visitCountBucket(visitsPerRetailer.get(r.id) ?? 0) === bucket),
       }))
       .filter((group) => group.items.length > 0);
-  }, [visibleRetailers, visitBuckets, visitsPerRetailer]);
+  }, [matched, visitBuckets, visitsPerRetailer]);
 
   const visitsForCountTarget = useMemo(() => countTarget
     ? filteredVisits.filter((visit) => visit.retailerId === countTarget.id).sort((a, b) => b.date.localeCompare(a.date))
     : [], [countTarget, filteredVisits]);
 
+  const shownCount =
+    groupBy === "visits" ? visitCountGroups.reduce((sum, g) => sum + g.items.length, 0) : matched.length;
+
+  const sortHeader = (key: ShopSortKey, label: string, className = "inline-flex") => (
+    <button
+      type="button"
+      onClick={() => toggleSort(key)}
+      aria-label={`Sort by ${label.toLowerCase()}`}
+      className={`min-h-8 items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground ${className}`}
+    >
+      {label}
+      {sort.key === key
+        ? <ChevronDown className={`h-3 w-3 ${sort.dir === "asc" ? "rotate-180" : ""}`} />
+        : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+    </button>
+  );
+
+  const tableHead = (
+    <div className={`${SHOP_ROW_GRID} border-b bg-muted/40 px-3`}>
+      {sortHeader("name", "Shop")}
+      {sortHeader("visits", "Visits", "inline-flex justify-self-center")}
+      {sortHeader("last", "Last visit", "hidden sm:inline-flex")}
+      <span aria-hidden="true" />
+    </div>
+  );
+
   const renderRetailerRow = (r: Retailer) => {
     const n = visitsPerRetailer.get(r.id) || 0;
-    const dot = n === 0 ? "bg-red-500" : n === 1 ? "bg-yellow-500" : "bg-green-500";
-    const salesmanName = sortedSalesmen.find((s) => s.id === r.salesmanId)?.name ?? "Unassigned";
-    const line = [r.owner, r.phone, r.area, normalizeCity(r.city || ""), r.address, r.category, salesmanName].filter(Boolean).join(" · ");
+    const pill =
+      n === 0
+        ? "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300"
+        : n === 1
+          ? "border-yellow-500/30 bg-yellow-500/15 text-yellow-800 dark:text-yellow-300"
+          : "border-green-500/25 bg-green-500/10 text-green-700 dark:text-green-300";
+    const last = lastVisit.get(r.id);
+    const lastText = last ? formatShortDate(last) : "Never";
+    const salesmanName = salesmanNameById.get(r.salesmanId ?? "") ?? "Unassigned";
+    const detail = [normalizeCity(r.city || ""), r.area, salesmanName, r.category].filter(Boolean).join(" · ");
     return (
-      <li key={r.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
-        <div className="min-w-0 flex items-center gap-2 flex-1">
-          <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium truncate">{r.name}</div>
-            <div className="text-[11px] text-muted-foreground line-clamp-2 sm:truncate">{line}</div>
+      <li key={r.id} className={`${SHOP_ROW_GRID} px-3 py-2 transition-colors hover:bg-muted/40`}>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium">{r.name}</div>
+          <div className="truncate text-[11px] text-muted-foreground">
+            {detail}
+            <span className="sm:hidden"> · {last ? `Last ${lastText}` : "Never visited"}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button type="button" variant="outline" size="sm" className="h-9 px-2.5 text-xs tabular-nums" onClick={() => setCountTarget(r)} aria-label={`${n} visits for ${r.name}; view dates`}>
-            {n} visit{n === 1 ? "" : "s"}
-          </Button>
-          <Button size="sm" variant="outline" className="h-10 px-2.5 text-xs" onClick={() => setTarget(r)}>
-            <Plus className="w-3.5 h-3.5 sm:mr-1" /> <span className="hidden sm:inline">Record</span>
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setCountTarget(r)}
+          title="View visit dates"
+          aria-label={`${n} visit${n === 1 ? "" : "s"} for ${r.name} ${periodLabel}; view dates`}
+          className={`min-h-8 min-w-10 justify-self-center rounded-full border px-2.5 text-xs font-semibold tabular-nums transition-opacity hover:opacity-80 ${pill}`}
+        >
+          {n}
+        </button>
+        <span className={`hidden text-xs tabular-nums sm:block ${last ? "text-muted-foreground" : "text-muted-foreground/60"}`}>
+          {lastText}
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 w-9 justify-self-end px-0 text-xs sm:w-auto sm:px-2.5"
+          onClick={() => setTarget(r)}
+          aria-label={`Record visit for ${r.name}`}
+        >
+          <Plus className="w-3.5 h-3.5 sm:mr-1" /> <span className="hidden sm:inline">Record</span>
+        </Button>
       </li>
     );
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="text-base font-semibold">Shop coverage</h3>
-          <Badge variant="secondary">{scopedRetailers.length} shops</Badge>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-0 flex-1 basis-48">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search shop, city, area, salesman"
+            aria-label="Search shops"
+            className="pl-9 h-9"
+          />
         </div>
         <div role="group" aria-label="Group shops by" className="inline-flex rounded-lg border bg-background p-0.5">
           {([
+            { key: "none", label: "List", icon: <ListChecks className="w-3.5 h-3.5" /> },
             { key: "city", label: "By city", icon: <MapPin className="w-3.5 h-3.5" /> },
             { key: "visits", label: "By visit count", icon: <Repeat2 className="w-3.5 h-3.5" /> },
           ] as const).map((option) => (
@@ -5252,7 +5402,7 @@ function SalesmanVisitLog({
               type="button"
               aria-pressed={groupBy === option.key}
               onClick={() => setGroupBy(option.key)}
-              className={`flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+              className={`flex min-h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors ${
                 groupBy === option.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -5263,79 +5413,88 @@ function SalesmanVisitLog({
         </div>
       </div>
 
-      <p className="text-[11px] text-muted-foreground -mt-2">
-        {scopeNote} Visit counts cover {fromDate || toDate ? "the selected dates" : "all dates"}.
-      </p>
-
       {groupBy === "visits" && (
-          <fieldset className="space-y-2">
-            <legend className="text-[11px] font-medium text-muted-foreground">Number of visits</legend>
-            <div className="grid grid-cols-3 gap-x-3 gap-y-2">
-              {VISIT_COUNT_BUCKETS.map((bucket) => (
-                <label key={bucket} className="flex items-center gap-2 text-xs cursor-pointer">
-                  <Checkbox checked={visitBuckets.includes(bucket)} onCheckedChange={() => toggleVisitBucket(bucket)} />
-                  {bucket === "5+" ? "5+ visits" : `${bucket} ${bucket === "1" ? "visit" : "visits"}`}
-                </label>
-              ))}
-            </div>
-          </fieldset>
+        <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <legend className="sr-only">Number of visits</legend>
+          <span className="text-[11px] font-medium text-muted-foreground">Show shops with</span>
+          {VISIT_COUNT_BUCKETS.map((bucket) => (
+            <label key={bucket} className="flex items-center gap-1.5 text-xs cursor-pointer">
+              <Checkbox checked={visitBuckets.includes(bucket)} onCheckedChange={() => toggleVisitBucket(bucket)} />
+              {bucket === "5+" ? "5+ visits" : `${bucket} ${bucket === "1" ? "visit" : "visits"}`}
+            </label>
+          ))}
+        </fieldset>
       )}
 
-      {(groupBy === "city" && cityGroups.length === 0) || (groupBy === "visits" && visitCountGroups.length === 0) ? (
-        <EmptyHint text={groupBy === "visits" ? "No retailers match these visit-count and date filters." : "No shops linked yet. Assign retailers to a salesman in the Team tab."} />
-      ) : groupBy === "visits" ? (
-        <div className="space-y-3">
-          {visitCountGroups.map((g) => (
-            <section key={g.bucket} className="bg-card border rounded-xl overflow-hidden">
-              <h3 className="px-3 py-2.5 text-sm font-semibold flex items-center justify-between">
-                <span>{g.bucket === "5+" ? "5 or more visits" : `${g.bucket} ${g.bucket === "1" ? "visit" : "visits"}`}</span>
-                <Badge variant="secondary">{g.items.length} shops</Badge>
-              </h3>
-              <ul className="divide-y border-t px-3">{g.items.map(renderRetailerRow)}</ul>
-            </section>
-          ))}
-        </div>
+      {shownCount === 0 ? (
+        <EmptyHint
+          text={
+            scopedRetailers.length === 0
+              ? "No shops linked yet. Assign retailers to a salesman in the Team tab."
+              : "No shops match this search and these filters."
+          }
+        />
       ) : (
-        cityGroups.map((g) => {
-          const isOpen = openCities.includes(g.city);
-          return (
-          <div key={g.city} className="bg-card border rounded-2xl p-3 sm:p-4 space-y-3">
-            <button type="button" onClick={() => toggleCity(g.city)} className="w-full grid grid-cols-[minmax(0,1fr)_auto] items-center text-sm gap-2 min-h-10 text-left">
-              <span className="min-w-0 font-semibold flex items-center gap-1">
-                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground" /><span className="truncate">{g.city}</span>
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {g.total} shop{g.total === 1 ? "" : "s"}
-              </span>
-            </button>
-            <div className="h-2 rounded-full bg-muted overflow-hidden flex">
-              <div className="h-full bg-yellow-500" style={{ width: `${(g.single / (g.total || 1)) * 100}%` }} />
-              <div className="h-full bg-green-500" style={{ width: `${(g.multiple / (g.total || 1)) * 100}%` }} />
-              <div className="h-full bg-red-500" style={{ width: `${(g.notVisited / (g.total || 1)) * 100}%` }} />
-            </div>
-            <div className="flex flex-wrap gap-1.5 text-[11px]">
-              {[
-                { dot: "bg-red-500", n: g.notVisited, label: "not visited" },
-                { dot: "bg-yellow-500", n: g.single, label: "visited once" },
-                { dot: "bg-green-500", n: g.multiple, label: "visited 2+ times" },
-              ].map((chip) => (
-                <span key={chip.label} className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2 py-0.5">
-                  <span className={`h-2 w-2 rounded-full ${chip.dot}`} />
-                  <span className="font-semibold tabular-nums">{chip.n}</span>
-                  <span className="text-muted-foreground">{chip.label}</span>
-                </span>
-              ))}
-            </div>
+        <div className="overflow-hidden rounded-xl border bg-card">
+          {tableHead}
+          {groupBy === "none" && <ul className="divide-y">{matched.map(renderRetailerRow)}</ul>}
 
-            {isOpen && (
-            <ul className="divide-y border-t">
-              {g.list.map(renderRetailerRow)}
-            </ul>
-            )}
-          </div>
-          );
-        })
+          {groupBy === "visits" &&
+            visitCountGroups.map((g) => (
+              <section key={g.bucket} className="border-b last:border-b-0">
+                <h3 className="flex items-center justify-between bg-muted/30 px-3 py-1.5 text-xs font-semibold">
+                  <span>{g.bucket === "5+" ? "5 or more visits" : `${g.bucket} ${g.bucket === "1" ? "visit" : "visits"}`}</span>
+                  <span className="font-normal text-muted-foreground tabular-nums">{g.items.length} shop{g.items.length === 1 ? "" : "s"}</span>
+                </h3>
+                <ul className="divide-y border-t">{g.items.map(renderRetailerRow)}</ul>
+              </section>
+            ))}
+
+          {groupBy === "city" &&
+            cityGroups.map((g) => {
+              const isOpen = openCities.includes(g.city);
+              const visited = g.single + g.multiple;
+              return (
+                <section key={g.city} className="border-b last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleCity(g.city)}
+                    aria-expanded={isOpen}
+                    className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
+                      <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate">{g.city}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2 text-[11px] tabular-nums text-muted-foreground">
+                      <span
+                        className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-muted sm:flex"
+                        title={`${g.multiple} visited 2+ times, ${g.single} visited once, ${g.notVisited} not visited`}
+                      >
+                        <span className="h-full bg-green-500" style={{ width: `${(g.multiple / (g.total || 1)) * 100}%` }} />
+                        <span className="h-full bg-yellow-500" style={{ width: `${(g.single / (g.total || 1)) * 100}%` }} />
+                        <span className="h-full bg-red-500" style={{ width: `${(g.notVisited / (g.total || 1)) * 100}%` }} />
+                      </span>
+                      <span>{visited}/{g.total} visited</span>
+                      {g.notVisited > 0 && (
+                        <span className="rounded-full border border-red-500/25 bg-red-500/10 px-1.5 py-0.5 font-medium text-red-700 dark:text-red-300">
+                          {g.notVisited} not visited
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                  {isOpen && <ul className="divide-y border-t">{g.list.map(renderRetailerRow)}</ul>}
+                </section>
+              );
+            })}
+        </div>
+      )}
+
+      {shownCount > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          {shownCount} of {scopedRetailers.length} shop{scopedRetailers.length === 1 ? "" : "s"} · visit counts are {periodLabel} · tap a count to see the dates
+        </p>
       )}
 
       <Dialog open={!!target} onOpenChange={(o) => !o && setTarget(null)}>
