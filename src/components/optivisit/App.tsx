@@ -5237,18 +5237,30 @@ function SalesmanVisitLog({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="text-base font-semibold">Shop coverage</h3>
           <Badge variant="secondary">{scopedRetailers.length} shops</Badge>
         </div>
-        <Select value={groupBy} onValueChange={(value) => setGroupBy(value as typeof groupBy)}>
-          <SelectTrigger className="h-9 w-auto gap-1 text-xs" aria-label="Group shops by"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="city">By city</SelectItem>
-            <SelectItem value="visits">By number of visits</SelectItem>
-          </SelectContent>
-        </Select>
+        <div role="group" aria-label="Group shops by" className="inline-flex rounded-lg border bg-background p-0.5">
+          {([
+            { key: "city", label: "By city", icon: <MapPin className="w-3.5 h-3.5" /> },
+            { key: "visits", label: "By visit count", icon: <Repeat2 className="w-3.5 h-3.5" /> },
+          ] as const).map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              aria-pressed={groupBy === option.key}
+              onClick={() => setGroupBy(option.key)}
+              className={`flex min-h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
+                groupBy === option.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <p className="text-[11px] text-muted-foreground -mt-2">
