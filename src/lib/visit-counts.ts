@@ -1,4 +1,5 @@
 import type { Retailer, Visit } from "@/lib/optivisit-store";
+import { addDaysToDateKey, appDateKey, dateKeyWeekday } from "./app-time";
 
 export const VISIT_COUNT_BUCKETS = ["0", "1", "2", "3", "4", "5+"] as const;
 export type VisitCountBucket = (typeof VISIT_COUNT_BUCKETS)[number];
@@ -6,9 +7,9 @@ export type VisitCountBucket = (typeof VISIT_COUNT_BUCKETS)[number];
 export const PLANNER_START_YEAR = 2026;
 export const PLANNER_END_YEAR = 2040;
 
-/** Inclusive yyyy-mm-dd range check; an empty bound means "no limit" on that side. */
+/** Inclusive yyyy-mm-dd range check on the app clock; an empty bound means "no limit" on that side. */
 export function isVisitInDateRange(visit: Pick<Visit, "date">, fromDate = "", toDate = "") {
-  const date = visit.date.slice(0, 10);
+  const date = appDateKey(visit.date);
   if (fromDate && date < fromDate) return false;
   if (toDate && date > toDate) return false;
   return true;
@@ -33,22 +34,16 @@ export function countVisitsByRetailer(
 export const VISIT_RANGE_PRESETS = ["today", "week", "month", "all", "custom"] as const;
 export type VisitRangePreset = (typeof VISIT_RANGE_PRESETS)[number];
 
-function localISODate(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 /**
- * yyyy-mm-dd bounds for a quick date preset, in the device's local calendar.
+ * yyyy-mm-dd bounds for a quick date preset, on the app clock (PKT).
  * Weeks start on Monday. "all" and "custom" have no computed bounds.
  */
-export function visitRangeForPreset(preset: VisitRangePreset, today = new Date()): { from: string; to: string } {
+export function visitRangeForPreset(preset: VisitRangePreset, now: Date = new Date()): { from: string; to: string } {
   if (preset === "all" || preset === "custom") return { from: "", to: "" };
-  const to = localISODate(today);
+  const to = appDateKey(now);
   if (preset === "today") return { from: to, to };
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  if (preset === "week") start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  else start.setDate(1);
-  return { from: localISODate(start), to };
+  if (preset === "week") return { from: addDaysToDateKey(to, -((dateKeyWeekday(to) + 6) % 7)), to };
+  return { from: `${to.slice(0, 7)}-01`, to };
 }
 
 /** Headline coverage numbers for a set of per-shop visit counts. */
@@ -73,7 +68,7 @@ export function summarizeCoverage(counts: Map<string, number>) {
 export function lastVisitByRetailer(visits: Pick<Visit, "date" | "retailerId">[]) {
   const last = new Map<string, string>();
   visits.forEach((visit) => {
-    const date = visit.date.slice(0, 10);
+    const date = appDateKey(visit.date);
     const prev = last.get(visit.retailerId);
     if (!prev || date > prev) last.set(visit.retailerId, date);
   });

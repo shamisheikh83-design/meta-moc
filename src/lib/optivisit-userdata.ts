@@ -1,6 +1,7 @@
 // Data owned by a user: export, transfer to another user, or delete.
 // Used by Super User account management in Settings.
 
+import { appDateKey } from "./app-time";
 import { store, type Retailer, type Visit } from "./optivisit-store";
 
 export type DateRange = { from: string; to: string }; // yyyy-mm-dd, both optional-empty
@@ -12,7 +13,7 @@ export type UserDataBundle = {
 
 function inRange(iso: string, range?: DateRange) {
   if (!range || (!range.from && !range.to)) return true;
-  const d = iso.slice(0, 10);
+  const d = appDateKey(iso);
   if (range.from && d < range.from) return false;
   if (range.to && d > range.to) return false;
   return true;

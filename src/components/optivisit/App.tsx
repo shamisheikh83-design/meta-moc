@@ -19,6 +19,7 @@ import { Eye, LayoutDashboard, ClipboardList, BarChart3, Store, Settings as Sett
 import { toast } from "sonner";
 import { AccessControl } from "./AccessControl";
 import { accessStore, can, scopedSalesmanIds, isScopedRole, matchSuperUserPin, type AppUser } from "@/lib/optivisit-access";
+import { addDaysToDateKey, addMonthsToMonthKey, appDateKey, appDayStartMs, appHour, appMonthKey, appTimestampOnDate, formatAppDate, formatAppDateTime, formatAppTime, localDateFromKey } from "@/lib/app-time";
 import { countVisitsByRetailer, isVisitInDateRange, lastVisitByRetailer, PLANNER_END_YEAR, PLANNER_START_YEAR, summarizeCoverage, visitCountBucket, visitRangeForPreset, VISIT_COUNT_BUCKETS, type VisitCountBucket, type VisitRangePreset } from "@/lib/visit-counts";
 
 
@@ -248,7 +249,7 @@ function NavTab({ value, icon, label }: { value: string; icon: React.ReactNode; 
 
 /* ---------------- Dashboard ---------------- */
 function greetingFor(d: Date) {
-  const h = d.getHours();
+  const h = appHour(d);
   if (h >= 4 && h < 11) return "Good Morning";
   if (h >= 11 && h < 15) return "Good Noon";
   if (h >= 15 && h < 18) return "Good Afternoon";
@@ -271,17 +272,16 @@ function Dashboard({
   allowed: (p: string) => boolean;
 }) {
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const thisMonth = now.toISOString().slice(0, 7);
-  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().slice(0, 10);
-  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonth = lastMonthDate.toISOString().slice(0, 7);
+  // Days and months are counted on the app clock (PKT), whatever the device is set to.
+  const today = appDateKey(now);
+  const thisMonth = appMonthKey(now);
+  const yesterdayStr = addDaysToDateKey(today, -1);
+  const lastMonth = addMonthsToMonthKey(thisMonth, -1);
 
-  const visitsTodayList = visits.filter((v) => v.date.startsWith(today));
-  const visitsYesterdayList = visits.filter((v) => v.date.startsWith(yesterdayStr));
-  const visitsMonth = visits.filter((v) => v.date.startsWith(thisMonth));
-  const visitsLastMonth = visits.filter((v) => v.date.startsWith(lastMonth));
+  const visitsTodayList = visits.filter((v) => appDateKey(v.date) === today);
+  const visitsYesterdayList = visits.filter((v) => appDateKey(v.date) === yesterdayStr);
+  const visitsMonth = visits.filter((v) => appMonthKey(v.date) === thisMonth);
+  const visitsLastMonth = visits.filter((v) => appMonthKey(v.date) === lastMonth);
 
   const successList = visitsMonth.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory");
   const successRate = visitsMonth.length ? Math.round((successList.length / visitsMonth.length) * 100) : 0;
@@ -291,7 +291,7 @@ function Dashboard({
   const activeRetailersThisMonth = new Set(visitsMonth.map((v) => v.retailerId)).size;
 
   const dayMs = 86400000;
-  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+  const todayStart = new Date(appDayStartMs(today));
   const weekStart = new Date(todayStart.getTime() - 6 * dayMs);
   const prevWeekStart = new Date(weekStart.getTime() - 7 * dayMs);
   const inRange = (v: Visit, start: Date, endExclusive: Date) => {
@@ -584,7 +584,7 @@ function Dashboard({
                           <div className="min-w-0">
                             <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
                             <div className="text-[11px] text-muted-foreground">
-                              {new Date(v.date).toLocaleString()} · {v.salesman || "—"}
+                              {formatAppDateTime(v.date)} · {v.salesman || "—"}
                             </div>
                             {v.purpose && <div className="text-[11px] mt-0.5">{v.purpose}</div>}
                           </div>
@@ -673,7 +673,7 @@ function RecentVisitsSection({
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">{r?.name ?? "Unknown retailer"}</div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(v.date).toLocaleDateString()} · {v.purpose || "Visit"}
+                          {formatAppDate(v.date)} · {v.purpose || "Visit"}
                         </div>
                       </div>
                       <OutcomeBadge outcome={v.outcome} />
@@ -836,7 +836,7 @@ function EmptyHint({ text }: { text: string }) {
 
 /* ---------------- Shared CSV export (column picker) ---------------- */
 const VISIT_EXPORT_COLUMNS: { key: string; label: string; get: (v: Visit, r?: Retailer) => string }[] = [
-  { key: "date", label: "Date", get: (v) => new Date(v.date).toLocaleString() },
+  { key: "date", label: "Date", get: (v) => formatAppDateTime(v.date) },
   { key: "retailer", label: "Retailer", get: (_v, r) => r?.name ?? "" },
   { key: "city", label: "City", get: (_v, r) => r?.city ?? "" },
   { key: "area", label: "Area", get: (v, r) => v.area || r?.area || "" },
@@ -878,7 +878,7 @@ function ExportCsvDialog({
   const visits = useMemo(
     () =>
       allVisits.filter((v) => {
-        const day = toISODate(new Date(v.date));
+        const day = appDateKey(v.date);
         return (!from || day >= from) && (!to || day <= to);
       }),
     [allVisits, from, to]
@@ -1038,7 +1038,7 @@ function VisitLog({
   const groups = useMemo(() => {
     if (groupBy === "none") return null;
     const keyOf = (v: Visit): string => {
-      if (groupBy === "date") return v.date.slice(0, 10);
+      if (groupBy === "date") return appDateKey(v.date);
       if (groupBy === "salesman") return v.salesman || "Unassigned";
       if (groupBy === "outcome") return v.outcome;
       const r = retailerById.get(v.retailerId);
@@ -1184,9 +1184,8 @@ function VisitRowContent({
   /** Rows under a day heading only need the time. */
   timeOnly?: boolean;
 }) {
-  const at = new Date(v.date);
-  const time = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const when = timeOnly ? time : `${at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}, ${time}`;
+  const time = formatAppTime(v.date);
+  const when = timeOnly ? time : `${formatAppDate(v.date, { day: "numeric", month: "short", year: "numeric" })}, ${time}`;
   const meta = [when, v.salesman || "Unassigned", v.purpose, v.area].filter(Boolean).join(" · ");
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -1219,8 +1218,7 @@ function VisitRowContent({
 }
 
 function todayISODate() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return appDateKey();
 }
 
 function VisitDialog({
@@ -1283,12 +1281,9 @@ function VisitDialog({
       : p.includes("complaint")
         ? "Complaints Visits"
         : "Visits";
-    const now = new Date();
-    const picked = new Date(`${date}T00:00:00`);
-    picked.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), 0);
     const v: Visit = {
       id: uid(),
-      date: picked.toISOString(),
+      date: appTimestampOnDate(date),
       retailerId,
       salesman: salesman || "Unassigned",
       purpose: finalPurpose,
@@ -1508,10 +1503,8 @@ const RANGE_KEY = "ov_report_range";
 type ReportRange = { preset: RangePreset; from: string; to: string };
 
 function presetRange(p: Exclude<RangePreset, "custom">) {
-  const end = new Date();
-  const start = new Date();
-  start.setDate(end.getDate() - (p === "weekly" ? 6 : p === "monthly" ? 29 : 89));
-  return { from: toISODate(start), to: toISODate(end) };
+  const to = appDateKey();
+  return { from: addDaysToDateKey(to, -(p === "weekly" ? 6 : p === "monthly" ? 29 : 89)), to };
 }
 
 /** Report date range (weekly / monthly / quarterly / custom), remembered on this device. */
@@ -1782,7 +1775,7 @@ function AdjustViewPanel({
                 <Input type="date" value={range.from} max={range.to} onChange={(e) => range.onFromChange(e.target.value)} />
               </Field>
               <Field label="To">
-                <Input type="date" value={range.to} min={range.from} max={toISODate(new Date())} onChange={(e) => range.onToChange(e.target.value)} />
+                <Input type="date" value={range.to} min={range.from} max={appDateKey()} onChange={(e) => range.onToChange(e.target.value)} />
               </Field>
             </div>
             <p className="text-[10px] text-muted-foreground">Max range: 1 year.</p>
@@ -1852,8 +1845,8 @@ function ReportsPanels({
   );
 
   const filtered = useMemo(() => {
-    const f = new Date(from + "T00:00:00").getTime();
-    const t = new Date(to + "T23:59:59").getTime();
+    const f = appDayStartMs(from);
+    const t = appDayStartMs(to) + 86400000 - 1;
     return visits.filter((v) => {
       const ts = new Date(v.date).getTime();
       if (ts < f || ts > t) return false;
@@ -2314,7 +2307,7 @@ function Planner({
 
   const [salesmanId, setSalesmanId] = useState<string>(linkedSalesmen[0]?.id ?? "");
   const [plans, setPlans] = useState<VisitPlan[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(() => localDateFromKey(appDateKey()));
   const [mode, setMode] = useState<"create" | "view" | "past-empty">("create");
   const [draftIds, setDraftIds] = useState<string[]>([]);
   const [selectedPlanItems, setSelectedPlanItems] = useState<string[]>([]);
@@ -2337,7 +2330,7 @@ function Planner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkedSalesmen.map((s) => s.id).join(",")]);
 
-  const todayStart = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+  const todayStart = useMemo(() => localDateFromKey(appDateKey()), []);
   const selectedDateStr = toISODateStr(selectedDate);
   const isPast = selectedDate < todayStart;
 
@@ -4297,11 +4290,11 @@ function Salesmen({
     [s.name, s.city, s.region, s.mobile].some((x) => (x || "").toLowerCase().includes(q.toLowerCase()))
   );
 
-  const thisMonth = new Date().toISOString().slice(0, 7);
+  const thisMonth = appMonthKey();
 
   const statsFor = (s: Salesman) => {
     const own = visits.filter((v) => v.salesman === s.name);
-    const monthVisits = own.filter((v) => v.date.startsWith(thisMonth));
+    const monthVisits = own.filter((v) => appMonthKey(v.date) === thisMonth);
     const successful = monthVisits.filter((v) => v.outcome === "Successful" || v.outcome === "Satisfactory");
     const successRate = monthVisits.length ? Math.round((successful.length / monthVisits.length) * 100) : null;
     const assigned = retailers.filter((r) => r.salesmanId === s.id).length;
@@ -4887,7 +4880,7 @@ function SettingsPanel({
       )}
 
 
-      <p className="text-[10px] text-center text-muted-foreground pt-2">OptiVisit · data stored locally on this device</p>
+      <p className="text-[10px] text-center text-muted-foreground pt-2">OptiVisit · data stored locally on this device · all dates and times in PKT (GMT+5)</p>
     </div>
   );
 }
@@ -4926,9 +4919,9 @@ function VisitsTab({
   const selected = (picked ?? allKeys).filter((k) => allKeys.includes(k));
   const isAll = selected.length === allKeys.length;
   const toggle = (key: string) => {
-    const next = selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key];
-    if (next.length > 0) setPicked(next); // at least one stays selected
+    setPicked(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
   };
+  const noneSelected = selected.length === 0;
 
   const scopedRetailers = useMemo(
     () =>
@@ -4981,7 +4974,7 @@ function VisitsTab({
     : chosen.length <= 2
       ? chosen.map((r) => r.label).join(", ")
       : `${chosen.slice(0, 2).map((r) => r.label).join(", ")} +${chosen.length - 2}`;
-  const salesmenChip = isAll ? "All salesmen" : summary;
+  const salesmenChip = isAll ? "All salesmen" : noneSelected ? "No salesmen" : summary;
 
   // One date range drives the summary numbers, both sub-tabs and the per-shop visit counts.
   const hasRange = !!(fromDate || toDate);
@@ -5023,13 +5016,13 @@ function VisitsTab({
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <div role="group" aria-label="Date range" className="flex flex-wrap items-center gap-1.5">
+          <div role="group" aria-label="Date range" className="grid w-full grid-cols-5 gap-1 sm:flex sm:w-auto sm:items-center sm:gap-1.5">
             {([
-              { key: "today", label: "Today" },
-              { key: "week", label: "This week" },
-              { key: "month", label: "This month" },
-              { key: "all", label: "All time" },
-              { key: "custom", label: "Custom" },
+              { key: "today", label: "Today", short: "Today" },
+              { key: "week", label: "This week", short: "Week" },
+              { key: "month", label: "This month", short: "Month" },
+              { key: "all", label: "All time", short: "All" },
+              { key: "custom", label: "Custom", short: "Custom" },
             ] as const).map((p) => (
               <button
                 key={p.key}
@@ -5040,14 +5033,16 @@ function VisitsTab({
                   if (p.key === "custom" && preset !== "custom") { setCustomFrom(fromDate); setCustomTo(toDate); }
                   setPreset(p.key);
                 }}
-                className={`min-h-9 rounded-full border px-3 text-xs font-medium transition-colors ${
+                aria-label={p.label}
+                className={`min-h-9 whitespace-nowrap rounded-full border px-1 text-xs font-medium transition-colors sm:px-3 ${
                   preset === p.key
                     ? "border-primary bg-primary text-primary-foreground"
                     : "bg-background text-foreground hover:bg-muted"
                 }`}
               >
-                {p.key === "custom" && <CalendarIcon className="mr-1 inline h-3.5 w-3.5 -translate-y-px" />}
-                {p.label}
+                {p.key === "custom" && <CalendarIcon className="mr-1 hidden h-3.5 w-3.5 -translate-y-px sm:inline" />}
+                <span className="sm:hidden">{p.short}</span>
+                <span className="hidden sm:inline">{p.label}</span>
               </button>
             ))}
           </div>
@@ -5091,7 +5086,8 @@ function VisitsTab({
             <div className="mb-1 flex items-center justify-between">
               <span className="text-[11px] text-muted-foreground">Pick whose visits and shops to show</span>
               <div className="flex items-center gap-1">
-                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setPicked(allKeys)}>All</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={isAll} onClick={() => setPicked(allKeys)}>Check all</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={noneSelected} onClick={() => setPicked([])}>Uncheck all</Button>
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOpen(false)}>Done</Button>
               </div>
             </div>
@@ -5153,7 +5149,11 @@ function VisitsTab({
         </div>
       )}
 
-      {activeView === "shops" && (
+      {noneSelected && activeView && (
+        <EmptyHint text="No salesman is selected. Open the salesmen filter above and tick at least one, or choose Check all." />
+      )}
+
+      {!noneSelected && activeView === "shops" && (
         <SalesmanVisitLog
           retailers={retailers}
           salesmen={salesmen}
@@ -5165,7 +5165,7 @@ function VisitsTab({
           refresh={refresh}
         />
       )}
-      {activeView === "history" && (
+      {!noneSelected && activeView === "history" && (
         <VisitLog
           visits={historyVisits}
           retailers={retailers}
@@ -5521,7 +5521,7 @@ function SalesmanVisitLog({
               {visitsForCountTarget.map((visit) => (
                 <li key={visit.id} className="px-3 py-2.5 flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="text-sm font-medium">{new Date(`${visit.date.slice(0, 10)}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</div>
+                    <div className="text-sm font-medium">{localDateFromKey(appDateKey(visit.date)).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</div>
                     <div className="text-[11px] text-muted-foreground truncate">{visit.salesman || "Unassigned"} · {visit.purpose}</div>
                   </div>
                   <StatusBadge status={visit.visitStatus} />

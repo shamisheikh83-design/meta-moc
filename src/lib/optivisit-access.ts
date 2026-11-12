@@ -7,90 +7,100 @@ export type Role = (typeof ROLES)[number];
 
 export const MAX_SUPER_ADMINS = 2;
 
-export type PermissionItem = { id: string; label: string };
+export type PermissionItem = {
+  id: string;
+  /** The name the app shows for this tab, section, button or setting. */
+  label: string;
+  /** Where to find it inside the tab, when it is not the tab itself. */
+  where?: string;
+};
 export type PermissionGroup = { id: string; label: string; items: PermissionItem[] };
 
-/** Full catalog of tabs, modules, features, statuses, reports and settings. */
+/**
+ * Every tab, section, action and setting, grouped by the tab it lives in and listed in
+ * the order it appears on screen. Ids are stored on each user, so they never change —
+ * only labels and grouping follow the app's layout.
+ */
 export const PERMISSION_CATALOG: PermissionGroup[] = [
   {
-    id: "tabs",
-    label: "Tabs",
+    id: "home",
+    label: "Home tab",
     items: [
-      { id: "tab.dashboard", label: "Home (Dashboard)" },
-      { id: "tab.visits", label: "Visits" },
-      { id: "tab.planner", label: "Planner" },
-      { id: "tab.retailers", label: "Team (Retailers & Salesmen)" },
-      { id: "tab.products", label: "Products" },
-      { id: "tab.settings", label: "Settings" },
+      { id: "tab.dashboard", label: "Open the Home tab" },
+      { id: "dashboard.drilldown", label: "Open the list behind a summary card", where: "Summary cards" },
+      { id: "module.reports", label: "Reports", where: "Reports section" },
+      { id: "report.visitStatus", label: "Visit Status report", where: "Reports section" },
+      { id: "report.outcome", label: "Outcome report", where: "Reports section" },
+      { id: "report.city", label: "City wise Analysis report", where: "Reports section" },
+      { id: "report.filters", label: "Adjust View: cards, salesmen, date range, charts", where: "Reports section" },
+      { id: "report.export", label: "Export CSV", where: "Reports section and Visits › History" },
     ],
   },
   {
-    id: "modules",
-    label: "Modules",
+    id: "visits",
+    label: "Visits tab",
     items: [
-      { id: "module.visitLog", label: "Visit log" },
-      { id: "module.salesmanVisitLog", label: "Salesman visit record" },
-      { id: "module.retailers", label: "Retailer data" },
-      { id: "module.salesmen", label: "Salesmen data" },
-      { id: "module.products", label: "Product data" },
-      { id: "module.planner", label: "Visit planner" },
-      { id: "module.reports", label: "Visit reports" },
-      { id: "module.access", label: "Access level control" },
+      { id: "tab.visits", label: "Open the Visits tab" },
+      { id: "module.salesmanVisitLog", label: "Shops view and coverage numbers", where: "Shops" },
+      { id: "module.visitLog", label: "History view", where: "History" },
+      { id: "visit.create", label: "New visit and Record visit", where: "Header and Shops rows" },
+      { id: "visit.delete", label: "Delete visit", where: "History rows" },
+      { id: "status.visit", label: "Visit statuses", where: "Visit form and badges" },
+      { id: "status.outcome", label: "Outcomes", where: "Visit form and badges" },
+      { id: "status.activity", label: "Visit activities (1–7)", where: "Visit form" },
+      { id: "status.unavailable", label: "Unavailable reasons", where: "Visit form" },
     ],
   },
   {
-    id: "features",
-    label: "Features",
+    id: "planner",
+    label: "Planner tab",
     items: [
-      { id: "visit.create", label: "Add visit" },
-      { id: "visit.delete", label: "Delete visit" },
-      { id: "retailer.create", label: "Add retailer" },
-      { id: "retailer.edit", label: "Edit retailer" },
-      { id: "retailer.delete", label: "Delete retailer" },
-      { id: "retailer.bulkDelete", label: "Multi-select delete retailers (Super User PIN twice)" },
-      { id: "retailer.assignSalesman", label: "Assign / change salesman" },
-      { id: "retailer.import", label: "Import retailers (Excel / CSV)" },
-      { id: "salesman.create", label: "Add salesman" },
-      { id: "salesman.delete", label: "Delete salesman" },
-      { id: "product.create", label: "Add product" },
-      { id: "product.edit", label: "Edit product" },
-      { id: "product.delete", label: "Delete product" },
-      { id: "dashboard.drilldown", label: "Dashboard token drill-down" },
+      { id: "tab.planner", label: "Open the Planner tab" },
+      { id: "module.planner", label: "Visit Planner calendar and day plans", where: "Whole tab" },
     ],
   },
   {
-    id: "statuses",
-    label: "Statuses & outcomes",
+    id: "team",
+    label: "Team tab",
     items: [
-      { id: "status.visit", label: "Visit statuses" },
-      { id: "status.outcome", label: "Outcomes" },
-      { id: "status.activity", label: "Visit activities (1–7)" },
-      { id: "status.unavailable", label: "Unavailable reasons" },
+      { id: "tab.retailers", label: "Open the Team tab" },
+      { id: "module.retailers", label: "Retailers list", where: "Retailers" },
+      { id: "retailer.create", label: "Add retailer", where: "Retailers" },
+      { id: "retailer.edit", label: "Edit retailer", where: "Retailers" },
+      { id: "retailer.delete", label: "Delete retailer", where: "Retailers" },
+      { id: "retailer.bulkDelete", label: "Multi-select delete retailers (Super User PIN twice)", where: "Retailers" },
+      { id: "retailer.assignSalesman", label: "Assign or change salesman", where: "Retailers" },
+      { id: "retailer.import", label: "Import retailers (Excel / CSV)", where: "Retailers" },
+      { id: "setting.salesmen", label: "Salesmen list", where: "Salesmen" },
+      { id: "module.salesmen", label: "Salesman details and monthly stats", where: "Salesmen" },
+      { id: "salesman.create", label: "Add salesman", where: "Salesmen" },
+      { id: "salesman.delete", label: "Delete salesman", where: "Salesmen" },
     ],
   },
   {
-    id: "reports",
-    label: "Reports",
+    id: "products",
+    label: "Products tab",
     items: [
-      { id: "report.visitStatus", label: "Visit status counters" },
-      { id: "report.outcome", label: "Outcome report" },
-      { id: "report.city", label: "City wise analysis" },
-      { id: "report.filters", label: "Date & salesman filters" },
-      { id: "report.export", label: "Export / share reports" },
+      { id: "tab.products", label: "Open the Products tab" },
+      { id: "module.products", label: "Product list", where: "Whole tab" },
+      { id: "product.create", label: "Add product", where: "Product list" },
+      { id: "product.edit", label: "Edit product", where: "Product list" },
+      { id: "product.delete", label: "Delete product", where: "Product list" },
     ],
   },
   {
     id: "settings",
-    label: "Settings",
+    label: "Settings tab",
     items: [
-      { id: "setting.theme", label: "Color theme" },
-      { id: "setting.salesmen", label: "Salesmen management" },
-      { id: "setting.pin", label: "Change PIN" },
-      { id: "setting.recovery", label: "Recovery email" },
-      { id: "setting.users", label: "Create / manage users" },
-      { id: "setting.roles", label: "Change access levels" },
-      { id: "setting.recentVisits", label: "Recent visits window (days / quantity)" },
-      { id: "setting.erase", label: "Erase all data" },
+      { id: "tab.settings", label: "Open the Settings tab (always available)" },
+      { id: "module.access", label: "Access level control", where: "Access level control" },
+      { id: "setting.users", label: "Create and manage users", where: "Access level control" },
+      { id: "setting.roles", label: "Change access levels and custom profiles", where: "Access level control" },
+      { id: "setting.theme", label: "Color theme and icons", where: "Appearance" },
+      { id: "setting.recentVisits", label: "Recent visits window (days / quantity)", where: "Recent visits window" },
+      { id: "setting.pin", label: "Change PIN", where: "Security" },
+      { id: "setting.recovery", label: "Recovery email", where: "Security" },
+      { id: "setting.erase", label: "Erase all data", where: "Danger zone" },
     ],
   },
 ];
@@ -148,6 +158,8 @@ export type AppUser = {
    * permission browser). Super Users always can. Missing = enabled (previous behavior).
    */
   accessViewOnly?: boolean;
+  /** Custom access level profile this user follows. Cleared when their access is edited by hand. */
+  profileId?: string;
   createdAt: string;
   /** Set when this user submits a "forgot my PIN" request. Cleared once a Super User resolves it. */
   pinResetRequestedAt?: string;
@@ -171,6 +183,7 @@ export function scopedSalesmanIds(user: AppUser | null): string[] | null {
 }
 
 const K_USERS = "ov_users";
+const K_PROFILES = "ov_access_profiles";
 const K_CURRENT = "ov_current_user";
 
 function read<T>(k: string, fallback: T): T {
@@ -219,6 +232,7 @@ export async function createUser(input: {
   pin: string;
   permissions: string[];
   salesmanIds?: string[];
+  profileId?: string;
 }): Promise<{ ok: true; user: AppUser } | { ok: false; error: string }> {
   const users = accessStore.getUsers();
   const name = input.name.trim();
@@ -239,6 +253,7 @@ export async function createUser(input: {
     pinHash: await hashPin(input.pin),
     permissions: input.role === "Super Admin" ? allPermissionIds() : input.permissions,
     salesmanIds: isScopedRole(input.role) ? (input.salesmanIds ?? []) : undefined,
+    profileId: input.role === "Super Admin" ? undefined : input.profileId,
     createdAt: new Date().toISOString(),
   };
   accessStore.setUsers([...users, user]);
@@ -261,6 +276,7 @@ export function changeRole(userId: string, role: Role): { ok: true } | { ok: fal
         ? {
             ...u,
             role,
+            profileId: undefined,
             permissions: role === "Super Admin" ? allPermissionIds() : ROLE_DEFAULTS[role],
             salesmanIds: isScopedRole(role) ? (u.salesmanIds ?? []) : undefined,
           }
@@ -272,7 +288,7 @@ export function changeRole(userId: string, role: Role): { ok: true } | { ok: fal
 
 export function setPermissions(userId: string, permissions: string[]) {
   accessStore.setUsers(
-    accessStore.getUsers().map((u) => (u.id === userId ? { ...u, permissions } : u))
+    accessStore.getUsers().map((u) => (u.id === userId ? { ...u, permissions, profileId: undefined } : u))
   );
 }
 
@@ -280,6 +296,121 @@ export function setSalesmanIds(userId: string, salesmanIds: string[]) {
   accessStore.setUsers(
     accessStore.getUsers().map((u) => (u.id === userId ? { ...u, salesmanIds } : u))
   );
+}
+
+/* ---------------- Custom access level profiles ---------------- */
+
+/** Levels a custom profile can be built on. Super User is never a custom profile. */
+export const PROFILE_BASE_ROLES = ["Admin", "Agent", "Member", "Guest"] as const;
+export type ProfileBaseRole = (typeof PROFILE_BASE_ROLES)[number];
+
+/**
+ * A named, reusable set of permissions for one type of user (e.g. "Area manager").
+ * There is no limit on how many exist. The base level decides data visibility:
+ * Admin sees every salesman's data, the others only their linked salesmen.
+ */
+export type AccessProfile = {
+  id: string;
+  name: string;
+  description?: string;
+  baseRole: ProfileBaseRole;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const profileStore = {
+  getProfiles: () => read<AccessProfile[]>(K_PROFILES, []),
+  setProfiles: (p: AccessProfile[]) => {
+    if (typeof window !== "undefined") localStorage.setItem(K_PROFILES, JSON.stringify(p));
+  },
+};
+
+export function usersOnProfile(profileId: string): AppUser[] {
+  return accessStore.getUsers().filter((u) => u.profileId === profileId);
+}
+
+/** Create a profile, or update one and push the change to every user following it. */
+export function saveProfile(input: {
+  id?: string;
+  name: string;
+  description?: string;
+  baseRole: ProfileBaseRole;
+  permissions: string[];
+}): { ok: true; profile: AccessProfile; usersUpdated: number } | { ok: false; error: string } {
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Enter a profile name" };
+  if ((ROLES as readonly string[]).some((r) => r.toLowerCase() === name.toLowerCase()))
+    return { ok: false, error: "That name is a built-in access level. Choose another name." };
+  const profiles = profileStore.getProfiles();
+  if (profiles.some((p) => p.id !== input.id && p.name.trim().toLowerCase() === name.toLowerCase()))
+    return { ok: false, error: "A profile with this name already exists" };
+
+  const known = new Set(allPermissionIds());
+  const permissions = [...new Set(input.permissions)].filter((p) => known.has(p));
+  const now = new Date().toISOString();
+  const existing = input.id ? profiles.find((p) => p.id === input.id) : undefined;
+  const profile: AccessProfile = {
+    id: existing?.id ?? uid(),
+    name,
+    description: input.description?.trim() || undefined,
+    baseRole: input.baseRole,
+    permissions,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+  profileStore.setProfiles(existing ? profiles.map((p) => (p.id === profile.id ? profile : p)) : [...profiles, profile]);
+
+  let usersUpdated = 0;
+  if (existing) {
+    const users = accessStore.getUsers();
+    const next = users.map((u) => {
+      if (u.profileId !== profile.id || u.role === "Super Admin") return u;
+      usersUpdated++;
+      return {
+        ...u,
+        role: profile.baseRole,
+        permissions,
+        salesmanIds: isScopedRole(profile.baseRole) ? (u.salesmanIds ?? []) : undefined,
+      };
+    });
+    if (usersUpdated > 0) accessStore.setUsers(next);
+  }
+  return { ok: true, profile, usersUpdated };
+}
+
+/** Remove a profile. Users who followed it keep their current access as a one-off setup. */
+export function deleteProfile(profileId: string): { usersDetached: number } {
+  profileStore.setProfiles(profileStore.getProfiles().filter((p) => p.id !== profileId));
+  const users = accessStore.getUsers();
+  const usersDetached = users.filter((u) => u.profileId === profileId).length;
+  if (usersDetached > 0) accessStore.setUsers(users.map((u) => (u.profileId === profileId ? { ...u, profileId: undefined } : u)));
+  return { usersDetached };
+}
+
+/** Put a user on a custom profile: they take its base level and permissions. */
+export function applyProfile(userId: string, profileId: string): { ok: true } | { ok: false; error: string } {
+  const profile = profileStore.getProfiles().find((p) => p.id === profileId);
+  if (!profile) return { ok: false, error: "Profile not found" };
+  const users = accessStore.getUsers();
+  const target = users.find((u) => u.id === userId);
+  if (!target) return { ok: false, error: "User not found" };
+  if (target.role === "Super Admin" && superAdmins(users).length <= 1)
+    return { ok: false, error: "At least one Super User must remain" };
+  accessStore.setUsers(
+    users.map((u) =>
+      u.id === userId
+        ? {
+            ...u,
+            role: profile.baseRole,
+            profileId: profile.id,
+            permissions: profile.permissions,
+            salesmanIds: isScopedRole(profile.baseRole) ? (u.salesmanIds ?? []) : undefined,
+          }
+        : u
+    )
+  );
+  return { ok: true };
 }
 
 /** Super User toggle: whether a user may see their own view-only access details. */

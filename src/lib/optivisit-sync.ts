@@ -14,6 +14,7 @@ export const SYNC_KEYS = [
   "ov_plans",
   "ov_settings",
   "ov_users",
+  "ov_access_profiles",
   "ov_theme",
 ] as const;
 

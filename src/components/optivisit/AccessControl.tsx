@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download, ArrowLeft, AlertTriangle, Mail, Lock } from "lucide-react";
+import { ShieldCheck, Trash2, UserPlus, LogOut, KeyRound, Pencil, ArrowRightLeft, Download, ArrowLeft, AlertTriangle, Mail, Lock, Layers, Plus, Copy } from "lucide-react";
 import { toast } from "sonner";
 import {
   ROLES,
@@ -30,9 +31,18 @@ import {
   isScopedRole,
   setSalesmanIds,
   setAccessViewOnly,
+  PROFILE_BASE_ROLES,
+  profileStore,
+  saveProfile,
+  deleteProfile,
+  applyProfile,
+  usersOnProfile,
+  type AccessProfile,
   type AppUser,
+  type ProfileBaseRole,
   type Role,
 } from "@/lib/optivisit-access";
+import { formatAppDateTime } from "@/lib/app-time";
 import { store, type Salesman } from "@/lib/optivisit-store";
 import {
   countUserData,
@@ -303,14 +313,34 @@ function SuperUserPanel({
   const supers = superAdmins(users);
   const sorted = useMemo(() => [...users].sort((a, b) => a.name.localeCompare(b.name)), [users]);
   const pending = users.filter((u) => u.pinResetRequestedAt);
+  const profiles = profileStore.getProfiles();
+
+  /** One dropdown covers built-in levels and custom profiles. */
+  const changeLevel = (u: AppUser, value: string) => {
+    if (value.startsWith("profile:")) {
+      const profile = profiles.find((p) => p.id === value.slice(8));
+      const res = applyProfile(u.id, value.slice(8));
+      if (!res.ok) return toast.error(res.error);
+      toast.success(`${u.name} now follows ${profile?.name ?? "the profile"}`);
+    } else {
+      const role = value.slice(5) as Role;
+      const res = changeRole(u.id, role);
+      if (!res.ok) return toast.error(res.error);
+      toast.success(`${u.name} is now ${role}`);
+    }
+    onChanged();
+  };
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          {supers.length}/{MAX_SUPER_ADMINS} Super Users · {users.length} total
+          {supers.length}/{MAX_SUPER_ADMINS} Super Users · {users.length} total · {profiles.length} custom profile{profiles.length === 1 ? "" : "s"}
         </p>
-        <AddUserDialog onChanged={onChanged} supersCount={supers.length} />
+        <div className="flex items-center gap-2">
+          <ProfilesDialog onChanged={onChanged} />
+          <AddUserDialog onChanged={onChanged} supersCount={supers.length} />
+        </div>
       </div>
 
       {pending.length > 0 && (
@@ -348,22 +378,20 @@ function SuperUserPanel({
             </div>
             <div className="flex items-center gap-2">
               <Select
-                value={u.role}
-                onValueChange={(v) => {
-                  const res = changeRole(u.id, v as Role);
-                  if (!res.ok) return toast.error(res.error);
-                  toast.success(`${u.name} is now ${v}`);
-                  onChanged();
-                }}
+                value={u.profileId && profiles.some((p) => p.id === u.profileId) ? `profile:${u.profileId}` : `role:${u.role}`}
+                onValueChange={(v) => changeLevel(u, v)}
               >
-                <SelectTrigger className="h-8 text-xs w-[150px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-xs w-[170px]" aria-label={`Access level for ${u.name}`}><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  <LevelOptions profiles={profiles} />
                 </SelectContent>
               </Select>
               <Badge variant="secondary" className="text-[10px]">
                 {effectivePermissions(u).length} permissions
               </Badge>
+              {u.profileId && profiles.some((p) => p.id === u.profileId) && (
+                <Badge variant="outline" className="text-[10px]">Custom profile · {u.role} data scope</Badge>
+              )}
             </div>
             {u.role !== "Super Admin" && (
               <div className="flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5">
@@ -429,7 +457,7 @@ function PinResetRequestDialog({ user, onChanged }: { user: AppUser; onChanged: 
           <div className="rounded-lg border p-3 space-y-1.5 text-xs">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Requested</span>
-              <span>{user.pinResetRequestedAt ? new Date(user.pinResetRequestedAt).toLocaleString() : "—"}</span>
+              <span>{user.pinResetRequestedAt ? formatAppDateTime(user.pinResetRequestedAt) : "—"}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Submitted as</span>
@@ -472,22 +500,38 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
   const [role, setRole] = useState<Role>("Member");
+  const [profileId, setProfileId] = useState<string | undefined>(undefined);
   const [perms, setPerms] = useState<string[]>(ROLE_DEFAULTS["Member"]);
   const [linkedSalesmen, setLinkedSalesmen] = useState<string[]>([]);
   const salesmenList = useMemo(
     () => store.getSalesmen().slice().sort((a, b) => a.name.localeCompare(b.name)),
     [open]
   );
+  const profiles = useMemo(() => profileStore.getProfiles(), [open]);
 
   const pickRole = (r: Role) => {
     setRole(r);
+    setProfileId(undefined);
     setPerms(ROLE_DEFAULTS[r]);
+  };
+  const pickLevel = (value: string) => {
+    if (!value.startsWith("profile:")) return pickRole(value.slice(5) as Role);
+    const profile = profiles.find((p) => p.id === value.slice(8));
+    if (!profile) return;
+    setRole(profile.baseRole);
+    setProfileId(profile.id);
+    setPerms(profile.permissions);
+  };
+  /** Hand-editing the checklist turns the user into a one-off setup, no longer tied to the profile. */
+  const editPerms = (next: string[]) => {
+    setPerms(next);
+    setProfileId(undefined);
   };
 
   const save = async () => {
     if (isScopedRole(role) && linkedSalesmen.length === 0)
       return toast.error("Select at least one salesman for this user");
-    const res = await createUser({ name, username, email, role, pin, permissions: perms, salesmanIds: linkedSalesmen });
+    const res = await createUser({ name, username, email, role, pin, permissions: perms, salesmanIds: linkedSalesmen, profileId });
     if (!res.ok) return toast.error(res.error);
     toast.success("User created");
     setName(""); setUsername(""); setEmail(""); setPin(""); setLinkedSalesmen([]); pickRole("Member");
@@ -510,14 +554,10 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
             <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
           </Row>
           <Row label="Access level">
-            <Select value={role} onValueChange={(v) => pickRole(v as Role)}>
+            <Select value={profileId ? `profile:${profileId}` : `role:${role}`} onValueChange={pickLevel}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {ROLES.map((r) => (
-                  <SelectItem key={r} value={r} disabled={r === "Super Admin" && supersCount >= MAX_SUPER_ADMINS}>
-                    {r}{r === "Super Admin" && supersCount >= MAX_SUPER_ADMINS ? " (limit reached)" : ""}
-                  </SelectItem>
-                ))}
+                <LevelOptions profiles={profiles} superLimitReached={supersCount >= MAX_SUPER_ADMINS} />
               </SelectContent>
             </Select>
           </Row>
@@ -525,7 +565,12 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
             <p className="text-xs text-muted-foreground">Super Users are linked to every feature automatically.</p>
           ) : (
             <>
-              <PermissionChecklist value={perms} onChange={setPerms} />
+              {profileId && (
+                <p className="text-[11px] text-muted-foreground">
+                  Follows this custom profile. Changing any box below makes it a one-off setup for this user.
+                </p>
+              )}
+              <PermissionChecklist value={perms} onChange={editPerms} />
               {isScopedRole(role) && (
               <div className="space-y-1">
                 <Label className="text-xs">Salesmen data access</Label>
@@ -656,6 +701,188 @@ function SalesmenChecklist({
   );
 }
 
+/** Dropdown options shared by "Add user" and each user row: built-in levels, then custom profiles. */
+function LevelOptions({ profiles, superLimitReached = false }: { profiles: AccessProfile[]; superLimitReached?: boolean }) {
+  return (
+    <>
+      <SelectGroup>
+        <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Built-in levels</SelectLabel>
+        {ROLES.map((r) => (
+          <SelectItem key={r} value={`role:${r}`} disabled={r === "Super Admin" && superLimitReached}>
+            {r}{r === "Super Admin" && superLimitReached ? " (limit reached)" : ""}
+          </SelectItem>
+        ))}
+      </SelectGroup>
+      {profiles.length > 0 && (
+        <SelectGroup>
+          <SelectLabel className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom profiles</SelectLabel>
+          {[...profiles].sort((a, b) => a.name.localeCompare(b.name)).map((p) => (
+            <SelectItem key={p.id} value={`profile:${p.id}`}>{p.name}</SelectItem>
+          ))}
+        </SelectGroup>
+      )}
+    </>
+  );
+}
+
+/* --------------- custom access level profiles --------------- */
+type ProfileDraft = { id?: string; name: string; description: string; baseRole: ProfileBaseRole; permissions: string[] };
+
+const BASE_ROLE_HINT: Record<ProfileBaseRole, string> = {
+  Admin: "Sees every salesman's data",
+  Agent: "Sees only linked salesmen's data",
+  Member: "Sees only linked salesmen's data",
+  Guest: "Sees only linked salesmen's data",
+};
+
+function ProfilesDialog({ onChanged }: { onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const [version, setVersion] = useState(0);
+  const profiles = useMemo(
+    () => profileStore.getProfiles().slice().sort((a, b) => a.name.localeCompare(b.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [open, version]
+  );
+
+  const startNew = (from?: AccessProfile) =>
+    setDraft({
+      name: from ? `${from.name} copy` : "",
+      description: from?.description ?? "",
+      baseRole: from?.baseRole ?? "Member",
+      permissions: from ? from.permissions : ROLE_DEFAULTS["Member"],
+    });
+
+  const save = () => {
+    if (!draft) return;
+    const res = saveProfile(draft);
+    if (!res.ok) return toast.error(res.error);
+    toast.success(
+      draft.id
+        ? `Profile updated${res.usersUpdated ? ` · ${res.usersUpdated} user${res.usersUpdated === 1 ? "" : "s"} updated` : ""}`
+        : "Profile created"
+    );
+    setDraft(null);
+    setVersion((v) => v + 1);
+    onChanged();
+  };
+
+  const remove = (p: AccessProfile) => {
+    const using = usersOnProfile(p.id).length;
+    const note = using
+      ? ` ${using} user${using === 1 ? "" : "s"} on it will keep their current access as a one-off setup.`
+      : "";
+    if (!confirm(`Delete the profile "${p.name}"?${note}`)) return;
+    deleteProfile(p.id);
+    toast.success("Profile deleted");
+    setVersion((v) => v + 1);
+    onChanged();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setDraft(null); }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline"><Layers className="w-4 h-4 mr-1" /> Custom profiles</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{draft ? (draft.id ? "Edit profile" : "New profile") : "Custom access level profiles"}</DialogTitle>
+        </DialogHeader>
+
+        {!draft ? (
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              A profile is a reusable access setup for one type of user, such as an area manager or a data-entry
+              clerk. Make as many as you need, then pick one in a user's access level dropdown.
+            </p>
+            {profiles.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                No custom profiles yet.
+              </div>
+            ) : (
+              <ul className="divide-y rounded-lg border">
+                {profiles.map((p) => {
+                  const using = usersOnProfile(p.id).length;
+                  return (
+                    <li key={p.id} className="flex items-center justify-between gap-2 px-3 py-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{p.name}</div>
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {p.baseRole} data scope · {p.permissions.length} permissions · {using} user{using === 1 ? "" : "s"}
+                          {p.description ? ` · ${p.description}` : ""}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Duplicate ${p.name}`} title="Duplicate" onClick={() => startNew(p)}>
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          aria-label={`Edit ${p.name}`}
+                          title="Edit"
+                          onClick={() => setDraft({ id: p.id, name: p.name, description: p.description ?? "", baseRole: p.baseRole, permissions: p.permissions })}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" aria-label={`Delete ${p.name}`} title="Delete" onClick={() => remove(p)}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <Button size="sm" onClick={() => startNew()}><Plus className="w-4 h-4 mr-1" /> New profile</Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <Row label="Profile name">
+              <Input value={draft.name} autoFocus onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Area manager" />
+            </Row>
+            <Row label="Description (optional)">
+              <Textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Who this profile is for" />
+            </Row>
+            <Row label="Data scope">
+              <Select value={draft.baseRole} onValueChange={(v) => setDraft({ ...draft, baseRole: v as ProfileBaseRole })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PROFILE_BASE_ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>{r} · {BASE_ROLE_HINT[r]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Row>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">Start from</span>
+              {PROFILE_BASE_ROLES.map((r) => (
+                <Button key={r} type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setDraft({ ...draft, permissions: ROLE_DEFAULTS[r] })}>
+                  {r} defaults
+                </Button>
+              ))}
+              <Button type="button" size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setDraft({ ...draft, permissions: [] })}>
+                Nothing
+              </Button>
+            </div>
+            <PermissionChecklist value={draft.permissions} onChange={(permissions) => setDraft({ ...draft, permissions })} />
+            {draft.id && usersOnProfile(draft.id).length > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Saving updates the {usersOnProfile(draft.id).length} user{usersOnProfile(draft.id).length === 1 ? "" : "s"} on this profile straight away.
+              </p>
+            )}
+            <DialogFooter className="gap-2">
+              <Button size="sm" variant="outline" onClick={() => setDraft(null)}><ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back</Button>
+              <Button size="sm" onClick={save}>{draft.id ? "Save profile" : "Create profile"}</Button>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PermissionChecklist({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   const toggle = (id: string) =>
     onChange(value.includes(id) ? value.filter((p) => p !== id) : [...value, id]);
@@ -665,7 +892,12 @@ function PermissionChecklist({ value, onChange }: { value: string[]; onChange: (
       {PERMISSION_CATALOG.map((group) => (
         <div key={group.id} className="rounded-lg border p-2">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold">{group.label}</span>
+            <span className="text-xs font-semibold">
+              {group.label}
+              <span className="ml-1.5 font-normal text-muted-foreground tabular-nums">
+                {group.items.filter((i) => value.includes(i.id)).length}/{group.items.length}
+              </span>
+            </span>
             <button
               type="button"
               className="text-[10px] underline text-muted-foreground"
@@ -682,7 +914,7 @@ function PermissionChecklist({ value, onChange }: { value: string[]; onChange: (
             {group.items.map((item) => (
               <label key={item.id} className="flex items-center gap-2 text-xs cursor-pointer">
                 <Checkbox checked={value.includes(item.id)} onCheckedChange={() => toggle(item.id)} />
-                <span>{item.label}</span>
+                <span>{item.label}{item.where && <span className="text-muted-foreground"> · {item.where}</span>}</span>
               </label>
             ))}
           </div>
@@ -716,7 +948,7 @@ function PermissionChecklistByGroup({ value }: { value: string[] }) {
             className={`flex items-center gap-2 text-xs ${value.includes(item.id) ? "" : "opacity-50"}`}
           >
             <Checkbox checked={value.includes(item.id)} disabled />
-            <span>{item.label}</span>
+            <span>{item.label}{item.where && <span className="text-muted-foreground"> · {item.where}</span>}</span>
           </label>
         ))}
       </div>
