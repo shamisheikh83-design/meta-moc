@@ -430,7 +430,7 @@ export function PinGate({ onUnlock }: { onUnlock: () => void }) {
                     {mode === "enter" ? "4-digit PIN" : mode === "confirm" ? "Re-enter PIN" : "New 4-digit PIN"}
                   </Label>
                   <div className="flex justify-center">
-                    <InputOTP maxLength={4} value={pin} onChange={(v) => { setPin(v); clearMessages(); }}>
+                    <InputOTP type="password" autoComplete="new-password" maxLength={4} value={pin} onChange={(v) => { setPin(v); clearMessages(); }}>
                       <InputOTPGroup className="gap-2.5">
                         <InputOTPSlot index={0} className="h-13 w-13 rounded-xl border text-lg font-semibold" />
                         <InputOTPSlot index={1} className="h-13 w-13 rounded-xl border text-lg font-semibold" />

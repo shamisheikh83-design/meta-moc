@@ -4831,7 +4831,7 @@ function SettingsPanel({
         {allow("setting.pin") && (
           <>
             <Field label="Change PIN">
-              <Input inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
+              <Input type="password" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="New 4-digit PIN" />
             </Field>
             <div className="flex gap-2">
               <Button size="sm" onClick={changePin}>Update PIN</Button>
@@ -4861,6 +4861,7 @@ function SettingsPanel({
               </p>
               <Field label="PIN">
                 <Input
+                  type="password"
                   inputMode="numeric"
                   maxLength={4}
                   value={wipePin}

@@ -153,6 +153,7 @@ function OwnAccessView({ currentUser }: { currentUser: AppUser }) {
           </div>
           <div className="flex items-center gap-2 mt-1">
             <Input
+              type="password"
               inputMode="numeric"
               maxLength={4}
               autoFocus
@@ -222,7 +223,7 @@ function FirstSuperUser({ onChanged }: { onChanged: () => void }) {
         <Row label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" /></Row>
         <Row label="User ID"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. superuser" /></Row>
         <Row label="4-digit PIN">
-          <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+          <Input type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
         </Row>
       </div>
       <Button size="sm" onClick={create}>Create Super User</Button>
@@ -290,7 +291,7 @@ function SignInPanel({ users, onChanged }: { users: AppUser[]; onChanged: () => 
       <p className="text-xs text-muted-foreground">{users.length} user{users.length === 1 ? "" : "s"} registered on this device.</p>
       <Row label="User ID or email"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="User ID or email" /></Row>
       <Row label="PIN">
-        <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+        <Input type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
       </Row>
       <div className="flex items-center justify-between">
         <Button size="sm" onClick={submit}>Sign in</Button>
@@ -481,7 +482,7 @@ function PinResetRequestDialog({ user, onChanged }: { user: AppUser; onChanged: 
             Confirm this person's identity (in person or by another channel), then set their new PIN below.
           </p>
           <Row label="New 4-digit PIN">
-            <Input inputMode="numeric" maxLength={4} value={newPin} autoFocus onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+            <Input type="password" inputMode="numeric" maxLength={4} value={newPin} autoFocus onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
           </Row>
         </div>
         <DialogFooter className="gap-2">
@@ -551,7 +552,7 @@ function AddUserDialog({ onChanged, supersCount }: { onChanged: () => void; supe
           <Row label="User ID"><Input value={username} onChange={(e) => setUsername(e.target.value)} /></Row>
           <Row label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" /></Row>
           <Row label="4-digit PIN">
-            <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+            <Input type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
           </Row>
           <Row label="Access level">
             <Select value={profileId ? `profile:${profileId}` : `role:${role}`} onValueChange={pickLevel}>
@@ -1011,7 +1012,7 @@ function EditUserDialog({ user, onChanged }: { user: AppUser; onChanged: () => v
           <Row label="User ID"><Input value={username} onChange={(e) => setUsername(e.target.value)} /></Row>
           <Row label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" /></Row>
           <Row label="New PIN (optional)">
-            <Input inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="Leave blank to keep" />
+          <Input type="password" inputMode="numeric" maxLength={4} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))} placeholder="Leave blank to keep" />
           </Row>
           <Button size="sm" variant="outline" className="w-full" onClick={resetPin}>
             <KeyRound className="w-3.5 h-3.5 mr-1" /> Reset PIN to a random code
@@ -1151,7 +1152,7 @@ function DeleteUserDialog({
               Only a Super User can delete an account, and it needs your own PIN twice. Step 1 of 2.
             </p>
             <Row label="Your Super User PIN">
-              <Input inputMode="numeric" maxLength={4} value={pin1} autoFocus onChange={(e) => setPin1(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+              <Input type="password" inputMode="numeric" maxLength={4} value={pin1} autoFocus onChange={(e) => setPin1(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
             </Row>
             <DialogFooter><Button size="sm" variant="destructive" onClick={checkFirst}>Continue</Button></DialogFooter>
           </div>
@@ -1161,7 +1162,7 @@ function DeleteUserDialog({
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">Confirm once more — enter your PIN again. Step 2 of 2.</p>
             <Row label="Re-enter your PIN">
-              <Input inputMode="numeric" maxLength={4} value={pin2} autoFocus onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
+              <Input type="password" inputMode="numeric" maxLength={4} value={pin2} autoFocus onChange={(e) => setPin2(e.target.value.replace(/\D/g, ""))} placeholder="••••" />
             </Row>
             <DialogFooter><Button size="sm" variant="destructive" onClick={checkSecond}>Verify</Button></DialogFooter>
           </div>
